@@ -100,6 +100,9 @@ export default function App() {
 
   // Goal explosion cinematic state
   const [celebrationMessage, setCelebrationMessage] = useState<{ title: string; subtitle: string; isGoal: boolean } | null>(null);
+  
+  // Ripple waves for action click triggers
+  const [btnRipples, setBtnRipples] = useState<{ id: number; x: number; y: number }[]>([]);
 
   const isReceivingUpdate = React.useRef(false);
 
@@ -1242,6 +1245,21 @@ export default function App() {
     setPhase("resolution");
   };
 
+  // Click handler that triggers a ripple effect before acknowledging celebration
+  const handleCelebrationClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const id = Date.now();
+    setBtnRipples((prev) => [...prev, { id, x, y }]);
+    
+    // Precise brief delay so the user clearly registers the aesthetic ripple wave
+    setTimeout(() => {
+      handleAcknowledgeResolution();
+      setBtnRipples([]);
+    }, 400);
+  };
+
   // CONFIRM ACTION OVER TO START NEXT ACTIONS
   const handleAcknowledgeResolution = () => {
     setCelebrationMessage(null);
@@ -1909,9 +1927,79 @@ export default function App() {
               <div className="absolute top-0 left-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
               <div className="absolute bottom-0 right-0 w-24 h-24 bg-teal-500/10 rounded-full blur-xl pointer-events-none" />
 
-              <span className="text-6xl block mb-4 animate-bounce">
-                {celebrationMessage.isGoal ? "⚽" : "🧤"}
-              </span>
+              {/* Animated Floating Emojis Burst */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center">
+                {Array.from({ length: 14 }).map((_, i) => {
+                  const emojis = celebrationMessage.isGoal 
+                    ? ["⚽", "🥳", "🎉", "🔥", "🥅", "⚡", "🏆", "🌟", "📣", "🤩"]
+                    : ["🧤", "🛡️", "🚫", "💪", "👊", "💥", "⚡", "👑", "🎩", "🎯"];
+                  const emoji = emojis[i % emojis.length];
+                  
+                  // Vary coordinates and timing for a genuine burst/fading upward float
+                  const angle = (i / 14) * Math.PI * 2;
+                  const distance = 90 + Math.random() * 110;
+                  const targetX = Math.cos(angle) * distance;
+                  const targetY = Math.sin(angle) * distance - 120; // Float upwards and outwards
+
+                  return (
+                    <motion.span
+                      key={i}
+                      className="absolute text-lg sm:text-2xl md:text-3xl select-none filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)]"
+                      initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+                      animate={{ 
+                        opacity: [0, 1, 1, 0], 
+                        scale: [0.1, 1.4, 1.1, 0.2], 
+                        x: [0, targetX], 
+                        y: [0, targetY],
+                        rotate: [0, Math.random() * 720 - 360]
+                      }}
+                      transition={{ 
+                        duration: 2.5, 
+                        delay: i * 0.08, 
+                        ease: "easeOut",
+                        repeat: Infinity,
+                        repeatDelay: 0.8
+                      }}
+                    >
+                      {emoji}
+                    </motion.span>
+                  );
+                })}
+              </div>
+
+              {/* Dynamic Scaling Hero Emoji with pulsate ripple */}
+              <div className="relative inline-block mb-6 z-10">
+                <motion.div
+                  className="absolute inset-0 bg-yellow-500/20 rounded-full blur-xl filter"
+                  animate={{
+                    scale: [1, 1.8, 1],
+                    opacity: [0.4, 0.8, 0.4]
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                />
+                
+                <motion.div
+                  className="text-5xl sm:text-6xl md:text-7xl block relative select-none cursor-pointer"
+                  animate={{
+                    scale: [1, 1.25, 0.9, 1.15, 1],
+                    rotate: [0, 15, -15, 8, -8, 0],
+                    y: [0, -12, 0, -5, 0]
+                  }}
+                  transition={{
+                    duration: 2.2,
+                    repeat: Infinity,
+                    repeatDelay: 0.5,
+                    ease: "easeInOut",
+                  }}
+                  whileHover={{ scale: 1.4, rotate: 360 }}
+                >
+                  {celebrationMessage.isGoal ? "⚽" : "🧤"}
+                </motion.div>
+              </div>
 
               <h3 className="text-2xl md:text-3xl font-serif font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-200">
                 {celebrationMessage.title}
@@ -1922,11 +2010,32 @@ export default function App() {
               </p>
 
               <button
-                onClick={handleAcknowledgeResolution}
+                onClick={handleCelebrationClick}
                 id="acknowledge_celebration_button"
-                className="mt-6 px-10 py-3 bg-amber-600 hover:bg-amber-500 text-black font-extrabold rounded text-xs md:text-sm cursor-pointer transition-all duration-150 transform hover:scale-105 active:scale-95 hover:shadow-[0_0_20px_rgba(245,158,11,0.5)] border-none shadow-md"
+                className="relative overflow-hidden mt-6 px-10 py-3 bg-amber-600 hover:bg-amber-500 text-black font-extrabold rounded text-xs md:text-sm cursor-pointer transition-all duration-150 transform hover:scale-105 active:scale-95 hover:shadow-[0_0_20px_rgba(245,158,11,0.5)] border-none shadow-md"
               >
-                متابعة تكتيك اللقاء الكروي ➔
+                {/* Visual ripple waves */}
+                {btnRipples.map((ripple) => (
+                  <motion.span
+                    key={ripple.id}
+                    initial={{ scale: 0, opacity: 0.65 }}
+                    animate={{ scale: 6, opacity: 0 }}
+                    transition={{ duration: 0.45, ease: "easeOut" }}
+                    className="absolute bg-amber-200/50 rounded-full pointer-events-none"
+                    style={{
+                      left: ripple.x,
+                      top: ripple.y,
+                      width: 40,
+                      height: 40,
+                      x: "-50%",
+                      y: "-50%",
+                    }}
+                  />
+                ))}
+                <span className="relative z-10 flex items-center justify-center gap-1.5">
+                  <span>متابعة تكتيك اللقاء الكروي</span>
+                  <span>➔</span>
+                </span>
               </button>
             </motion.div>
           </motion.div>

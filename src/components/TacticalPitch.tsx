@@ -64,6 +64,8 @@ export default function TacticalPitch({
   onDrawCard
 }: TacticalPitchProps) {
 
+  const [isPeekMode, setIsPeekMode] = React.useState(false);
+
   // Helper to render AI Slots
   const renderAiSlot = (idx: number, isMobile: boolean = false) => {
     const slot = aiSlots[idx];
@@ -73,10 +75,6 @@ export default function TacticalPitch({
     
     return (
       <div key={`ai_pitch_${idx}`} className={`flex flex-col items-center gap-1 w-full ${isMobile ? 'max-w-[75px] xs:max-w-[85px] sm:max-w-[100px]' : 'max-w-[120px]'}`} id={`ai_slot_pos_${idx}`}>
-        <span className="text-[8px] md:text-[9px] font-bold text-slate-500 truncate w-full text-center">
-          {isMobile ? SLOT_POSITIONS[idx].icon + " " + SLOT_POSITIONS[idx].label.split(" (")[0] : SLOT_POSITIONS[idx].label}
-        </span>
-
         <div
           onClick={() => selectable && onSelectSlot(idx)}
           className={`relative w-full aspect-[2/3] rounded-xl border flex flex-col items-center justify-center transition-all ${
@@ -99,8 +97,8 @@ export default function TacticalPitch({
             />
           ) : (
             <div className="text-center p-1.5 flex flex-col items-center justify-center gap-0.5 text-slate-700">
-              <span className="text-sm">{SLOT_POSITIONS[idx].icon}</span>
-              <span className="text-[7.5px] font-medium leading-tight text-[#e0e0e0]/30">خالٍ</span>
+              <span className="text-sm">🛡️</span>
+              <span className="text-[7px] font-bold text-[#e0e0e0]/20">خصم فارغ</span>
             </div>
           )}
 
@@ -126,12 +124,10 @@ export default function TacticalPitch({
     const isSelected = selectedSlotIdx === idx;
     const isActiveAttacker = phase === "attacking" && currentAttackerIdx === idx;
 
+    const peekingThisCard = isPeekMode && !slot.isRevealed;
+
     return (
       <div key={`player_pitch_${idx}`} className={`flex flex-col items-center gap-1 w-full ${isMobile ? 'max-w-[75px] xs:max-w-[85px] sm:max-w-[100px]' : 'max-w-[120px]'}`} id={`player_slot_pos_${idx}`}>
-        <span className="text-[8px] md:text-[9px] font-bold text-slate-300 truncate w-full text-center">
-          {isMobile ? SLOT_POSITIONS[idx].icon + " " + SLOT_POSITIONS[idx].label.split(" (")[0] : SLOT_POSITIONS[idx].label}
-        </span>
-
         <div
           onClick={() => selectable && onSelectSlot(idx)}
           className={`relative w-full aspect-[2/3] rounded-xl border flex flex-col items-center justify-center transition-all ${
@@ -149,18 +145,25 @@ export default function TacticalPitch({
           }`}
         >
           {slot.card ? (
-            <GameCard
-              card={slot.card}
-              isRevealed={slot.isRevealed}
-              size="pitch"
-              isSelected={isSelected}
-              disabled={!selectable}
-              className={isActiveAttacker ? "border-emerald-400 ring-4 ring-emerald-500/40" : ""}
-            />
+            <div className="relative w-full h-full">
+              <GameCard
+                card={slot.card}
+                isRevealed={slot.isRevealed || isPeekMode}
+                size="pitch"
+                isSelected={isSelected}
+                disabled={!selectable}
+                className={isActiveAttacker ? "border-emerald-400 ring-4 ring-emerald-500/40" : ""}
+              />
+              {peekingThisCard && (
+                <div className="absolute top-0 right-0 bg-amber-500 text-black text-[7px] font-black px-1.5 py-0.5 rounded-bl rounded-tr-xl z-30 shadow animate-pulse pointer-events-none select-none">
+                  👁️ معاينة
+                </div>
+              )}
+            </div>
           ) : (
-            <div className="text-center p-1.5 flex flex-col items-center justify-center gap-0.5 text-slate-600 group hover:text-slate-400">
-              <span className="text-xs group-hover:scale-110 transition-transform">➕</span>
-              <span className="text-[7.5px] font-medium leading-tight">شغل</span>
+            <div className="text-center p-1.5 flex flex-col items-center justify-center gap-0.5 text-slate-500 group hover:text-white transition-colors">
+              <span className="text-xs group-hover:scale-115 transition-transform duration-200">➕</span>
+              <span className="text-[7.5px] font-black leading-tight text-white/35">تنزيل لاعب</span>
             </div>
           )}
 
@@ -299,6 +302,26 @@ export default function TacticalPitch({
               <span className="text-[10px] uppercase font-mono tracking-wider text-[#e0e0e0]/30 font-semibold font-sans">الهوية التكتيكية</span>
               <h4 className="text-xs font-bold text-emerald-400">{playerTeam}</h4>
             </div>
+          </div>
+
+          {/* Player Controls Panel with Inspect Toggle */}
+          <div className="flex items-center justify-between mb-3 px-1">
+            <button
+              onClick={() => setIsPeekMode(!isPeekMode)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-black transition-all cursor-pointer border shadow-sm ${
+                isPeekMode 
+                  ? "bg-amber-500/10 text-amber-400 border-amber-500/30 ring-2 ring-amber-500/20" 
+                  : "bg-[#121412] text-slate-400 border-white/5 hover:text-white hover:border-white/10"
+              }`}
+              title="اضغط لمعاينة جميع اللاعبين المخفيين في ملعبك سراً دون كشفهم للخصم"
+              id="player_secret_peek_btn"
+            >
+              <span className="text-xs">👁️</span>
+              <span>{isPeekMode ? "إغلاق المعاينة السرية" : "معاينة كروت ملعبك سرياً"}</span>
+            </button>
+            <span className="text-[9px] md:text-[10px] text-[#e0e0e0]/30 font-bold uppercase tracking-wider font-sans">
+              خطة التشكيلة الخماسية للملعب
+            </span>
           </div>
 
           {/* Player Pitch Slots - Horizontal Side-by-Side row alignment (Requirement 1) */}
