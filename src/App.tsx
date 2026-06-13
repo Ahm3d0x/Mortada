@@ -695,8 +695,9 @@ export default function App() {
       setPhase("player_turn");
       setCardsDrawnThisTurn(0);
       setPlayerMovesLeft(3);
+      setIsHandExpanded(true);
       addLog("صافرة ركلة البداية! تم إنهاء مرحلة التسخين واللوحة جاهزة. دورك الآن كمدرب مهاجم.", "success");
-      addLog("يرجى البدء بسحب كارتين من الباقات العليا (كروت لاعبين أو كروت خاصة) للعب مهاراتك.", "info");
+      addLog("يمكنك اللعب من يدك مباشرة أو سحب كروت لدعم مهاراتك بشكل مرن.", "info");
     }
   };
 
@@ -778,12 +779,6 @@ export default function App() {
   // HANDLE CARD CLICK SELECTIONS
   const handleSelectHandCard = (id: string) => {
     if (phase === "ai_turn" || phase === "resolution") return;
-
-    // Reject selections if cards not drawn first
-    if (phase === "player_turn" && cardsDrawnThisTurn < 2) {
-      addLog("يرجى سحب كارتين أولاً لبدء حركات اللعب التكتيكي!", "warning");
-      return;
-    }
 
     const card = playerHand.find((c) => c.id === id);
     if (!card) return;
@@ -1551,8 +1546,9 @@ export default function App() {
         setPhase("player_turn");
         setCardsDrawnThisTurn(0);
         setPlayerMovesLeft(3);
+        setIsHandExpanded(true);
         setTurnCount((prev) => prev + 1);
-        addLog(`⚽ انتهى دور الخصم بلا إصابات لخطوطك. عدنا لدورك! يرجى السحب أولاً لبدء حركات الدور ${turnCount + 1}`, "success");
+        addLog(`⚽ انتهى دور الخصم بلا إصابات لخطوطك. عدنا لدورك! حظا موفقا في الدور ${turnCount + 1}`, "success");
       }, 1200);
 
     }, 1200);

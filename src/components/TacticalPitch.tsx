@@ -194,16 +194,27 @@ export default function TacticalPitch({
   };
 
   return (
-    <div className="w-full bg-[#0a0c0a] rounded-2xl p-4 md:p-6 border border-white/10 shadow-2xl overflow-hidden relative">
-      {/* Pitch Lines Decoration */}
-      <div className="absolute inset-0 border border-white/5 mx-6 my-6 pointer-events-none rounded-xl" />
-      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-white/5 pointer-events-none" />
-      <div className="absolute w-24 md:w-36 h-24 md:h-36 rounded-full border border-white/5 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
-      <div className="absolute w-8 h-8 rounded-full bg-white/5 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+    <div className="w-full bg-gradient-to-b from-[#0c2a16] via-[#071d0e] to-[#041208] rounded-2xl p-4 md:p-6 border border-emerald-500/35 shadow-[0_16px_48px_rgba(0,0,0,0.65)] overflow-hidden relative">
+      {/* Vertical Grass Turf Stripes (Requirement 7) */}
+      <div className="absolute inset-0 opacity-5 pointer-events-none bg-[linear-gradient(90deg,transparent_50%,rgba(255,255,255,0.15)_50%)] bg-[size:10%_100%]" />
+      
+      {/* Pitch White Lines Markings (Premium tactical aesthetics) */}
+      <div className="absolute inset-0 border-2 border-white/10 mx-4 my-4 pointer-events-none rounded-xl" />
+      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] bg-white/10 pointer-events-none" />
+      <div className="absolute w-28 md:w-44 h-28 md:h-44 rounded-full border-2 border-white/10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+      <div className="absolute w-2.5 h-2.5 rounded-full bg-white/40 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-pulse" />
+
+      {/* Top Penalty Areas (Box 18 & Box 6) */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 w-56 md:w-80 h-16 md:h-24 border-2 border-white/10 border-t-0 pointer-events-none rounded-b-md" />
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 w-28 md:w-40 h-6 md:h-8 border-2 border-white/10 border-t-0 pointer-events-none" />
+      
+      {/* Bottom Penalty Areas (Box 18 & Box 6) */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-56 md:w-80 h-16 md:h-24 border-2 border-white/10 border-b-0 pointer-events-none rounded-t-md" />
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-28 md:w-40 h-6 md:h-8 border-2 border-white/10 border-b-0 pointer-events-none" />
 
       {/* Goal netting structures */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 w-48 h-8 bg-black/40 border border-white/5 border-t-0 rounded-b-xl opacity-20 pointer-events-none" />
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-48 h-8 bg-black/40 border border-white/5 border-b-0 rounded-t-xl opacity-20 pointer-events-none" />
+      <div className="absolute top-1 left-1/2 -translate-x-1/2 w-24 md:w-36 h-3 bg-white/10 border border-white/20 border-t-0 rounded-b pointer-events-none" />
+      <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-24 md:w-36 h-3 bg-white/10 border border-white/20 border-b-0 rounded-t pointer-events-none" />
 
       <div className="flex flex-col gap-6 relative z-10">
 
@@ -226,24 +237,29 @@ export default function TacticalPitch({
             </div>
           </div>
 
+          {/* AI Pitch Slots - Restored horizontal alignment (Faced-down / hidden at the top) */}
+          <div className="grid grid-cols-5 gap-1 md:gap-3 justify-items-center bg-black/35 p-2 md:p-3 rounded-xl border border-rose-500/15 shadow-inner overflow-hidden mb-3">
+            {aiSlots.map((_, idx) => renderAiSlot(idx, true))}
+          </div>
+
           {/* Symmetrical Opponent Status Bar (Locked indicator) */}
-          <div className="w-full bg-rose-950/20 border border-rose-500/10 rounded-xl p-2.5 flex flex-col xs:flex-row items-center justify-between gap-2 mt-2.5">
+          <div className="w-full bg-rose-950/20 border border-rose-500/10 rounded-xl p-2.5 flex flex-col xs:flex-row items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="text-xs">🤖</span>
-              <span className="text-[10px] md:text-xs text-rose-300 font-bold">حالة الكروت والمجموعات للمنافس</span>
+              <span className="text-[10px] md:text-xs text-rose-300 font-bold">كروت ومجموعات المنافس</span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-1 bg-black/40 px-2 py-0.5 rounded-md text-[9px] font-mono border border-white/5">
                 <span className="text-rose-400">👝</span>
-                <span className="text-white font-bold">{aiHandCount} كروت باليد</span>
+                <span className="text-white font-bold">{aiHandCount} باليد</span>
               </div>
               <div className="flex items-center gap-1 bg-black/40 px-2 py-0.5 rounded-md text-[9px] font-mono border border-white/5">
                 <span className="text-amber-400">🏃‍♂️</span>
-                <span className="text-white font-bold">{playerDeckCount} باقة اللاعبين</span>
+                <span className="text-white font-bold">{playerDeckCount} الباقة</span>
               </div>
               <div className="flex items-center gap-1 bg-black/40 px-2 py-0.5 rounded-md text-[9px] font-mono border border-white/5">
                 <span className="text-teal-400">⚡</span>
-                <span className="text-white font-bold">{specialDeckCount} باقة التكتيك</span>
+                <span className="text-white font-bold">{specialDeckCount} كروت التكتيك</span>
               </div>
             </div>
           </div>

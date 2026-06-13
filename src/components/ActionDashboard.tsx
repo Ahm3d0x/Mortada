@@ -62,9 +62,7 @@ export default function ActionDashboard({
       case "player_turn":
         return {
           title: "دورك التكتيكي جاري 🧠",
-          desc: cardsDrawnThisTurn < 2 
-            ? "اسحب أولاً كارتين من لوحة كونسول المدرب لبدء تخطيط الهجوم!" 
-            : "لديك 3 حركات حرة حاسمة في دورك.",
+          desc: "يمكنك سحب حتى كارتين واللعب بكل حرية طالما لديك حركات في دورك!",
           bg: "bg-[#101410]/95 border-[#10b981]/20",
           badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
         };
@@ -178,7 +176,7 @@ export default function ActionDashboard({
             <button
               onClick={onDeclareAttack}
               id="declare_tactical_attack_button"
-              disabled={movesLeft < 2 || cardsDrawnThisTurn < 2}
+              disabled={movesLeft < 2}
               className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 text-white rounded-xl font-black text-xs md:text-sm shadow bg-rose-950/20 cursor-pointer hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed border-none"
             >
               <Swords className="w-4 h-4 text-rose-300" />
@@ -189,8 +187,8 @@ export default function ActionDashboard({
             <button
               onClick={onEndTurn}
               id="end_player_turn_button"
-              disabled={cardsDrawnThisTurn < 1}
-              className="px-3.5 py-2.5 bg-[#121412] text-slate-400 hover:text-white rounded-xl font-bold text-xs border border-white/5 hover:border-white/10 transition-colors shadow-md cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              disabled={false}
+              className="px-3.5 py-2.5 bg-[#121412] text-slate-400 hover:text-white rounded-xl font-bold text-xs border border-white/5 hover:border-white/10 transition-colors shadow-md cursor-pointer"
             >
               <span>إنهاء دور المدرب 🏁</span>
             </button>
