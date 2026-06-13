@@ -24,21 +24,21 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
   const getPlayerAdvantages = (p: PlayerCard) => {
     const advantages: string[] = [];
     if (p.isLegend) {
-      advantages.push("👑 أسطورة الملاعب: يتمتع بخصائص خارقة وحصانة تكتيكية بنسبة 100%.");
+      advantages.push("👑 أسطورة أساسية بقوة استثنائية.");
     }
     if (p.attack >= 85) {
-      advantages.push("🔥 هداف قناص: دقة تصويب هائلة وقدرة فائقة على ترجمة أنصاف الفرص لأهداف محققة.");
+      advantages.push("⚔️ هجوم خارق وتهديف حاسم.");
     }
     if (p.defense >= 85) {
-      advantages.push("🛡️ صخرة دفاعية: ذكاء حاد في قطع الكرات وإحباط غارات المهاجمين بمثالية.");
+      advantages.push("🛡️ دفاع صلب وقطع كرات ممتاز.");
     }
     if (Math.abs(p.attack - p.defense) <= 15) {
-      advantages.push("🔄 محرك متزن: قدرة هائلة على الربط والدعم المتواصل من الدفاع للهجوم.");
+      advantages.push("🔄 لاعب متزن تكتيكياً.");
     }
     if (p.role === "goalkeeper") {
-      advantages.push("🧤 حامي العرين: ردود فعل خارقة تمنع أثقل التسديدات وتثبت النتيجة.");
+      advantages.push("🧤 حارس مرمى بحراسة فائقة.");
     }
-    advantages.push("📊 تكتيك مرن: يمكن تنزيله في أي خانة بالملعب بمجرد سحبه وتتحول خانته لمركزه فوراً.");
+    advantages.push("📊 تكتيك مرن بالمركز.");
     return advantages;
   };
 
@@ -159,7 +159,7 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
               {/* Title Section */}
               <div>
                 <span className={`text-[10px] md:text-sm font-black tracking-wider uppercase ${player?.isLegend ? "text-amber-400" : "text-emerald-400"} font-sans`}>
-                  {player ? `${player.roleArabic} التشكيلة الفائزة` : "كروت السخرية السحرية"}
+                  {player ? `${player.roleArabic}` : "تكتيك خاص"}
                 </span>
                 <h2 className="text-2xl font-black text-white mt-1">
                   {player ? player.name : special ? special.name : ""}
@@ -176,7 +176,7 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
                         <span>{player.attack}</span>
                         <Swords className="w-3.5 h-3.5" />
                       </div>
-                      <span className="text-slate-400 font-bold">القوة الهجومية والتصويب</span>
+                      <span className="text-slate-400 font-bold">هجوم ⚔️</span>
                     </div>
                     <div className="w-full h-2 bg-black rounded-full overflow-hidden">
                       <motion.div
@@ -195,7 +195,7 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
                         <span>{player.defense}</span>
                         <Shield className="w-3.5 h-3.5" />
                       </div>
-                      <span className="text-slate-400 font-bold">الصلابة الدفاعية والتدخلات</span>
+                      <span className="text-slate-400 font-bold">دفاع 🛡️</span>
                     </div>
                     <div className="w-full h-2 bg-black rounded-full overflow-hidden">
                       <motion.div
@@ -213,7 +213,7 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
               <div>
                 <div className="flex items-center justify-start gap-1.5 flex-row-reverse text-slate-400 mb-2">
                   <Info className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-black">المميزات والفوائد التكتيكية:</span>
+                  <span className="text-xs font-black">تفاصيل الكرت:</span>
                 </div>
                 
                 <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
@@ -226,10 +226,7 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
                   ) : special ? (
                     <>
                       <div className="text-xs text-slate-300 bg-white/5 p-2.5 rounded-lg leading-relaxed">
-                        ✨ <strong className="text-teal-400">تأثير الكرت السحري:</strong> {special.description}
-                      </div>
-                      <div className="text-xs text-slate-300 bg-white/5 p-2.5 rounded-lg leading-relaxed">
-                        🔄 <strong className="text-teal-400">طريقة الاستخدام:</strong> اسحب الكارت ليدك أولاً من الكونسول الفني، ثم انقر عليه لتفعل تأثير السحر أو أحرقه للتخلص من لاعب الخصم.
+                        ✨ {special.description}
                       </div>
                     </>
                   ) : null}
@@ -243,7 +240,7 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
                 onClick={onClose}
                 className="w-full py-2.5 bg-gradient-to-r from-[#1b2b1e] to-black hover:from-[#26412b] border border-emerald-500/20 hover:border-emerald-500/40 text-emerald-400 text-xs font-black rounded-xl transition-all cursor-pointer shadow-md"
               >
-                رجوع وتخطي المعاينة الفنية
+                إغلاق ❌
               </button>
             </div>
           </div>

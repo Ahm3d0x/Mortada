@@ -4,8 +4,6 @@
  */
 
 import React from "react";
-import { motion } from "motion/react";
-import { Layers, HelpCircle, AlertCircle, Zap, ShieldAlert, Swords, HeartHandshake } from "lucide-react";
 import { PontoCard } from "../types";
 
 interface DrawDecksDashboardProps {
@@ -38,125 +36,8 @@ export default function DrawDecksDashboard({
   const isPlayerTurn = phase === "player_turn" || phase === "warmup";
   const isDrawPhase = isPlayerTurn && phase === "player_turn" && cardsDrawnThisTurn < 2;
 
-  // Build the live instruction message based on the exact gameplay state
-  const getCoachGuideline = () => {
-    if (phase === "warmup") {
-      return {
-        title: "تجهيز التكتيك الأولي",
-        main: "مرحلة التسخين نشطة! اسحب 5 كروت لاعبين لتعبئة خطتك بالمركز المناسب لك قبل ركلة البداية.",
-        action: "💡 اضغط على زر 'لاعب 🏃‍♂️' بلوحة التحكم لسحب كارت لاعب يوضع مقلوباً وتجهيز مراكز التشكيلة."
-      };
-    }
-
-    if (phase === "player_turn") {
-      if (selectedHandCardId) {
-        return {
-          title: "تنزيل الكارت المختار",
-          main: "لقد قمت بتحديد كارت من يدك وتقوم الآن بتوجيه الموضع المناسب له على أرضية الملعب.",
-          action: "👉 انقر فوق أحد المربعات في صفك بالملعب لتنزيل هذا اللاعب مكانه (يكلف حركة واحدة)."
-        };
-      }
-
-      if (selectedPitchSlotIdx !== null) {
-        return {
-          title: "التسديد والاستعداد للهجوم",
-          main: "لقد حددت لاعب من ملعبك كقائد للهجوم المباغت على مرمى الخصم.",
-          action: "👉 اضغط الآن على زر 'إعلان هجوم تكتيكي ⚔️' في الشريط بالمرتصف لبدء المعركة الكروية!"
-        };
-      }
-
-      if (cardsDrawnThisTurn < 2) {
-        return {
-          title: "عملية سحب الكروت المرنة",
-          main: `لديك في دورك سحبتان إضافيتان. يمكنك السحب والعب بالترتيب الذي تفضله بشكل مرن. سحبت (${cardsDrawnThisTurn}/2) حتى الآن.`,
-          action: "👉 انقر مباشرة على باقة اللاعبين 🎴 أو باقة التكتيك ⚡ في اليمين لسحب الكروت في أي وقت!"
-        };
-      }
-
-      return {
-        title: "مرحلة الحركات الحرة",
-        main: `لقد نفذت حالياً (${3 - playerMovesLeft}/3) من حركاتك التكتيكية لهذا الدور. يمكنك تنظيم تشكيلة الملعب أو شن غارة هجومية مدمرة.`,
-        action: "💪 للتبديل: اضغط لاعب بيدك ثم مركز بالملعب | ⚔️ للهجوم: انقر على لاعب مقلوب بملعبك ثم انقر 'إعلان هجوم تكتيكي' بالمرتصف."
-      };
-    }
-
-    if (phase === "attacking") {
-      return {
-        title: "دعم الهجمة والتسديد الحاسم",
-        main: "أنت الآن في مرحلة هجومية شرسة! قواك الضاربة ومعزز المرتدة جاهزون لشق شباك الخصم.",
-        action: "⚽ اضغط زر 'أطلق تسديدة الهدف ⚽!' بالمنتصف لاحتساب الحكم ومعرفة ما إذا كنت ستحرز هدفاً، أو استخدم حركتك المتبقية لكشف لاعب آخر بالملعب."
-      };
-    }
-
-    if (phase === "ai_attacking") {
-      return {
-        title: "دفاع مستميت عاجل",
-        main: "الخصم يشن هجوماً حاداً على شباك حامي عرينك بالملعب ولديك 3 حركات صد دفاعية مفاجئة!",
-        action: "🛡️ انقر على كروت اللاعبين المقلوبة بملعبك لكشفها فوراً (تصدي ورفع الدفاع ميكانيكياً) أو العب كارت تكتيك دفاعي من يدك لكسر هجمتهم، ثم اضغط 'تأكيد خطة قطع الكرة'."
-      };
-    }
-
-    if (phase === "ai_turn") {
-      return {
-        title: "انتظار تكتيك الخصم",
-        main: "المدرب المنافس يقوم بسحب كروت وتوجيه التبديلات الصامتة لمحاصرة فريقك.",
-        action: "⏳ ترقب قليلاً ريثما ينتهي المدرب المنافس من لعب أوراقه لتبدأ ردود أفعالك."
-      };
-    }
-
-    if (phase === "resolution") {
-      return {
-        title: "حسم ودراسة القرار التكتيكي",
-        main: "شاشات احتفال الحكم ونقاط الهجوم مقابل الدفاع معروضة الآن.",
-        action: "👉 انقر على زر 'متابعة تكتيك اللقاء الكروي' بالنافذة المنبثقة للاستمرار باللعب وتحويل الأدوار."
-      };
-    }
-
-    return {
-      title: "المباراة منتهية",
-      main: "صافرة النهاية أغلقت اللوح الإجمالي.",
-      action: "🏆 اضغط زر 'خوض مقابلة جديدة للبطولة!' لإعادة التحدي."
-    };
-  };
-
-  const advice = getCoachGuideline();
-  const [showAdvice, setShowAdvice] = React.useState(false);
-
   return (
-    <div className="flex flex-col gap-4" id="decks_dashboard_main_container">
-      
-      {/* LEFT: Live Dynamic Onboarding Coach Guidelines */}
-      <div className="bg-[#0c0d0c] border border-white/5 rounded-xl p-4 flex flex-col items-stretch gap-2 text-right">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => setShowAdvice(!showAdvice)}
-            className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-300 font-bold text-xs rounded border border-emerald-500/20 transition-all cursor-pointer flex items-center gap-1.5"
-          >
-            <HeartHandshake className="w-4 h-4" />
-            <span>{showAdvice ? "إخفاء النصائح ❌" : "مساعد تكتيكي؟ 📋 عرض النصائح الكروية"}</span>
-          </button>
-          
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] text-emerald-300 font-extrabold bg-emerald-950/80 border border-emerald-500/30 px-3 py-1 rounded">
-              توجيهات المدرب المساعد ✨
-            </span>
-            <h4 className="text-sm md:text-base font-extrabold text-[#fdfdfd]">{advice.title}</h4>
-          </div>
-        </div>
-
-        {showAdvice && (
-          <div className="pt-2 border-t border-white/5 space-y-2 animate-fadeIn">
-            <p className="text-xs text-[#e0e0e0]/70 leading-relaxed">
-              {advice.main}
-            </p>
-            <div className="text-[11px] text-amber-400 font-medium flex items-center justify-end gap-1">
-              <span>{advice.action}</span>
-              <span>⚡</span>
-            </div>
-          </div>
-        )}
-      </div>
-
+    <div className="flex flex-col gap-2" id="decks_dashboard_main_container">
       {/* RIGHT: Beautiful Interactive Deck Stacks */}
       <div className="bg-[#121412] border border-white/10 rounded-xl p-4 flex items-center justify-around gap-2 relative overflow-hidden">
         

@@ -20,6 +20,16 @@ interface GameCardProps {
   onInspect?: () => void;
 }
 
+const getShortRole = (role: string) => {
+  switch (role) {
+    case "goalkeeper": return "🧤 حارس";
+    case "defender": return "🛡️ دفاع";
+    case "midfielder": return "⚽ وسط";
+    case "attacker": return "🔥 هجوم";
+    default: return "🏃‍♂️ لاعب";
+  }
+};
+
 export default function GameCard({
   card,
   isRevealed,
@@ -55,7 +65,7 @@ export default function GameCard({
       case "sm":
         return "w-24 h-36 text-[10px]";
       case "pitch":
-        return "w-full max-w-[110px] h-[160px] xs:w-[110px] xs:h-[160px] md:w-[130px] md:h-[190px] text-[10.5px]";
+        return "w-full h-full text-[10.5px]";
       case "lg":
         return "w-44 h-64 text-sm";
       default: // md
@@ -66,9 +76,9 @@ export default function GameCard({
   const getPaddingClasses = () => {
     switch (size) {
       case "sm":
-        return "p-2";
+        return "p-1.5";
       case "pitch":
-        return "p-2 md:p-3";
+        return "p-1.5 xs:p-2 md:p-2.5";
       case "lg":
         return "p-5";
       default: // md
@@ -230,7 +240,7 @@ export default function GameCard({
           {isPlayer && (card as PlayerCard).isLegend && (
             <div className="absolute top-1.5 left-1.5 text-amber-500 text-[8px] font-black px-1.5 py-0.5 border border-amber-500/35 rounded bg-amber-950/25 z-10 flex items-center gap-0.5">
               <span>★</span>
-              <span>أسطورة</span>
+              {size !== "pitch" && <span>أسطورة</span>}
             </div>
           )}
 
@@ -252,8 +262,8 @@ export default function GameCard({
                       {player.team}
                     </span>
                   )}
-                  <span className={`px-1 rounded text-[8px] font-black border tracking-tight ${roleColors[player.role] || ""} ${size === "pitch" ? "mx-auto text-[8.5px] px-1.5 py-0.5" : ""}`}>
-                    {player.roleArabic}
+                  <span className={`px-1 rounded text-[8px] font-black border tracking-tight ${roleColors[player.role] || ""} ${size === "pitch" ? "mx-auto text-[8px] px-1 py-0.5" : ""}`}>
+                    {size === "pitch" ? getShortRole(player.role) : player.roleArabic}
                   </span>
                 </div>
               );
@@ -263,13 +273,19 @@ export default function GameCard({
               const special = card as SpecialCard;
               return (
                 <div className={`flex items-center justify-between z-10 w-full ${size === "pitch" ? "mb-0.5" : "mb-1"}`}>
-                  <span className="text-[8.5px] text-teal-400/80 font-black flex items-center gap-0.5 max-w-[65%] whitespace-nowrap overflow-hidden text-ellipsis">
-                    <Sparkle className="w-2.5 h-2.5 animate-spin text-teal-400" />
-                    <span>{special.effectArabic}</span>
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-teal-500/10 border border-teal-400/20 text-teal-300">
-                    تأثير
-                  </span>
+                  {size !== "pitch" ? (
+                    <span className="text-[8.5px] text-teal-400/80 font-black flex items-center gap-0.5 max-w-[65%] whitespace-nowrap overflow-hidden text-ellipsis">
+                      <Sparkle className="w-2.5 h-2.5 animate-spin text-teal-400" />
+                      <span>{special.effectArabic}</span>
+                    </span>
+                  ) : (
+                    <span className="mx-auto text-[8px] text-teal-300 font-extrabold">⚡ تكتيك</span>
+                  )}
+                  {size !== "pitch" && (
+                    <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-teal-500/10 border border-teal-400/20 text-teal-300">
+                      تأثير
+                    </span>
+                  )}
                 </div>
               );
             })()
@@ -287,14 +303,14 @@ export default function GameCard({
                       size === "lg" 
                         ? "w-16 h-16 text-3xl" 
                         : size === "pitch" 
-                        ? "w-11 h-11 text-xl" 
+                        ? "w-8 h-8 text-sm xs:w-10 xs:h-10 xs:text-base md:w-11 md:h-11 md:text-xl" 
                         : "w-11 h-11 text-2xl"
                     } rounded-full bg-[#1a1c1a]/80 border border-white/5 shadow-inner`}
                   >
                     <span>{player.avatar}</span>
                   </motion.div>
                   <span className={`font-serif font-black mt-1 text-center text-white whitespace-nowrap overflow-hidden text-ellipsis w-full ${
-                    size === "lg" ? "text-base" : size === "pitch" ? "text-[11px] font-sans tracking-tight" : "text-xs"
+                    size === "lg" ? "text-base" : size === "pitch" ? "text-[9px] xs:text-[10px] md:text-[11px] font-sans tracking-tight" : "text-xs"
                   }`}>
                     {player.name}
                   </span>
@@ -312,7 +328,7 @@ export default function GameCard({
                       size === "lg" 
                         ? "w-14 h-14 text-3xl" 
                         : size === "pitch" 
-                        ? "w-9 h-9 text-xl" 
+                        ? "w-7 h-7 text-sm xs:w-8 h-8 xs:text-base md:w-9 md:h-9 md:text-xl" 
                         : "w-10 h-10 text-xl"
                     } rounded-full bg-black/40 border border-white/5`}
                   >
@@ -332,35 +348,41 @@ export default function GameCard({
           {isPlayer ? (
             (() => {
               const player = card as PlayerCard;
-              return (
-                <div className={`grid grid-cols-2 gap-1 bg-[#090b0a]/90 ${
-                  size === "pitch" ? "p-1 rounded-md" : "p-1.5 rounded-lg"
-                } border border-white/5 z-10 mt-0.5`}>
-                  
-                  {/* Attack stat banner */}
-                  <div className="flex flex-col items-center justify-center border-l border-white/5">
+              if (size === "pitch") {
+                return (
+                  <div className="flex items-center justify-center gap-1.5 bg-black/60 py-0.5 px-1 rounded-md border border-white/5 z-10 w-full">
                     <div className="flex items-center gap-0.5 text-rose-400">
-                      <span className={`font-mono font-black ${size === "pitch" ? "text-[12px]" : "text-xs"}`}>
+                      <span className="font-mono text-[9px] xs:text-[10px] sm:text-[11px] font-black">{player.attack}</span>
+                      <span className="text-[10px]">⚔️</span>
+                    </div>
+                    <div className="w-[1px] h-2.5 bg-white/10" />
+                    <div className="flex items-center gap-0.5 text-emerald-400">
+                      <span className="font-mono text-[9px] xs:text-[10px] sm:text-[11px] font-black">{player.defense}</span>
+                      <span className="text-[10px]">🛡️</span>
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div className="grid grid-cols-2 gap-1 bg-[#090b0a]/90 p-1.5 rounded-lg border border-white/5 z-10 mt-0.5">
+                  <div className="flex flex-col items-center justify-center border-l border-white/5">
+                    <div className="flex items-center gap-0.5 text-rose-400 font-bold">
+                      <span className="font-mono text-xs font-black">
                         {player.attack}
                       </span>
                       <Swords className="w-3 h-3 text-rose-500" />
                     </div>
-                    {size !== "pitch" && (
-                      <span className="text-[7.5px] text-[#e0e0e0]/40 mt-0.5 scale-90 font-bold">هجوم</span>
-                    )}
+                    <span className="text-[7.5px] text-[#e0e0e0]/40 mt-0.5 scale-90 font-bold">هجوم</span>
                   </div>
 
-                  {/* Defense stat banner */}
                   <div className="flex flex-col items-center justify-center">
-                    <div className="flex items-center gap-0.5 text-emerald-400">
-                      <span className={`font-mono font-black ${size === "pitch" ? "text-[12px]" : "text-xs"}`}>
+                    <div className="flex items-center gap-0.5 text-emerald-400 font-bold">
+                      <span className="font-mono text-xs font-black">
                         {player.defense}
                       </span>
                       <Shield className="w-3 h-3 text-emerald-500" />
                     </div>
-                    {size !== "pitch" && (
-                      <span className="text-[7.5px] text-[#e0e0e0]/40 mt-0.5 scale-90 font-bold font-sans">دفاع</span>
-                    )}
+                    <span className="text-[7.5px] text-[#e0e0e0]/40 mt-0.5 scale-90 font-bold font-sans">دفاع</span>
                   </div>
                 </div>
               );
@@ -368,6 +390,13 @@ export default function GameCard({
           ) : (
             (() => {
               const special = card as SpecialCard;
+              if (size === "pitch") {
+                return (
+                  <div className="bg-teal-950/20 py-0.5 px-1 border border-teal-500/25 rounded z-10 text-center w-full">
+                    <span className="text-[8px] text-teal-300 font-extrabold font-serif">⚡ مهارة</span>
+                  </div>
+                );
+              }
               return (
                 <div className="bg-[#1a1c1a]/95 p-1 rounded-md border border-white/5 z-10 text-right mt-1 flex-1 flex flex-col justify-center">
                   <p className="text-[8.5px] text-[#e0e0e0]/55 leading-tight line-clamp-3">

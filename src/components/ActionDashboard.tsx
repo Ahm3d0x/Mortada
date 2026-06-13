@@ -20,6 +20,8 @@ interface ActionDashboardProps {
   playerScore: number;
   buttonState?: any; // For compatibility
   aiScore: number;
+  isAttackBlocked?: boolean;
+  onForceEndAttack?: () => void;
 
   onConfirmLineup: () => void;
   onDeclareAttack: () => void;
@@ -41,6 +43,8 @@ export default function ActionDashboard({
   defensePower,
   playerScore,
   aiScore,
+  isAttackBlocked = false,
+  onForceEndAttack,
   onConfirmLineup,
   onDeclareAttack,
   onEndTurn,
@@ -153,8 +157,12 @@ export default function ActionDashboard({
       </div>
 
       {/* CENTER: Compact Status Description */}
-      <div className="hidden lg:block flex-1 text-right text-[11px] text-slate-400 truncate max-w-[280px]" title={currentStyle.desc}>
-        {currentStyle.desc}
+      <div className="hidden lg:block flex-1 text-right text-[11px] text-slate-400 truncate max-w-[280px]" title={isAttackBlocked ? "🧤 تم صد تسديدتك! الخصم تفوّق دفاعياً. هل تريد كشف مهاجم آخر وتعزيز القوة أم الاستسلام للصد وإنهاء المحاولة؟" : currentStyle.desc}>
+        {isAttackBlocked ? (
+          <span className="text-amber-400 font-bold">🧤 تم صد تسديدتك! عزز الهجوم أو أنهِه</span>
+        ) : (
+          currentStyle.desc
+        )}
       </div>
 
       {/* RIGHT SECTION: Compact Action Buttons */}
@@ -196,13 +204,24 @@ export default function ActionDashboard({
         )}
 
         {phase === "attacking" && (
-          <button
-            onClick={onResolveAttack}
-            id="trigger_shooting_resolution_button"
-            className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 text-white font-black rounded-xl text-xs md:text-sm flex items-center justify-center gap-1 shadow-lg border-none cursor-pointer animate-pulse"
-          >
-            <span>تسديدة حاسمة ⚽</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {isAttackBlocked && onForceEndAttack && (
+              <button
+                onClick={onForceEndAttack}
+                id="force_end_attack_button"
+                className="px-3 py-2 bg-rose-950/40 hover:bg-rose-900/40 border border-rose-500/30 text-rose-300 rounded-xl font-bold text-xs cursor-pointer transition-colors"
+              >
+                <span>إنهاء الهجمة 🛑</span>
+              </button>
+            )}
+            <button
+              onClick={onResolveAttack}
+              id="trigger_shooting_resolution_button"
+              className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 text-white font-black rounded-xl text-xs md:text-sm flex items-center justify-center gap-1 shadow-lg border-none cursor-pointer animate-pulse"
+            >
+              <span>{isAttackBlocked ? "تسديدة معززة ⚽" : "تسديدة حاسمة ⚽"}</span>
+            </button>
+          </div>
         )}
 
         {phase === "ai_attacking" && (

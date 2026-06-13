@@ -65,37 +65,37 @@ export default function CoachHand({
       if (p.isLegend) {
         const remainingBurn = 2 - burningCardIds.length;
         return (
-          <div className="bg-amber-950/20 border border-amber-500/20 rounded-xl p-3 text-right text-xs text-amber-300 flex items-center justify-between gap-3 animate-fadeIn">
+          <div className="bg-amber-950/20 border border-amber-500/20 rounded-xl p-2.5 text-right text-xs text-amber-300 flex items-center justify-between gap-3 animate-fadeIn">
             <button
               onClick={onCancelSelection}
-              className="px-2.5 py-1 rounded bg-black/45 border border-white/5 text-xs text-white/50 hover:text-white hover:bg-[#1a1c1a] transition-colors"
+              className="px-2 py-0.5 rounded bg-black/45 border border-white/5 text-[10px] text-white/50 hover:text-white hover:bg-[#1a1c1a] transition-colors"
             >
               إلغاء
             </button>
             <div className="flex-1">
-              <span className="font-bold font-serif flex items-center justify-end gap-1 text-sm text-amber-400">
+              <span className="font-bold font-serif flex items-center justify-end gap-1 text-xs text-amber-400">
                 <Flame className="w-3.5 h-3.5 text-amber-500" />
-                <span>تحضير نزول الأسطورة {p.name}!</span>
+                <span>تحضير الأسطورة {p.name}!</span>
               </span>
-              <p className="text-[#e0e0e0]/60 mt-0.5">
+              <p className="text-[#e0e0e0]/60 mt-0.5 text-[10px]">
                 {remainingBurn > 0 
-                  ? `قانون اللعبة يتطلب "حرق" كارتين من يدك أولاً. اختر ${remainingBurn} كارت آخر للحرق من يدك.` 
-                  : "تم حرق كارتين بنجاح! الآن اضغط على أي مركز بالملعب لتنزيل الأسطورة مكانه."}
+                  ? `يتطلب حرق قطعتين: اختر ${remainingBurn} أوراق أخرى` 
+                  : "جاهز! انقر مركزاً شاغراً بالملعب"}
               </p>
             </div>
           </div>
         );
       } else {
         return (
-          <div className="bg-[#1a1c1a] border border-white/5 rounded-xl p-3 text-right text-xs text-[#e0e0e0]/80 flex items-center justify-between gap-3 animate-fadeIn">
+          <div className="bg-[#1a1c1a] border border-white/5 rounded-xl p-2.5 text-right text-xs text-[#e0e0e0]/80 flex items-center justify-between gap-3 animate-fadeIn">
             <button
               onClick={onCancelSelection}
-              className="px-2.5 py-1 rounded bg-black/45 border border-white/5 text-xs text-white/50 hover:text-white"
+              className="px-2 py-0.5 rounded bg-black/45 border border-white/5 text-[10px] text-white/50 hover:text-white"
             >
-              إلغاء التحديد
+              إلغاء
             </button>
-            <p className="flex-1 text-[#e0e0e0]/70">
-              لقد حددت اللاعب <strong className="text-emerald-400">{p.name}</strong>. اضغط الآن على مركز بالملعب في صفك لتنزيله بدلاً من اللاعب المتواجد فيه (يكلف 1 حركة).
+            <p className="flex-1 text-[#e0e0e0]/70 text-[10px]">
+              انقر مركزاً بالملعب لتنزيل <strong className="text-emerald-400">{p.name}</strong> 🏃‍♂️
             </p>
           </div>
         );
@@ -103,17 +103,16 @@ export default function CoachHand({
     } else {
       const spec = selectedCard as SpecialCard;
       return (
-        <div className="bg-teal-950/20 border border-teal-500/20 rounded-xl p-3 text-right text-xs text-teal-300 flex items-center justify-between gap-3 animate-fadeIn">
+        <div className="bg-teal-950/20 border border-teal-500/20 rounded-xl p-2.5 text-right text-xs text-teal-300 flex items-center justify-between gap-3 animate-fadeIn">
           <button
             onClick={() => onPlaySpecialCard(spec.id)}
             disabled={movesLeft === 0 && phase !== "ai_attacking"}
-            className="px-4 py-1.5 rounded bg-teal-600 text-white font-bold hover:bg-teal-500 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-3 py-1 rounded bg-teal-600 text-white font-bold hover:bg-teal-500 text-[10px] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            تفعيل التكتيك الخاص
+            تفعيل التكتيك
           </button>
           <div className="flex-1">
-            <span className="font-bold text-sm text-teal-400 font-serif">{spec.name}</span>
-            <p className="text-[#e0e0e0]/55 text-[10px] mt-0.5">{spec.description}</p>
+            <span className="font-bold text-xs text-teal-400 font-serif">{spec.name}</span>
           </div>
         </div>
       );
@@ -135,16 +134,16 @@ export default function CoachHand({
           onClick={() => setIsHandExpanded(false)}
           className="px-3 py-1.5 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 font-bold text-xs rounded-lg border border-rose-500/20 transition-all cursor-pointer"
         >
-          إخفاء حقيبة الكروت ❌
+          إخفاء ❌
         </button>
         <div className="text-right flex items-center gap-2">
           <div className="flex-1">
             <div className="flex items-center justify-end gap-1.5">
-              <span className="text-xs md:text-sm font-black text-white">حقيبة كروت المدرب اليدوية</span>
+              <span className="text-xs md:text-sm font-black text-white">أوراقي</span>
               <Layers className="w-4 h-4 text-emerald-500" />
             </div>
             <p className="text-[9px] text-[#e0e0e0]/40 leading-none mt-1">
-              ({hand.length} كروت بيدك) - حدد كرت بيدك ثم اضغط على المركز المناسب بملعب هجومك
+              ({hand.length} أوراق بيدك)
             </p>
           </div>
         </div>
@@ -159,11 +158,11 @@ export default function CoachHand({
 
       {/* Draw Buttons row inside inline drawer */}
       {isPlayerTurn && (phase === "player_turn" || phase === "warmup") && (
-        <div className="bg-black/45 border border-emerald-500/10 p-3.5 rounded-xl text-center space-y-3">
-          <span className="text-emerald-400 text-xs font-semibold block animate-pulse">
+        <div className="bg-black/45 border border-emerald-500/10 p-2.5 rounded-xl text-center space-y-2">
+          <span className="text-emerald-400 text-[10px] font-semibold block animate-pulse">
             {phase === "warmup" 
-              ? `مرحلة التسخين: اسحب كروت اللاعبين (${playerSlots.filter(s => s.card !== null).length}/5) المقلوبة لتكتمل خطتك.`
-              : `سحب كروت الدعم والمناورة (مسحوب هذا الدور: ${cardsDrawnThisTurn}/2)`}
+              ? `التسخين: اسحب (${playerSlots.filter(s => s.card !== null).length}/5) لاعبين`
+              : `سحب كروت اللقاء (مسحوب: ${cardsDrawnThisTurn}/2)`}
           </span>
           <div className="flex items-center justify-center gap-3">
             {phase !== "warmup" && (
@@ -171,20 +170,20 @@ export default function CoachHand({
                 type="button"
                 onClick={() => onDrawCard("special")}
                 disabled={specialDeckCount === 0 || cardsDrawnThisTurn >= 2}
-                className="px-4 py-2 bg-teal-950/50 hover:bg-teal-900/60 text-teal-300 border border-teal-500/40 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 bg-teal-950/50 hover:bg-teal-900/60 text-teal-300 border border-teal-500/40 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <span>سحب كارت تكتيك</span>
-                <span className="bg-black/40 px-2 py-0.5 rounded font-mono font-bold text-[10px]">{specialDeckCount}</span>
+                <span>سحب تكتيك</span>
+                <span className="bg-black/40 px-1.5 py-0.5 rounded font-mono font-bold text-[9px]">{specialDeckCount}</span>
               </button>
             )}
             <button
               type="button"
               onClick={() => onDrawCard("player")}
               disabled={playerDeckCount === 0 || (phase === "warmup" && playerSlots.filter(s => s.card !== null).length >= 5) || (phase !== "warmup" && cardsDrawnThisTurn >= 2)}
-              className="px-4 py-2 bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/40 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/40 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <span>سحب كارت لاعب</span>
-              <span className="bg-black/40 px-2 py-0.5 rounded font-mono font-bold text-[10px]">{playerDeckCount}</span>
+              <span>سحب لاعب</span>
+              <span className="bg-black/40 px-1.5 py-0.5 rounded font-mono font-bold text-[9px]">{playerDeckCount}</span>
             </button>
           </div>
         </div>
@@ -195,7 +194,7 @@ export default function CoachHand({
         {hand.length === 0 ? (
           <div className="w-full flex flex-col items-center justify-center p-8 text-center text-white/40 gap-2 border border-white/5 bg-black/25 rounded-2xl">
             <span className="text-3xl">👝</span>
-            <p className="text-xs font-bold leading-relaxed">حقيبتك المخصصة فارغة حالياً. يمكنك سحب الكروت في أي وقت بهدوء!</p>
+            <p className="text-xs font-bold leading-relaxed">الحقيبة فارغة حالياً.</p>
           </div>
         ) : (
           hand.map((card) => {
@@ -224,7 +223,7 @@ export default function CoachHand({
 
       {hand.length > 2 && (
         <div className="text-center text-slate-500 text-[10px] uppercase tracking-wider font-mono animate-pulse">
-          ↔ اسحب يميناً ويساراً لتصفح كافة أوراق التكتيك الفائقة بيدك
+          ↔ تصفح الأوراق بيدك
         </div>
       )}
 

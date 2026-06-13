@@ -100,6 +100,8 @@ export default function App() {
   // Defense moves left counter (for resolving of other turns)
   const [defenseMovesLeft, setDefenseMovesLeft] = useState(3);
   const [isPlayerAttacker, setIsPlayerAttacker] = useState<boolean>(true);
+  const [isAttackBlocked, setIsAttackBlocked] = useState<boolean>(false);
+  const [hasScoredThisTurn, setHasScoredThisTurn] = useState<boolean>(false);
 
   // Lists of logs
   const [logs, setLogs] = useState<ActionLog[]>([]);
@@ -727,6 +729,7 @@ export default function App() {
       setPhase("player_turn");
       setCardsDrawnThisTurn(0);
       setPlayerMovesLeft(3);
+      setHasScoredThisTurn(false);
       setIsHandExpanded(true);
       addLog("صافرة ركلة البداية! تم إنهاء مرحلة التسخين واللوحة جاهزة. دورك الآن كمدرب مهاجم.", "success");
       addLog("يمكنك اللعب من يدك مباشرة أو سحب كروت لدعم مهاراتك بشكل مرن.", "info");
@@ -936,25 +939,51 @@ export default function App() {
 
   // PLAY TACTICAL SPECIAL CARD
   const handlePlaySpecialCard = (id: string) => {
-    const isPlayerActivePhase = phase === "player_turn" || phase === "warmup" || phase === "attacking" || phase === "ai_attacking";
+    if (phase === "warmup") {
+      addLog("خطأ: لا يمكن تفعيل الكروت التكتيكية أثناء فترة الإحماء والتسخين!", "danger");
+      return;
+    }
+
+    const isPlayerActivePhase = phase === "player_turn" || phase === "attacking" || phase === "ai_attacking";
     if (!isPlayerActivePhase) return;
     
-    // If not under defense, and moves left is zero, check
-    if (phase === "player_turn" && playerMovesLeft < 1) {
+    // Check moves left first
+    if ((phase === "player_turn" || phase === "attacking") && playerMovesLeft < 1) {
       addLog("لا تمتلك حركات كافية لتفعيل التكتيك الخاص!", "danger");
       return;
+    }
+    if (phase === "ai_attacking" && defenseMovesLeft < 1) {
+      addLog("تنبيه الدفاع: لا تمتلك حركات كافية لتفعيل التكتيك الخاص!", "danger");
+      return;
+    }
+
+    // Enforce 3 reveals/activations limit per round (only during active attack/defense)
+    if (phase === "attacking" || phase === "ai_attacking") {
+      const playerPitchRevealsCount = playerSlots.filter(s => s.card && s.revealedInAttack).length;
+      const playerSpecialsCount = playerActiveSpecial.length;
+      if (playerPitchRevealsCount + playerSpecialsCount >= 3) {
+        addLog("خطأ تكتيكي: لقد استهلكت الحد الأقصى المسموح به لكشف الورق وتفعيل التكتيكات (3 كروت كحد أقصى بالجولة)!", "danger");
+        return;
+      }
     }
 
     const card = playerHand.find((c) => c.id === id) as SpecialCard;
     if (!card) return;
+
+    // Deduct move
+    if (phase === "player_turn" || phase === "attacking") {
+      setPlayerMovesLeft((prev) => prev - 1);
+    } else if (phase === "ai_attacking") {
+      setDefenseMovesLeft((prev) => prev - 1);
+    }
 
     // Remove from hand
     setPlayerHand((prev) => prev.filter((c) => c.id !== id));
 
     // Apply special actions
     if (card.effect === "world_cup") {
-      // Draws 2 extra cards instantly! Doesn't cost extra move
-      addLog(`🏆 تم تفعيل ${card.name}! تسحب ورقتين فوراً من الباقات.`, "success");
+      // Draws 2 extra cards instantly
+      addLog(`🏆 تم تفعيل ${card.name}! استهلكت حركة واحدة وسحبت ورقتين فوراً من الباقات.`, "success");
       // Pick first player and first special if available
       let added: Card[] = [];
       let remP = [...playerDeck];
@@ -975,11 +1004,10 @@ export default function App() {
       // Append to active specials list
       if (phase === "ai_attacking") {
         setPlayerActiveSpecial((prev) => [...prev, card]);
-        addLog(`🛡️ تكتيك دفاعي: قمت بلعب [ ${card.name} ] لعرقلة هجمة الخصم!`, "success");
+        addLog(`🛡️ تكتيك دفاعي: قمت بلعب [ ${card.name} ] لعرقلة هجمة الخصم! (استهلكت حركة واحدة)`, "success");
       } else {
         setPlayerActiveSpecial((prev) => [...prev, card]);
-        setPlayerMovesLeft((prev) => prev - 1);
-        addLog(`⚔️ تكتيك هجومي: قمت بلعب [ ${card.name} ] لغزو مرمى المنافس!`, "success");
+        addLog(`⚔️ تكتيك هجومي: قمت بلعب [ ${card.name} ] لغزو مرمى المنافس! (استهلكت حركة واحدة)`, "success");
       }
     }
 
@@ -1118,54 +1146,128 @@ export default function App() {
 
     // 3. Handling Defensive reveals during AI main Attacks (Player defends)
     if (phase === "ai_attacking") {
+      const clickedSlot = playerSlots[idx];
+      if (!clickedSlot.card) return;
+
+      if (clickedSlot.isRevealed) {
+        // Flipping back a revealed defender card
+        if (clickedSlot.revealedInAttack) {
+          const newSlots = [...playerSlots];
+          newSlots[idx] = { ...clickedSlot, isRevealed: false, revealedInAttack: false };
+          setPlayerSlots(newSlots);
+          setDefenseMovesLeft((prev) => Math.min(3, prev + 1));
+          addLog(`🔄 تراجع دفاعي: قمت بإعادة قلب اللاعب [ ${clickedSlot.card.name} ] مقلوباً واستعدت حركة دفاعية واحدة.`, "neutral");
+          SoundEffects.playCardDraw();
+        }
+        return;
+      }
+
+      // Enforce 3 reveals/activations limit per round
+      const playerPitchRevealsCount = playerSlots.filter(s => s.card && s.revealedInAttack).length;
+      const playerSpecialsCount = playerActiveSpecial.length;
+      if (playerPitchRevealsCount + playerSpecialsCount >= 3) {
+        addLog("خطأ تكتيكي: لا يمكنك كشف وتفعيل أكثر من 3 كروت إجمالاً بالجولة الواحدة!", "danger");
+        return;
+      }
+
       if (defenseMovesLeft < 1) {
         addLog("تنبيه الحارس: استهلكت حركات الدفاع الثلاث بالكامل لحماية مرماك!", "warning");
         return;
       }
 
-      const clickedSlot = playerSlots[idx];
-      if (clickedSlot.card && !clickedSlot.isRevealed) {
-        // Turn Face Up to help defense
-        const newSlots = [...playerSlots];
-        newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
-        setPlayerSlots(newSlots);
-        setDefenseMovesLeft((prev) => prev - 1);
-        addLog(`🛡️ رد دفاعي: قمت بكشف [ ${clickedSlot.card.name} ] لعرقلة الهجوم! دفاع محلي: +${clickedSlot.card.defense} نقاط.`, "success");
-        SoundEffects.playCardDraw();
-      }
+      // Turn Face Up to help defense
+      const newSlots = [...playerSlots];
+      newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
+      setPlayerSlots(newSlots);
+      setDefenseMovesLeft((prev) => prev - 1);
+      addLog(`🛡️ رد دفاعي: قمت بكشف [ ${clickedSlot.card.name} ] لعرقلة الهجوم! دفاع محلي: +${clickedSlot.card.defense} نقاط.`, "success");
+      SoundEffects.playCardDraw();
     }
 
     // 4. Handling Extra revealing actions during active attacks (Player attacks)
     if (phase === "attacking") {
+      const clickedSlot = playerSlots[idx];
+      if (!clickedSlot.card) return;
+
+      if (clickedSlot.isRevealed) {
+        // Flipping back an already revealed card during active attack
+        if (clickedSlot.revealedInAttack) {
+          if (idx === currentAttackerIdx) {
+            // Cancel whole attack!
+            const originalDeckPonto = currentPonto ? [currentPonto, ...pontoDeck] : pontoDeck;
+            setPontoDeck(originalDeckPonto);
+            setCurrentPonto(null);
+            setCurrentAttackerIdx(null);
+            setSelectedPitchSlotIdx(null);
+            setPhase("player_turn");
+
+            let refundMoves = 1; // 1 for primary attack declaration
+            const revertedSlots = playerSlots.map((s, sIdx) => {
+              if (s.revealedInAttack) {
+                if (sIdx !== idx) {
+                  refundMoves += 1; // +1 for additional reveals
+                }
+                return { ...s, isRevealed: false, revealedInAttack: false };
+              }
+              return s;
+            });
+            setPlayerSlots(revertedSlots);
+
+            // Revert all reactively revealed AI slots
+            const revertedAiSlots = aiSlots.map((s) => {
+              if (s.revealedInAttack) {
+                return { ...s, isRevealed: false, revealedInAttack: false };
+              }
+              return s;
+            });
+            setAiSlots(revertedAiSlots);
+
+            setPlayerMovesLeft((prev) => Math.min(3, prev + refundMoves));
+            addLog(`🔄 إلغاء الهجوم: قمت بإلغاء المحاولة الهجومية وإعادة قلب اللاعبين مقلوبين مع استعادة حركاتك التكتيكية.`, "info");
+            SoundEffects.playCardDraw();
+          } else {
+            // Cancel additional reveal
+            const newSlots = [...playerSlots];
+            newSlots[idx] = { ...clickedSlot, isRevealed: false, revealedInAttack: false };
+            setPlayerSlots(newSlots);
+            setPlayerMovesLeft((prev) => Math.min(3, prev + 1));
+
+            // Revert one reactive AI slot that was revealed during this attack
+            const aiToRevertIdx = aiSlots.findIndex((s) => s.isRevealed && s.revealedInAttack);
+            if (aiToRevertIdx !== -1) {
+              const updatedAi = [...aiSlots];
+              updatedAi[aiToRevertIdx] = { ...updatedAi[aiToRevertIdx], isRevealed: false, revealedInAttack: false };
+              setAiSlots(updatedAi);
+              addLog(`🔄 إلغاء كشف إضافي: قمت بإعادة قلب [ ${clickedSlot.card.name} ]، واستعدت حركة تكتيكية واحدة، وتراجع الخصم دفاعياً بالمثل.`, "neutral");
+            } else {
+              addLog(`🔄 إلغاء كشف إضافي: قمت بإعادة قلب [ ${clickedSlot.card.name} ] واستعدت حركة تكتيكية واحدة.`, "neutral");
+            }
+            SoundEffects.playCardDraw();
+          }
+        }
+        return;
+      }
+
+      // Enforce 3 reveals/activations limit per round
+      const playerPitchRevealsCount = playerSlots.filter(s => s.card && s.revealedInAttack).length;
+      const playerSpecialsCount = playerActiveSpecial.length;
+      if (playerPitchRevealsCount + playerSpecialsCount >= 3) {
+        addLog("خطأ تكتيكي: لا يمكنك كشف وتفعيل أكثر من 3 كروت إجمالاً بالجولة الواحدة!", "danger");
+        return;
+      }
+
       if (playerMovesLeft < 1) {
         addLog("لا تمتلك حركات متبقية لإجراء كشوفات إضافية!", "warning");
         return;
       }
 
-      const clickedSlot = playerSlots[idx];
-      if (clickedSlot.card && !clickedSlot.isRevealed) {
-        // "إذا تبقت لك حركة إضافية كمهاجم، يمكنك كشف مهاجم آخر في ملعبك لزيادة قوتك"
-        const newSlots = [...playerSlots];
-        newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
-        setPlayerSlots(newSlots);
-        setPlayerMovesLeft((prev) => prev - 1);
-        addLog(`⚔️ كشف هجومي إضافي: كشفت [ ${clickedSlot.card.name} ] ليدعم الهجمة بـ +${clickedSlot.card.attack} نقاط!`, "success");
-        SoundEffects.playCardDraw();
-
-        // AI reactively defends again!
-        // AI gets defense response of 1 slot flip if it has defensive moves left!
-        const unrevealedSlot = aiSlots.find(s => s.card !== null && !s.isRevealed);
-        if (unrevealedSlot) {
-          const updatedAi = aiSlots.map((s) => {
-            if (s === unrevealedSlot) {
-              return { ...s, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
-            }
-            return s;
-          });
-          setAiSlots(updatedAi);
-          addLog(`🤖 رد دفاعي فوري للخصم: قام بكشف [ ${unrevealedSlot.card!.name} ] لامتصاص هجومك الإضافي! +${unrevealedSlot.card!.defense} نقاط دفاع.`, "info");
-        }
-      }
+      // "إذا تبقت لك حركة إضافية كمهاجم، يمكنك كشف مهاجم آخر في ملعبك لزيادة قوتك"
+      const newSlots = [...playerSlots];
+      newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
+      setPlayerSlots(newSlots);
+      setPlayerMovesLeft((prev) => prev - 1);
+      addLog(`⚔️ كشف هجومي إضافي: كشفت [ ${clickedSlot.card.name} ] ليدعم الهجمة بـ +${clickedSlot.card.attack} نقاط!`, "success");
+      SoundEffects.playCardDraw();
     }
   };
 
@@ -1185,17 +1287,17 @@ export default function App() {
     }
 
     if (phase === "ai_attacking") {
-      // Player defends, can reveal their owned slots
+      // Player defends, can reveal their owned slots or flip back already revealed ones
       if (isAi) return false;
       const slot = playerSlots[idx];
-      return slot.card !== null && !slot.isRevealed && defenseMovesLeft > 0;
+      return slot.card !== null && (!slot.isRevealed && defenseMovesLeft > 0 || (slot.isRevealed && !!slot.revealedInAttack));
     }
 
     if (phase === "attacking") {
-      // Can reveal extra player cards on pitch if there's moves left
+      // Can reveal extra player cards on pitch if there's moves left, or click to flip back revealed ones
       if (isAi) return false;
       const slot = playerSlots[idx];
-      return slot.card !== null && !slot.isRevealed && playerMovesLeft > 0;
+      return slot.card !== null && (!slot.isRevealed && playerMovesLeft > 0 || (slot.isRevealed && !!slot.revealedInAttack));
     }
 
     return false;
@@ -1203,6 +1305,11 @@ export default function App() {
 
   // DECLARE PLAYER ATTACK
   const handleDeclareAttack = () => {
+    if (hasScoredThisTurn) {
+      addLog("ممنوع تكرار الهجوم: لقد أحرزت هدفاً بالفعل في هذه الجولة! لا يمكنك شن هجمات جديدة الآن، فقط مسموح لك بإعادة تنظيم صفوفك (تبديل أو تنزيل لاعبين) أو إنهاء دورك.", "warning");
+      return;
+    }
+
     if (playerMovesLeft < 1) {
       addLog("تحذير تكتيكي: لا تمتلك نقاط حركة كافية لشن هجوم!", "danger");
       return;
@@ -1313,7 +1420,7 @@ export default function App() {
     addLog(`🤖 الخصم المدرب ${aiCoachName} يحلل قوة تسديدتك ويتحلّى بالذكاء التكتيكي للصد والعرقلة...`, "neutral");
 
     setTimeout(() => {
-      let aiMoves = 3;
+      let aiMoves = defenseMovesLeft;
       const updatedAiSlots = [...aiSlots];
       let aiSpecialsPlayed: SpecialCard[] = [];
 
@@ -1351,8 +1458,9 @@ export default function App() {
       const defenseGap = playerAttackScore - currentDefenseScore;
 
       // Smart decision engine: locate optimal card reveals to overcome the remaining gap
-      // Allowed reveals is at most 3 cards (capped by moves and rules)
-      const allowedReveals = Math.min(3, aiMoves);
+      // Allowed reveals is at most 3 cards including special cards activated in this resolution
+      const maxPitchReveals = Math.max(0, 3 - aiSpecialsPlayed.length);
+      const allowedReveals = Math.min(maxPitchReveals, aiMoves);
       const candidates = updatedAiSlots
         .map((s, idx) => ({ slot: s, idx }))
         .filter((item) => item.slot.card !== null && !item.slot.isRevealed && !item.slot.spent);
@@ -1435,6 +1543,7 @@ export default function App() {
       }
 
       setAiSlots(updatedAiSlots);
+      setDefenseMovesLeft(aiMoves);
       const withNewSpecials = [...aiActiveSpecial, ...aiSpecialsPlayed];
       setAiActiveSpecial((prev) => [...prev, ...aiSpecialsPlayed]);
       SoundEffects.playTackleBlock();
@@ -1459,6 +1568,7 @@ export default function App() {
       if (isGoal) {
         const newScore = playerScore + 1;
         setPlayerScore(newScore);
+        setHasScoredThisTurn(true);
         SoundEffects.playGoalCelebration();
         setCelebrationMessage({
           title: "جــوووووول! هجمة مرتدة قاتلة! ⚽🔥",
@@ -1541,6 +1651,7 @@ export default function App() {
         if (isGoal) {
           const newScore = playerScore + 1;
           setPlayerScore(newScore);
+          setHasScoredThisTurn(true);
           SoundEffects.playGoalCelebration();
           setCelebrationMessage({
             title: "جــوووووول! هجمة مرتدة قاتلة! ⚽🔥",
@@ -1548,19 +1659,86 @@ export default function App() {
             isGoal: true
           });
           addLog(`⚽ جــوووووول خيالي! أحرز فريقك هدفاً ثميناً (مرتدة) لصالحك! النتيجة الآن: ${newScore} - ${aiScore}`, "success");
+          setIsAttackBlocked(false);
+          setPhase("resolution");
         } else {
-          SoundEffects.playTackleBlock();
-          setCelebrationMessage({
-            title: "يا لها من فرصة ضائعة! التصدي للمحاولة 🧤🚫",
-            subtitle: `تكتلات دفاع الخصم الحصين (${computedDefense}) تفوقت أو تساوت مع قواك الضاربة (${computedAttack}) ليفشل هجومك!`,
-            isGoal: false
-          });
-          addLog(`🚫 تصدي أسطوري! نجح حامي مرماهم بقطع هجمتك الشرسة. النتيجة ما زالت: ${playerScore} - ${aiScore}`, "danger");
+          // Attack is blocked!
+          if (playerMovesLeft > 0) {
+            // Player still has moves left to reinforce!
+            setIsAttackBlocked(true);
+            SoundEffects.playTackleBlock();
+            addLog(`🧤 تصدي تكتيكي للخصم: تفوق خط صد الخصم البالغ (${computedDefense}) على تسديدتك (${computedAttack}).`, "warning");
+            addLog(`💡 بما أنه متبقي لك حركات تكتيكية، يمكنك مواصلة الهجوم بالنقر على لاعب مقلوب من التشكيلة لكشفه وضمه للهجوم، أو الضغط على زر "إنهاء الهجمة 🛑" للاستسلام بالتصدي.`, "info");
+          } else {
+            // No moves left, auto end attack sequence
+            setIsAttackBlocked(false);
+            SoundEffects.playTackleBlock();
+            setCelebrationMessage({
+              title: "يا لها من فرصة ضائعة! التصدي للمحاولة 🧤🚫",
+              subtitle: `تكتلات دفاع الخصم الحصين (${computedDefense}) تفوقت أو تساوت مع قواك الضاربة (${computedAttack}) ليفشل هجومك!`,
+              isGoal: false
+            });
+            addLog(`🚫 تصدي أسطوري! نجح حامي مرماهم بقطع هجمتك الشرسة. النتيجة ما زالت: ${playerScore} - ${aiScore}`, "danger");
+            setPhase("resolution");
+          }
         }
-
-        setPhase("resolution");
       });
     }
+  };
+
+  const handleForceEndAttack = () => {
+    // Accumulate scores for final consolation modal
+    let finalDefense = 0;
+    aiSlots.forEach((s) => {
+      if (s.card && s.isRevealed && s.revealedInAttack) {
+        finalDefense += s.card.defense;
+      }
+    });
+    aiActiveSpecial.forEach((spec) => {
+      if (spec.effect === "park_the_bus") finalDefense += 4;
+      if (spec.effect === "fans") finalDefense += 3;
+    });
+
+    let baseAttackPwr = 0;
+    playerSlots.forEach((slot) => {
+      if (slot.card && slot.isRevealed && slot.revealedInAttack) {
+        baseAttackPwr += slot.card.attack;
+      }
+    });
+    if (currentPonto) {
+      baseAttackPwr += currentPonto.value;
+    }
+    playerActiveSpecial.forEach((spec) => {
+      if (spec.effect === "counter_attack") baseAttackPwr += 4;
+      if (spec.effect === "fans") baseAttackPwr += 3;
+    });
+
+    aiActiveSpecial.forEach((spec) => {
+      if (spec.effect === "wet_pitch") baseAttackPwr -= 4;
+      if (spec.effect === "offside") {
+        let maxAtt = 0;
+        playerSlots.forEach((s) => {
+          if (s.card && s.isRevealed && s.revealedInAttack) {
+            maxAtt = Math.max(maxAtt, s.card.attack);
+          }
+        });
+        baseAttackPwr -= maxAtt;
+      }
+    });
+
+    const computedAttack = Math.max(0, baseAttackPwr);
+    const computedDefense = Math.max(0, finalDefense);
+
+    SoundEffects.playTackleBlock();
+    setCelebrationMessage({
+      title: "يا لها من فرصة ضائعة! التصدي للمحاولة 🧤🚫",
+      subtitle: `تكتلات دفاع الخصم الحصين (${computedDefense}) تفوقت أو تساوت مع قواك الضاربة (${computedAttack}) ليفشل هجومك!`,
+      isGoal: false
+    });
+    addLog(`🚫 تصدي أسطوري! انتهت الهجمة المستمرة بالتصدي بعد أن قررت عدم تعزيزها. النتيجة ما زالت: ${playerScore} - ${aiScore}`, "danger");
+
+    setIsAttackBlocked(false);
+    setPhase("resolution");
   };
 
   // Click handler that triggers a ripple effect before acknowledging celebration
@@ -1669,6 +1847,8 @@ export default function App() {
 
     // Switch turn
     if (phase === "resolution") {
+      setIsAttackBlocked(false);
+      setDefenseMovesLeft(3);
       if (isPlayerAttacker) {
         if (playerMovesLeft > 0) {
           setPhase("player_turn");
@@ -1677,7 +1857,13 @@ export default function App() {
           handleAIPlayTurn();
         }
       } else {
-        handleAIPlayTurn();
+        setPhase("player_turn");
+        setPlayerMovesLeft(3);
+        setHasScoredThisTurn(false);
+        setCardsDrawnThisTurn(0);
+        setIsHandExpanded(true);
+        setTurnCount((prev) => prev + 1);
+        addLog(`⚽ انتهى دور الخصم كاملاً بنجاح. عدنا لدورك التكتيكي الجديد! متبقي لك 3 حركات تكتيكية.`, "success");
       }
     }
   };
@@ -1875,6 +2061,7 @@ export default function App() {
         setPhase("player_turn");
         setCardsDrawnThisTurn(0);
         setPlayerMovesLeft(3);
+        setHasScoredThisTurn(false);
         setIsHandExpanded(true);
         setTurnCount((prev) => prev + 1);
         addLog(`⚽ انتهى دور الخصم بلا هجمات لخطوطه. عدنا لدورك! حظاً موفقاً في الدور ${turnCount + 1}`, "success");
@@ -1912,23 +2099,60 @@ export default function App() {
         text: `⚽ هدف للخصم! المهاجم يخترق حرس مرمانا بنجاح. النتيجة الآن: ${playerScore} - ${nextAiScore}`,
         type: "danger" as const
       });
+      setPhase("resolution");
     } else {
-      SoundEffects.playGoalCelebration();
-      setCelebrationMessage({
-        title: "إنقاذ بطولي من جدارك! 🧤🧱",
-        subtitle: `نجحت تكتلاتك الدفاعية البسيطة والصلبة (${finalDefense}) بصورة مذهلة في تصفية خطورة غزو الخصم (${finalAttack})!`,
-        isGoal: false
-      });
-      newLogs.push({
-        id: Math.random().toString(),
-        timestamp: getFormattedTime(),
-        text: `🧱 تصدي رائع! خط دفاع اللوحة أحبط تسديدة الخصم وقواهم. النتيجة ما زالت: ${playerScore} - ${aiScore}`,
-        type: "success" as const
-      });
+      const aiPitchReveals = aiSlots.filter(s => s.card && s.revealedInAttack).length;
+      const aiSpecialsCount = aiActiveSpecial.length;
+      const totalAiRoundActions = aiPitchReveals + aiSpecialsCount;
+      const aiCanReinforce = !isMultiplayer && aiMovesLeft > 0 && totalAiRoundActions < 3 && aiSlots.some((s) => s.card !== null && !s.isRevealed && !s.spent);
+
+      if (aiCanReinforce) {
+        // AI decides to reinforce its blocked attack!
+        const candidates = aiSlots
+          .map((s, idx) => ({ s, idx }))
+          .filter((item) => item.s.card !== null && !item.s.isRevealed && !item.s.spent);
+        
+        // Pick nominee with highest attack
+        candidates.sort((a, b) => b.s.card!.attack - a.s.card!.attack);
+        const bestNominee = candidates[0];
+        
+        const updatedAiSlots = aiSlots.map((s, idx) => {
+          if (idx === bestNominee.idx) {
+            return { ...s, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
+          }
+          return s;
+        });
+        
+        setAiSlots(updatedAiSlots);
+        setAiMovesLeft((prev) => prev - 1);
+        
+        SoundEffects.playCardDraw();
+        newLogs.push({
+          id: Math.random().toString(),
+          timestamp: getFormattedTime(),
+          text: `🚨 الخصم يرفض الاستسلام لمقاومتك! دفع بنجم الهجوم [ ${bestNominee.s.card!.name} ] لمضاعفة الضغط بـ +${bestNominee.s.card!.attack}!`,
+          type: "warning" as const
+        });
+        addLog(`🛡️ الخصم يواصل ضغطه هجومياً! يمكنك البقاء وإضافة مدافعين جدد ثم النقر على "تأكيد الدفاع" مجدداً لصد التعزيز!`, "info");
+      } else {
+        // Safe! No reinforce available for AI.
+        SoundEffects.playGoalCelebration();
+        setCelebrationMessage({
+          title: "إنقاذ بطولي من جدارك! 🧤🧱",
+          subtitle: `نجحت تكتلاتك الدفاعية البسيطة والصلبة (${finalDefense}) بصورة مذهلة في تصفية خطورة غزو الخصم (${finalAttack})!`,
+          isGoal: false
+        });
+        newLogs.push({
+          id: Math.random().toString(),
+          timestamp: getFormattedTime(),
+          text: `🧱 تصدي رائع! خط دفاع اللوحة أحبط تسديدة الخصم وقواهم. النتيجة ما زالت: ${playerScore} - ${aiScore}`,
+          type: "success" as const
+        });
+        setPhase("resolution");
+      }
     }
 
     setLogs(newLogs);
-    setPhase("resolution");
 
     if (isMultiplayer) {
       setTimeout(() => {
@@ -2179,6 +2403,8 @@ export default function App() {
                 currentPonto={currentPonto}
                 playerScore={playerScore}
                 aiScore={aiScore}
+                isAttackBlocked={isAttackBlocked}
+                onForceEndAttack={handleForceEndAttack}
                 activeAttackerName={
                   currentAttackerIdx !== null
                     ? (phase === "attacking" 

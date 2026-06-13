@@ -84,7 +84,7 @@ export default function TacticalPitch({
   currentPonto
 }: TacticalPitchProps) {
 
-  const [isPeekMode, setIsPeekMode] = React.useState(false);
+  const isPeekMode = true;
 
   // Helper to render AI Slots
   const renderAiSlot = (idx: number, isMobile: boolean = false) => {
@@ -269,49 +269,48 @@ export default function TacticalPitch({
             </div>
           </div>
 
-          {/* AI Pitch Slots - Restored horizontal alignment (Faced-down / hidden at the top) */}
+          {/* AI Pitch Slots */}
           <div className="grid grid-cols-5 gap-1 md:gap-3 justify-items-center bg-black/35 p-2 md:p-3 rounded-xl border border-rose-500/15 shadow-inner overflow-hidden mb-3">
             {aiSlots.map((_, idx) => renderAiSlot(idx, true))}
           </div>
 
           {/* Symmetrical Opponent Status Bar (Locked indicator) */}
-          <div className="w-full bg-rose-950/20 border border-rose-500/10 rounded-xl p-2.5 flex flex-col xs:flex-row items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs">🤖</span>
-              <span className="text-[10px] md:text-xs text-rose-300 font-bold">كروت ومجموعات المنافس</span>
+          <div className="w-full bg-rose-950/10 border border-rose-500/10 rounded-xl p-2 flex items-center justify-between gap-1 mb-3">
+            <div className="flex items-center gap-1 text-[11px] text-rose-300 font-bold">
+              <span>🤖 كروت الخصم</span>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1 bg-black/40 px-2 py-0.5 rounded-md text-[9px] font-mono border border-white/5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-1 text-[10px]" title="أوراق بملعب الخصم">
                 <span className="text-rose-400">👝</span>
-                <span className="text-white font-bold">{aiHandCount} باليد</span>
+                <span className="text-white font-mono font-bold">{aiHandCount}</span>
               </div>
-              <div className="flex items-center gap-1 bg-black/40 px-2 py-0.5 rounded-md text-[9px] font-mono border border-white/5">
-                <span className="text-amber-400">🏃‍♂️</span>
-                <span className="text-white font-bold">{playerDeckCount} الباقة</span>
+              <div className="flex items-center gap-1 text-[10px]" title="متبقي باقة كروت اللاعبين">
+                <span className="text-emerald-400">🏃‍♂️</span>
+                <span className="text-white font-mono font-bold">{playerDeckCount}</span>
               </div>
-              <div className="flex items-center gap-1 bg-black/40 px-2 py-0.5 rounded-md text-[9px] font-mono border border-white/5">
+              <div className="flex items-center gap-1 text-[10px]" title="متبقي باقة كروت التكتيك">
                 <span className="text-teal-400">⚡</span>
-                <span className="text-white font-bold">{specialDeckCount} كروت التكتيك</span>
+                <span className="text-white font-mono font-bold">{specialDeckCount}</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Tactical Middle Pitch divider - Streamlined and narrow on mobile */}
-        <div className="relative my-4 flex flex-col items-center justify-center gap-3">
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] bg-emerald-500/20" />
-          <div className="z-10 bg-[#0c0e0c] border border-emerald-500/30 px-4 py-1 rounded-full text-[9px] font-mono font-black text-emerald-400 uppercase tracking-widest shadow-[0_0_12px_rgba(16,185,129,0.25)]">
-            ⚙️ تكتيكات اللقاء الكروي ⚙️
+        <div className="relative my-4 flex flex-col items-center justify-center gap-2">
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-emerald-500/15" />
+          <div className="z-10 bg-[#0c0e0c] border border-emerald-500/20 px-3 py-0.5 rounded-full text-[9px] font-mono font-black text-emerald-400 uppercase tracking-widest shadow-[0_0_8px_rgba(16,185,129,0.15)]">
+            ⚙️ تكتيكات اللقاء
           </div>
 
           {currentPonto && (
-            <div className="z-10 bg-gradient-to-r from-amber-950/90 to-amber-900/90 border border-amber-500/50 px-4 py-2 rounded-xl text-center shadow-[0_0_15px_rgba(245,158,11,0.25)] animate-fadeIn max-w-xs md:max-w-md">
-              <span className="text-[9px] text-amber-400 font-black tracking-wider block uppercase mb-1">
-                🔥 كارت معزز المرتدة النشط (Ponto) 🔥
+            <div className="z-10 bg-gradient-to-r from-amber-950/80 to-amber-900/80 border border-amber-500/40 px-3 py-1 rounded-xl text-center shadow-[0_0_10px_rgba(245,158,11,0.15)] animate-fadeIn max-w-xs">
+              <span className="text-[8.5px] text-amber-400 font-black block uppercase mb-0.5">
+                🔥 معزز الهجمة (Ponto)
               </span>
-              <div className="flex items-center justify-center gap-2">
-                <span className="text-xs text-white font-extrabold">{currentPonto.text}</span>
-                <span className="text-xs font-mono font-black text-amber-300 bg-black/55 px-2 py-0.5 rounded border border-amber-500/20">
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-[10px] text-white font-extrabold">{currentPonto.text}</span>
+                <span className="text-[10px] font-mono font-black text-amber-300 bg-black/45 px-1.5 py-0.2 rounded border border-amber-500/20">
                   +{currentPonto.value} ⚔️
                 </span>
               </div>
@@ -326,9 +325,8 @@ export default function TacticalPitch({
             <div className="flex items-center justify-between px-1.5 border-b border-white/5 pb-2">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] md:text-[11px] font-black text-emerald-400">لوحة التحكم التكتيكية للمدرب</span>
+                <span className="text-[10px] md:text-[11px] font-black text-emerald-400">⚙️ لوحة التكتيك</span>
               </div>
-              <span className="text-[8px] text-[#e0e0e0]/30 font-mono font-black">ACTIVE COACH UTILITIES</span>
             </div>
 
             {/* Active special cards display row */}
@@ -336,8 +334,7 @@ export default function TacticalPitch({
               {/* Box 1: Player Active Special Cards */}
               <div className="p-3 bg-teal-950/20 border border-teal-500/20 rounded-xl flex flex-col justify-between gap-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black text-[#10b981] tracking-wide">⚔️ تكتيكات مفعّلة لك في هذه الهجمة</span>
-                  <span className="text-[8px] font-mono text-white/35">ACTIVE MY TACTICS</span>
+                  <span className="text-[10px] font-black text-[#10b981] tracking-wide">⚔️ تكتيكاتي</span>
                 </div>
                 <div className="min-h-[48px] flex flex-wrap items-center justify-center gap-1.5 p-1.5 bg-black/35 rounded-lg border border-white/5">
                   {playerActiveSpecial && playerActiveSpecial.length > 0 ? (
@@ -358,7 +355,7 @@ export default function TacticalPitch({
                             if (timerId) clearTimeout(timerId);
                           }}
                           onClick={() => onInspectCard?.(card)}
-                          title="انقر أو اضغط باستمرار للمعاينة الشاملة"
+                          title="انقر للتصفح"
                           className="px-2.5 py-1.5 rounded bg-teal-900/60 border border-teal-400/30 text-teal-200 text-[10px] font-black flex items-center gap-1.5 shadow-md cursor-pointer hover:bg-teal-800/85 hover:border-teal-400 transition-all active:scale-95 select-none animate-pulse"
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
@@ -367,7 +364,7 @@ export default function TacticalPitch({
                       );
                     })
                   ) : (
-                    <span className="text-[10px] text-zinc-500 font-semibold font-sans">لا يوجد تكتيك نشط حالياً</span>
+                    <span className="text-[10px] text-zinc-500 font-semibold font-sans">❌ لا يوجد</span>
                   )}
                 </div>
               </div>
@@ -375,8 +372,7 @@ export default function TacticalPitch({
               {/* Box 2: AI/Opponent Active Special Cards */}
               <div className="p-3 bg-rose-950/20 border border-rose-500/20 rounded-xl flex flex-col justify-between gap-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black text-rose-400 tracking-wide">🛡️ تكتيكات مفعّلة للخصم في هذه الهجمة</span>
-                  <span className="text-[8px] font-mono text-white/35">OPPONENT TACTICS</span>
+                  <span className="text-[10px] font-black text-rose-400 tracking-wide">🛡️ تكتيكات الخصم</span>
                 </div>
                 <div className="min-h-[48px] flex flex-wrap items-center justify-center gap-1.5 p-1.5 bg-black/35 rounded-lg border border-white/5">
                   {aiActiveSpecial && aiActiveSpecial.length > 0 ? (
@@ -397,7 +393,7 @@ export default function TacticalPitch({
                             if (timerId) clearTimeout(timerId);
                           }}
                           onClick={() => onInspectCard?.(card)}
-                          title="انقر أو اضغط باستمرار للمعاينة الشاملة"
+                          title="انقر للتصفح"
                           className="px-2.5 py-1.5 rounded bg-rose-950 border border-rose-500/35 text-rose-200 text-[10px] font-black flex items-center gap-1.5 shadow-md cursor-pointer hover:bg-rose-900/85 hover:border-rose-400 transition-all active:scale-95 select-none animate-pulse"
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
@@ -406,41 +402,26 @@ export default function TacticalPitch({
                       );
                     })
                   ) : (
-                    <span className="text-[10px] text-zinc-500 font-semibold font-sans">لا يوجد تكتيك نشط للخصم حالياً</span>
+                    <span className="text-[10px] text-zinc-500 font-semibold font-sans">❌ لا يوجد</span>
                   )}
                 </div>
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-2 mt-1">
-              {/* 3. Open Hand Button */}
+            <div className="mt-1">
+              {/* 3. Open Hand Button (البدلاء) */}
               <button
                 type="button"
                 onClick={() => setIsHandExpanded && setIsHandExpanded(!isHandExpanded)}
-                className={`p-2.5 rounded-xl border flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                className={`w-full p-2.5 rounded-xl border flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
                   isHandExpanded
-                    ? "border-amber-500 bg-amber-950/40 text-amber-400 ring-2 ring-amber-500/30"
+                    ? "border-emerald-500 bg-emerald-950/40 text-emerald-400 ring-2 ring-emerald-500/30"
                     : "border-white/5 bg-black/40 text-slate-400 hover:border-white/10 hover:text-white"
                 }`}
                 id="board_toggle_hand_widget"
               >
-                <span className="text-sm">👜</span>
-                <span className="font-bold text-xs md:text-sm">حقيبة خط الظهر ({isHandExpanded ? "مفتوحة" : "مغلقة"})</span>
-              </button>
-
-              {/* 4. Peek Pitch Cards Button */}
-              <button
-                type="button"
-                onClick={() => setIsPeekMode(!isPeekMode)}
-                className={`p-2.5 rounded-xl border flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
-                  isPeekMode
-                    ? "border-purple-500 bg-purple-950/40 text-purple-400 ring-2 ring-purple-500/30"
-                    : "border-white/5 bg-black/40 text-slate-400 hover:border-white/10 hover:text-white"
-                }`}
-                id="board_preview_peek_widget"
-              >
-                <span className="text-sm">👁️</span>
-                <span className="font-bold text-xs md:text-sm">معاينة كل الأوراق ({isPeekMode ? "العيان" : "معاينة"})</span>
+                <span className="text-sm">🔄</span>
+                <span className="font-bold text-xs">البدلاء</span>
               </button>
             </div>
           </div>
