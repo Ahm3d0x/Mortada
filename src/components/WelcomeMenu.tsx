@@ -9,7 +9,13 @@ import { Shield, Sparkles, Trophy, Users, Zap, Bot } from "lucide-react";
 import { SoundEffects } from "../utils/sounds";
 
 interface WelcomeMenuProps {
-  onStartGame: (coachName: string, teamVibe: string, difficulty: "normal" | "tactical" | "legend", matchDuration: number) => void;
+  onStartGame: (
+    coachName: string,
+    teamVibe: string,
+    difficulty: "normal" | "tactical" | "legend",
+    matchDuration: number,
+    legendPercentage: number
+  ) => void;
 }
 
 const TEAM_VIBES = [
@@ -26,12 +32,13 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
   const [selectedVibe, setSelectedVibe] = useState(TEAM_VIBES[0]);
   const [difficulty, setDifficulty] = useState<"normal" | "tactical" | "legend">("normal");
   const [matchDuration, setMatchDuration] = useState<number>(180);
+  const [legendPercentage, setLegendPercentage] = useState<number>(30);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const finalName = coachName.trim() || "الكابتن البطل";
     SoundEffects.playWhistle();
-    onStartGame(finalName, selectedVibe.name, difficulty, matchDuration);
+    onStartGame(finalName, selectedVibe.name, difficulty, matchDuration, legendPercentage);
   };
 
   return (
@@ -199,6 +206,66 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
                     className={`py-1.5 px-1 rounded-lg border text-[10px] text-center font-bold tracking-tight transition-all cursor-pointer ${
                       isSelected
                         ? "border-emerald-500 bg-[#162a1c] text-emerald-300"
+                        : "border-white/5 text-[#e0e0e0]/50 hover:border-white/10"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Legendary Cards Appearance Ratio Panel */}
+        <div className="p-4 rounded-xl bg-black/30 border border-white/5">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/20 px-3 py-1 rounded-lg">
+              <span className="text-sm font-black text-amber-400">
+                {legendPercentage === 0 ? "مستبعدة (0%)" : `${legendPercentage}% من كروت المجموعة`}
+              </span>
+            </div>
+            <label className="block text-[#e0e0e0]/70 text-xs font-semibold text-right uppercase tracking-wider">
+              معدل ظهور أوراق اللاعبين الأساطير:
+            </label>
+          </div>
+          <p className="text-[10px] text-[#e0e0e0]/45 leading-none mb-3 text-right">
+            يتحكم في فرصة ظهور الأساطير الذهبية أثناء توزيع الأوراق وسحبها من الباقة.
+          </p>
+          <div className="space-y-4">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={legendPercentage}
+              onChange={(e) => {
+                SoundEffects.playCardDraw();
+                setLegendPercentage(Number(e.target.value));
+              }}
+              className="w-full h-2 bg-black/50 border border-white/5 rounded-lg appearance-none cursor-pointer accent-amber-500"
+            />
+            {/* Quick Presets row */}
+            <div className="grid grid-cols-5 gap-1 md:gap-2">
+              {[
+                { label: "مستبعدة (0%)", value: 0 },
+                { label: "منخفضة (15%)", value: 15 },
+                { label: "متوازنة (30%)", value: 30 },
+                { label: "مرتفعة (60%)", value: 60 },
+                { label: "أساطير (100%)", value: 100 }
+              ].map((preset) => {
+                const isSelected = legendPercentage === preset.value;
+                return (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => {
+                      SoundEffects.playCardDraw();
+                      setLegendPercentage(preset.value);
+                    }}
+                    className={`py-1.5 px-0.5 rounded-lg border text-[9px] md:text-[10px] text-center font-bold tracking-tight transition-all cursor-pointer ${
+                      isSelected
+                        ? "border-amber-500 bg-[#302213] text-amber-300 font-bold"
                         : "border-white/5 text-[#e0e0e0]/50 hover:border-white/10"
                     }`}
                   >

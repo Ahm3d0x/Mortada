@@ -21,6 +21,7 @@ interface CoachHandProps {
   isPlayerTurn: boolean;
   isHandExpanded: boolean;
   setIsHandExpanded: (val: boolean) => void;
+  playerSlots: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean }[];
 
   onSelectCard: (id: string) => void;
   onDrawCard: (deckType: "player" | "special") => void;
@@ -41,6 +42,7 @@ export default function CoachHand({
   isPlayerTurn,
   isHandExpanded,
   setIsHandExpanded,
+  playerSlots,
   onSelectCard,
   onDrawCard,
   onPlaySpecialCard,
@@ -156,27 +158,33 @@ export default function CoachHand({
       )}
 
       {/* Draw Buttons row inside inline drawer */}
-      {isDrawPhase && phase !== "warmup" && (
-        <div className="bg-black/40 border border-[#10b981]/15 p-3 rounded-xl text-center space-y-2.5">
-          <span className="text-amber-400 text-xs font-black animate-pulse block">
-            👈 اسحب {2 - cardsDrawnThisTurn} كروت إضافية اختيارياً ليدك لدعم التكتيك!
+      {isPlayerTurn && (phase === "player_turn" || phase === "warmup") && (
+        <div className="bg-black/45 border border-emerald-500/10 p-3.5 rounded-xl text-center space-y-3">
+          <span className="text-emerald-400 text-xs font-semibold block animate-pulse">
+            {phase === "warmup" 
+              ? `مرحلة التسخين: اسحب كروت اللاعبين (${playerSlots.filter(s => s.card !== null).length}/5) المقلوبة لتكتمل خطتك.`
+              : `سحب كروت الدعم والمناورة (مسحوب هذا الدور: ${cardsDrawnThisTurn}/2)`}
           </span>
           <div className="flex items-center justify-center gap-3">
+            {phase !== "warmup" && (
+              <button
+                type="button"
+                onClick={() => onDrawCard("special")}
+                disabled={specialDeckCount === 0 || cardsDrawnThisTurn >= 2}
+                className="px-4 py-2 bg-teal-950/50 hover:bg-teal-900/60 text-teal-300 border border-teal-500/40 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <span>سحب كارت تكتيك</span>
+                <span className="bg-black/40 px-2 py-0.5 rounded font-mono font-bold text-[10px]">{specialDeckCount}</span>
+              </button>
+            )}
             <button
-              onClick={() => onDrawCard("special")}
-              disabled={specialDeckCount === 0}
-              className="px-4 py-2 bg-teal-850 hover:bg-teal-700 text-teal-300 border border-teal-500/30 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-45"
-            >
-              <span>سحب تكتيك خاص</span>
-              <span className="bg-black/30 px-1.5 py-0.5 rounded font-mono">({specialDeckCount})</span>
-            </button>
-            <button
+              type="button"
               onClick={() => onDrawCard("player")}
-              disabled={playerDeckCount === 0}
-              className="px-4 py-2 bg-emerald-850 hover:bg-emerald-700 text-emerald-300 border border-emerald-500/30 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-45"
+              disabled={playerDeckCount === 0 || (phase === "warmup" && playerSlots.filter(s => s.card !== null).length >= 5) || (phase !== "warmup" && cardsDrawnThisTurn >= 2)}
+              className="px-4 py-2 bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/40 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span>سحب كارت لاعب</span>
-              <span className="bg-black/30 px-1.5 py-0.5 rounded font-mono">({playerDeckCount})</span>
+              <span className="bg-black/40 px-2 py-0.5 rounded font-mono font-bold text-[10px]">{playerDeckCount}</span>
             </button>
           </div>
         </div>

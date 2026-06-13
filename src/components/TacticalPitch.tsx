@@ -6,26 +6,30 @@
 import React from "react";
 import { Swords, Shield, Star, RefreshCw } from "lucide-react";
 import GameCard from "./GameCard";
-import { PlayerCard } from "../types";
+import { PlayerCard, SpecialCard, PontoCard } from "../types";
 
 interface TacticalPitchProps {
   playerCoachName: string;
   playerTeam: string;
   playerScore: number;
-  playerSlots: { card: PlayerCard | null; isRevealed: boolean }[];
+  playerSlots: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean }[];
   
   aiCoachName: string;
   aiTeam: string;
   aiScore: number;
-  aiSlots: { card: PlayerCard | null; isRevealed: boolean }[];
+  aiSlots: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean }[];
 
   selectedSlotIdx: number | null;
   currentAttackerIdx: number | null;
   phase: string;
   playerMovesLeft: number;
+  turnCount?: number;
 
   onSelectSlot: (idx: number) => void;
   isSelectable: (idx: number, isAi: boolean) => boolean;
+
+  playerActiveSpecial: SpecialCard[];
+  aiActiveSpecial: SpecialCard[];
 
   // Embedded drawings on-pitch center (Requirement 7)
   playerDeckCount?: number;
@@ -38,6 +42,8 @@ interface TacticalPitchProps {
   setIsHandExpanded?: (val: boolean) => void;
   aiHandCount?: number;
   onInspectCard?: (card: any) => void;
+
+  currentPonto: PontoCard | null;
 }
 
 // Tactical Positions Label Map
@@ -62,8 +68,11 @@ export default function TacticalPitch({
   currentAttackerIdx,
   phase,
   playerMovesLeft,
+  turnCount = 1,
   onSelectSlot,
   isSelectable,
+  playerActiveSpecial,
+  aiActiveSpecial,
   playerDeckCount = 0,
   specialDeckCount = 0,
   cardsDrawnThisTurn = 0,
@@ -71,7 +80,8 @@ export default function TacticalPitch({
   isHandExpanded = false,
   setIsHandExpanded,
   aiHandCount = 3,
-  onInspectCard
+  onInspectCard,
+  currentPonto
 }: TacticalPitchProps) {
 
   const [isPeekMode, setIsPeekMode] = React.useState(false);
@@ -82,6 +92,7 @@ export default function TacticalPitch({
     if (!slot) return null;
     const selectable = isSelectable(idx, true);
     const isSelected = phase === "attacking" && currentAttackerIdx === idx;
+    const isSpent = !!slot.spent;
     
     return (
       <div key={`ai_pitch_${idx}`} className={`flex flex-col items-center gap-1 w-full ${isMobile ? 'max-w-[75px] xs:max-w-[85px] sm:max-w-[100px]' : 'max-w-[120px]'}`} id={`ai_slot_pos_${idx}`}>
@@ -95,17 +106,26 @@ export default function TacticalPitch({
             selectable 
               ? "cursor-pointer ring-2 ring-emerald-500/70 shadow-[0_0_12px_rgba(16,185,129,0.5)] scale-[1.02] animate-pulse" 
               : "opacity-95"
-          }`}
+          } ${isSpent ? "opacity-50 grayscale-[50%] scale-[0.98]" : ""}`}
         >
           {slot.card ? (
-            <GameCard
-              card={slot.card}
-              isRevealed={slot.isRevealed}
-              size="pitch"
-              disabled={!selectable}
-              onInspect={() => slot.isRevealed && onInspectCard && onInspectCard(slot.card)}
-              className={isSelected ? "border-rose-500 ring-4 ring-rose-500/30" : ""}
-            />
+            <div className="relative w-full h-full">
+              <GameCard
+                card={slot.card}
+                isRevealed={slot.isRevealed}
+                size="pitch"
+                disabled={!selectable}
+                onInspect={() => slot.isRevealed && onInspectCard && onInspectCard(slot.card)}
+                className={`${isSelected ? "border-rose-500 ring-4 ring-rose-500/30" : ""} ${isSpent ? "pointer-events-none" : ""}`}
+              />
+              {isSpent && (
+                <div className="absolute inset-0 bg-black/10 rounded-xl pointer-events-none flex items-center justify-center">
+                  <span className="bg-black/85 text-rose-300 text-[8px] font-bold px-2 py-0.5 rounded border border-rose-500/20 shadow-md">
+                    مستهلك ❌
+                  </span>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="text-center p-1.5 flex flex-col items-center justify-center gap-0.5 text-slate-700">
               <span className="text-sm">🛡️</span>
@@ -115,11 +135,13 @@ export default function TacticalPitch({
 
           {slot.card && (
             <div className={`absolute -top-1.5 -left-1.5 px-1 py-0.5 rounded text-[7px] font-bold shadow-md z-20 ${
-              slot.isRevealed 
-                ? "bg-amber-500 text-black border border-amber-300/30" 
-                : "bg-[#1a1c1a] text-[#e0e0e0]/70 border border-white/5"
+              isSpent
+                ? "bg-slate-700 text-slate-400 border border-slate-600"
+                : (slot.isRevealed 
+                    ? "bg-amber-500 text-black border border-amber-300/30" 
+                    : "bg-[#1a1c1a] text-[#e0e0e0]/70 border border-white/5")
             }`}>
-              {slot.isRevealed ? "مكشوف" : "مخفي"}
+              {isSpent ? "مستهلك" : (slot.isRevealed ? "مكشوف" : "مخفي")}
             </div>
           )}
         </div>
@@ -134,6 +156,7 @@ export default function TacticalPitch({
     const selectable = isSelectable(idx, false);
     const isSelected = selectedSlotIdx === idx;
     const isActiveAttacker = phase === "attacking" && currentAttackerIdx === idx;
+    const isSpent = !!slot.spent;
 
     const peekingThisCard = isPeekMode && !slot.isRevealed;
 
@@ -153,7 +176,7 @@ export default function TacticalPitch({
             selectable 
               ? "cursor-pointer ring-2 ring-emerald-500/70 shadow-[0_0_12px_rgba(16,185,129,0.5)] scale-[1.02] animate-pulse" 
               : ""
-          }`}
+          } ${isSpent ? "opacity-50 grayscale-[50%] scale-[0.98]" : ""}`}
         >
           {slot.card ? (
             <div className="relative w-full h-full">
@@ -164,11 +187,18 @@ export default function TacticalPitch({
                 isSelected={isSelected}
                 disabled={!selectable}
                 onInspect={() => onInspectCard && onInspectCard(slot.card)}
-                className={isActiveAttacker ? "border-emerald-400 ring-4 ring-emerald-500/40" : ""}
+                className={`${isActiveAttacker ? "border-emerald-400 ring-4 ring-emerald-500/40" : ""} ${isSpent ? "pointer-events-none" : ""}`}
               />
               {peekingThisCard && (
                 <div className="absolute top-0 right-0 bg-amber-500 text-black text-[7px] font-black px-1.5 py-0.5 rounded-bl rounded-tr-xl z-30 shadow animate-pulse pointer-events-none select-none">
                   👁️ معاينة
+                </div>
+              )}
+              {isSpent && (
+                <div className="absolute inset-0 bg-black/10 rounded-xl pointer-events-none flex items-center justify-center">
+                  <span className="bg-black/85 text-emerald-300 text-[8px] font-bold px-2 py-0.5 rounded border border-emerald-500/20 shadow-md">
+                    مستهلك ❌
+                  </span>
                 </div>
               )}
             </div>
@@ -181,11 +211,13 @@ export default function TacticalPitch({
 
           {slot.card && (
             <div className={`absolute -top-1.5 -right-1.5 px-1 py-0.5 rounded text-[7px] font-bold shadow-md z-20 ${
-              slot.isRevealed 
-                ? "bg-teal-500 text-black border border-teal-300/30" 
-                : "bg-[#1a1c1a] text-[#e0e0e0]/70 border border-white/5"
+              isSpent
+                ? "bg-slate-700 text-slate-400 border border-slate-600"
+                : (slot.isRevealed 
+                    ? "bg-teal-500 text-black border border-teal-300/30" 
+                    : "bg-[#1a1c1a] text-[#e0e0e0]/70 border border-white/5")
             }`}>
-              {slot.isRevealed ? "مكشوف" : "مخفي"}
+              {isSpent ? "مستهلك" : (slot.isRevealed ? "مكشوف" : "مخفي")}
             </div>
           )}
         </div>
@@ -266,98 +298,149 @@ export default function TacticalPitch({
         </div>
 
         {/* Tactical Middle Pitch divider - Streamlined and narrow on mobile */}
-        <div className="relative my-4 flex items-center justify-center">
-          <div className="absolute inset-x-0 h-[2px] bg-emerald-500/20" />
+        <div className="relative my-4 flex flex-col items-center justify-center gap-3">
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] bg-emerald-500/20" />
           <div className="z-10 bg-[#0c0e0c] border border-emerald-500/30 px-4 py-1 rounded-full text-[9px] font-mono font-black text-emerald-400 uppercase tracking-widest shadow-[0_0_12px_rgba(16,185,129,0.25)]">
             ⚙️ تكتيكات اللقاء الكروي ⚙️
           </div>
+
+          {currentPonto && (
+            <div className="z-10 bg-gradient-to-r from-amber-950/90 to-amber-900/90 border border-amber-500/50 px-4 py-2 rounded-xl text-center shadow-[0_0_15px_rgba(245,158,11,0.25)] animate-fadeIn max-w-xs md:max-w-md">
+              <span className="text-[9px] text-amber-400 font-black tracking-wider block uppercase mb-1">
+                🔥 كارت معزز المرتدة النشط (Ponto) 🔥
+              </span>
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-xs text-white font-extrabold">{currentPonto.text}</span>
+                <span className="text-xs font-mono font-black text-amber-300 bg-black/55 px-2 py-0.5 rounded border border-amber-500/20">
+                  +{currentPonto.value} ⚔️
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 2. PLAYER HALF - YOU (COACH) */}
         <div>
           {/* Symmetrical Player Console */}
-          <div className="w-full bg-[#121412]/95 border border-[#10b981]/30 rounded-2xl p-3 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-2 mb-4">
-            <div className="flex items-center justify-between px-1.5">
+          <div className="w-full bg-[#121412]/95 border border-[#10b981]/30 rounded-2xl p-4 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-3 mb-4">
+            <div className="flex items-center justify-between px-1.5 border-b border-white/5 pb-2">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="text-[10px] md:text-[11px] font-black text-emerald-400">لوحة التحكم التكتيكية للمدرب</span>
               </div>
               <span className="text-[8px] text-[#e0e0e0]/30 font-mono font-black">ACTIVE COACH UTILITIES</span>
             </div>
+
+            {/* Active special cards display row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-2">
+              {/* Box 1: Player Active Special Cards */}
+              <div className="p-3 bg-teal-950/20 border border-teal-500/20 rounded-xl flex flex-col justify-between gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-[#10b981] tracking-wide">⚔️ تكتيكات مفعّلة لك في هذه الهجمة</span>
+                  <span className="text-[8px] font-mono text-white/35">ACTIVE MY TACTICS</span>
+                </div>
+                <div className="min-h-[48px] flex flex-wrap items-center justify-center gap-1.5 p-1.5 bg-black/35 rounded-lg border border-white/5">
+                  {playerActiveSpecial && playerActiveSpecial.length > 0 ? (
+                    playerActiveSpecial.map((card) => {
+                      let timerId: any = null;
+                      return (
+                        <div
+                          key={card.id}
+                          onPointerDown={() => {
+                            timerId = setTimeout(() => {
+                              onInspectCard?.(card);
+                            }, 500);
+                          }}
+                          onPointerUp={() => {
+                            if (timerId) clearTimeout(timerId);
+                          }}
+                          onPointerLeave={() => {
+                            if (timerId) clearTimeout(timerId);
+                          }}
+                          onClick={() => onInspectCard?.(card)}
+                          title="انقر أو اضغط باستمرار للمعاينة الشاملة"
+                          className="px-2.5 py-1.5 rounded bg-teal-900/60 border border-teal-400/30 text-teal-200 text-[10px] font-black flex items-center gap-1.5 shadow-md cursor-pointer hover:bg-teal-800/85 hover:border-teal-400 transition-all active:scale-95 select-none animate-pulse"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+                          <span>{card.name}</span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <span className="text-[10px] text-zinc-500 font-semibold font-sans">لا يوجد تكتيك نشط حالياً</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Box 2: AI/Opponent Active Special Cards */}
+              <div className="p-3 bg-rose-950/20 border border-rose-500/20 rounded-xl flex flex-col justify-between gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-rose-400 tracking-wide">🛡️ تكتيكات مفعّلة للخصم في هذه الهجمة</span>
+                  <span className="text-[8px] font-mono text-white/35">OPPONENT TACTICS</span>
+                </div>
+                <div className="min-h-[48px] flex flex-wrap items-center justify-center gap-1.5 p-1.5 bg-black/35 rounded-lg border border-white/5">
+                  {aiActiveSpecial && aiActiveSpecial.length > 0 ? (
+                    aiActiveSpecial.map((card) => {
+                      let timerId: any = null;
+                      return (
+                        <div
+                          key={card.id}
+                          onPointerDown={() => {
+                            timerId = setTimeout(() => {
+                              onInspectCard?.(card);
+                            }, 500);
+                          }}
+                          onPointerUp={() => {
+                            if (timerId) clearTimeout(timerId);
+                          }}
+                          onPointerLeave={() => {
+                            if (timerId) clearTimeout(timerId);
+                          }}
+                          onClick={() => onInspectCard?.(card)}
+                          title="انقر أو اضغط باستمرار للمعاينة الشاملة"
+                          className="px-2.5 py-1.5 rounded bg-rose-950 border border-rose-500/35 text-rose-200 text-[10px] font-black flex items-center gap-1.5 shadow-md cursor-pointer hover:bg-rose-900/85 hover:border-rose-400 transition-all active:scale-95 select-none animate-pulse"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                          <span>{card.name}</span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <span className="text-[10px] text-zinc-500 font-semibold font-sans">لا يوجد تكتيك نشط للخصم حالياً</span>
+                  )}
+                </div>
+              </div>
+            </div>
             
-            <div className="grid grid-cols-2 xs:grid-cols-4 gap-2">
-              {/* 1. Draw Player Button */}
-              <button
-                type="button"
-                onClick={() => onDrawCard && onDrawCard("player")}
-                disabled={playerDeckCount === 0 || (phase !== "player_turn" && phase !== "warmup") || cardsDrawnThisTurn >= 2}
-                className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
-                  (phase === "warmup" && playerSlots.filter(s => s.card !== null).length < 5) || (phase === "player_turn" && cardsDrawnThisTurn < 2)
-                    ? "border-emerald-500 bg-emerald-950/40 text-emerald-400 ring-2 ring-emerald-500/30 animate-pulse"
-                    : "border-white/5 bg-black/40 text-slate-400 hover:border-white/10 hover:text-white"
-                } disabled:opacity-40 disabled:cursor-not-allowed`}
-                id="board_draw_player_widget"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs">🏃‍♂️</span>
-                  <span className="font-bold text-[10px] md:text-xs">سحب كارت لاعب</span>
-                </div>
-                <span className="text-[8px] font-mono opacity-60">الباقي: {playerDeckCount}</span>
-              </button>
-
-              {/* 2. Draw Special Button */}
-              <button
-                type="button"
-                onClick={() => onDrawCard && onDrawCard("special")}
-                disabled={specialDeckCount === 0 || phase === "warmup" || phase !== "player_turn" || cardsDrawnThisTurn >= 2}
-                className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
-                  (phase === "player_turn" && cardsDrawnThisTurn < 2)
-                    ? "border-teal-500 bg-teal-950/40 text-teal-400 hover:border-teal-400"
-                    : "border-white/5 bg-black/40 text-slate-400 hover:border-white/10 hover:text-white"
-                } disabled:opacity-40 disabled:cursor-not-allowed`}
-                id="board_draw_special_widget"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs">⚡</span>
-                  <span className="font-bold text-[10px] md:text-xs">سحب كارت تكتيك</span>
-                </div>
-                <span className="text-[8px] font-mono opacity-60">الباقي: {specialDeckCount}</span>
-              </button>
-
+            <div className="grid grid-cols-2 gap-2 mt-1">
               {/* 3. Open Hand Button */}
               <button
                 type="button"
                 onClick={() => setIsHandExpanded && setIsHandExpanded(!isHandExpanded)}
-                className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                className={`p-2.5 rounded-xl border flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
                   isHandExpanded
                     ? "border-amber-500 bg-amber-950/40 text-amber-400 ring-2 ring-amber-500/30"
                     : "border-white/5 bg-black/40 text-slate-400 hover:border-white/10 hover:text-white"
                 }`}
                 id="board_toggle_hand_widget"
               >
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs">👝</span>
-                  <span className="font-bold text-[10px] md:text-xs">حقيبة اللعب اليدوية</span>
-                </div>
-                <span className="text-[8px] font-mono opacity-60">{isHandExpanded ? "إخفاء الحقيبة" : "فتح الكروت بيدك"}</span>
+                <span className="text-sm">👜</span>
+                <span className="font-bold text-xs md:text-sm">حقيبة خط الظهر ({isHandExpanded ? "مفتوحة" : "مغلقة"})</span>
               </button>
 
               {/* 4. Peek Pitch Cards Button */}
               <button
                 type="button"
                 onClick={() => setIsPeekMode(!isPeekMode)}
-                className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                className={`p-2.5 rounded-xl border flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
                   isPeekMode
                     ? "border-purple-500 bg-purple-950/40 text-purple-400 ring-2 ring-purple-500/30"
                     : "border-white/5 bg-black/40 text-slate-400 hover:border-white/10 hover:text-white"
                 }`}
                 id="board_preview_peek_widget"
               >
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs">👁️</span>
-                  <span className="font-bold text-[10px] md:text-xs">معاينة خطتك سرياً</span>
-                </div>
-                <span className="text-[8px] font-mono opacity-60">{isPeekMode ? "إيقاف المعاينة" : "رؤية خصائص كروتك"}</span>
+                <span className="text-sm">👁️</span>
+                <span className="font-bold text-xs md:text-sm">معاينة كل الأوراق ({isPeekMode ? "العيان" : "معاينة"})</span>
               </button>
             </div>
           </div>

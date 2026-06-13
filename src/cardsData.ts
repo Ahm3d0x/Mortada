@@ -254,6 +254,198 @@ export const INITIAL_PLAYER_CARDS: Omit<PlayerCard, "id">[] = [
     team: "بلجيكا",
     avatar: "🕸️"
   },
+  {
+    name: "هاري كين",
+    type: "player",
+    isLegend: false,
+    attack: 9,
+    defense: 2,
+    role: "attacker",
+    roleArabic: "رأس حربة",
+    description: "الهداف التاريخي والمهاري الإنجليزي دقة تسديد وحنكة عالية.",
+    team: "إنجلترا",
+    avatar: "🏴󠁧󠁢󠁥󠁮󠁧󠁿"
+  },
+  {
+    name: "روبرت ليفاندوفسكي",
+    type: "player",
+    isLegend: false,
+    attack: 8,
+    defense: 1,
+    role: "attacker",
+    roleArabic: "رأس حربة",
+    description: "المهاجم البولندي القناص ذو اللمسة الأخيرة الفتاكة.",
+    team: "بولندا",
+    avatar: "🇵🇱"
+  },
+  {
+    name: "فينيسيوس جونيور",
+    type: "player",
+    isLegend: false,
+    attack: 9,
+    defense: 2,
+    role: "attacker",
+    roleArabic: "رأس حربة",
+    description: "النجم البرازيلي السريع، مهارات مراوغة مذهلة على الجناح.",
+    team: "البرازيل",
+    avatar: "🇧🇷"
+  },
+  {
+    name: "كريم بنزيما",
+    type: "player",
+    isLegend: false,
+    attack: 8,
+    defense: 2,
+    role: "attacker",
+    roleArabic: "رأس حربة",
+    description: "الفرنسي الخبير الحائز على الكرة الذهبية وصانع اللعب البارع.",
+    team: "فرنسا",
+    avatar: "🇫🇷"
+  },
+  {
+    name: "سون هيونغ-مين",
+    type: "player",
+    isLegend: false,
+    attack: 8,
+    defense: 2,
+    role: "attacker",
+    roleArabic: "رأس حربة",
+    description: "النجم الكوري الحاسم والمنطلق بالسرعة والتسديدات القوية السريعة.",
+    team: "كوريا الجنوبية",
+    avatar: "🇰🇷"
+  },
+  {
+    name: "بيرناردو سيلفا",
+    type: "player",
+    isLegend: false,
+    attack: 6,
+    defense: 6,
+    role: "midfielder",
+    roleArabic: "خط وسط",
+    description: "المحرك البرتغالي الساحر والذكي بالتحكم والاحتفاظ بالكرة.",
+    team: "البرتغال",
+    avatar: "🇵🇹"
+  },
+  {
+    name: "برونو فيرنانديز",
+    type: "player",
+    isLegend: false,
+    attack: 7,
+    defense: 5,
+    role: "midfielder",
+    roleArabic: "خط وسط",
+    description: "صانع ألعاب يمرر كرات بينية حاسمة ودقة عالية بالركلات الحرة.",
+    team: "البرتغال",
+    avatar: "🪄"
+  },
+  {
+    name: "بيدري",
+    type: "player",
+    isLegend: false,
+    attack: 6,
+    defense: 5,
+    role: "midfielder",
+    roleArabic: "خط وسط",
+    description: "الموهبة الإسبانية الرشيقة، سلاسة تامة في الخروج بالكرة.",
+    team: "إسبانيا",
+    avatar: "🇪🇸"
+  },
+  {
+    name: "ديكلان رايس",
+    type: "player",
+    isLegend: false,
+    attack: 4,
+    defense: 8,
+    role: "midfielder",
+    roleArabic: "خط وسط",
+    description: "المقاتل الإنجليزي في الارتداد وقطع الكرات بنجاح لامتناهي.",
+    team: "إنجلترا",
+    avatar: "🦁"
+  },
+  {
+    name: "جمال موسيالا",
+    type: "player",
+    isLegend: false,
+    attack: 7,
+    defense: 4,
+    role: "midfielder",
+    roleArabic: "خط وسط",
+    description: "الساحر الألماني الشاب، مهارات ثعبانية في المساحات الضيقة.",
+    team: "ألمانيا",
+    avatar: "🇩🇪"
+  },
+  {
+    name: "أنطونيو روديغر",
+    type: "player",
+    isLegend: false,
+    attack: 3,
+    defense: 8,
+    role: "defender",
+    roleArabic: "مدافع",
+    description: "المدافع الألماني الشرس والصلد روح قتالية استثنائية.",
+    team: "ألمانيا",
+    avatar: "👹"
+  },
+  {
+    name: "ألفونسو ديفيس",
+    type: "player",
+    isLegend: false,
+    attack: 5,
+    defense: 7,
+    role: "defender",
+    roleArabic: "مدافع",
+    description: "الظهير الكندي الطائر، أسرع انطلاقات لقطع الكرة ومساندة الهجوم.",
+    team: "كندا",
+    avatar: "🇨🇦"
+  },
+  {
+    name: "ماركينيوس",
+    type: "player",
+    isLegend: false,
+    attack: 2,
+    defense: 8,
+    role: "defender",
+    roleArabic: "مدافع",
+    description: "القائد البرازيلي المحنك، ثبات رائد ومثالي بالقطع الهوائي.",
+    team: "البرازيل",
+    avatar: "🇧🇷"
+  },
+  {
+    name: "كايل ووكر",
+    type: "player",
+    isLegend: false,
+    attack: 3,
+    defense: 8,
+    role: "defender",
+    roleArabic: "مدافع",
+    description: "المدافع الإنجليزي الأقوى بدنياً وسرعة فائقة بالتحجيم والقطع.",
+    team: "إنجلترا",
+    avatar: "🧱"
+  },
+  {
+    name: "إيدرسون",
+    type: "player",
+    isLegend: false,
+    attack: 1,
+    defense: 8,
+    role: "goalkeeper",
+    roleArabic: "حارس مرمى",
+    description: "الحارس البرازيلي المتميز بأدق تمريرات وصناعة هجمات خلفية.",
+    team: "البرازيل",
+    avatar: "🇧🇷"
+  },
+  {
+    name: "أليسون بيكر",
+    type: "player",
+    isLegend: false,
+    attack: 0,
+    defense: 9,
+    role: "goalkeeper",
+    roleArabic: "حارس مرمى",
+    description: "البرازيلي العملاق، تصديات حاسمة ومواجهات إنفرادية باهرة.",
+    team: "البرازيل",
+    avatar: "🧤"
+  },
 
   // LEGENDS (الأساطير - Must NOT be generated in first 5 pitch slots directly)
   {
@@ -414,25 +606,39 @@ export const INITIAL_PONTO_CARDS: Omit<PontoCard, "id">[] = [
   { value: 0, text: "تسديدة خارج الخشبات الثلاث ومصيدة دفاع" }
 ];
 
-// Helper to fully initialize and shuffle standard player decks
-export function generatePlayerDeck(): PlayerCard[] {
-  const cards: Omit<PlayerCard, "id">[] = [];
-  INITIAL_PLAYER_CARDS.forEach(card => {
-    if (card.isLegend) {
-      cards.push(card);
-    } else {
-      // Duplicate non-legends 4 times to increase standard/common players significantly
-      cards.push(card);
-      cards.push(card);
-      cards.push(card);
-      cards.push(card);
-    }
-  });
-
-  return cards.map((card, idx) => ({
+// Helper to fully initialize and shuffle standard player decks with custom legend appearance percentage (from 0 to 100)
+export function generatePlayerDeck(legendRatio: number = 30): PlayerCard[] {
+  const normalCards = INITIAL_PLAYER_CARDS.filter(c => !c.isLegend);
+  const legendCards = INITIAL_PLAYER_CARDS.filter(c => c.isLegend);
+  
+  // Total target deck size is 35 cards to keep matches balanced and rich
+  const totalDeckSize = 35;
+  const numLegends = Math.min(legendCards.length, Math.max(0, Math.round((legendRatio / 100) * totalDeckSize)));
+  const numNormals = Math.max(0, totalDeckSize - numLegends);
+  
+  // Shuffle pools before selection
+  const shuffledLegends = [...legendCards].sort(() => Math.random() - 0.5);
+  const shuffledNormals = [...normalCards].sort(() => Math.random() - 0.5);
+  
+  const selectedLegends: Omit<PlayerCard, "id">[] = [];
+  const selectedNormals: Omit<PlayerCard, "id">[] = [];
+  
+  for (let i = 0; i < numLegends; i++) {
+    const card = shuffledLegends[i % shuffledLegends.length];
+    selectedLegends.push(card);
+  }
+  
+  for (let i = 0; i < numNormals; i++) {
+    const card = shuffledNormals[i % shuffledNormals.length];
+    selectedNormals.push(card);
+  }
+  
+  const combined = [...selectedLegends, ...selectedNormals].sort(() => Math.random() - 0.5);
+  
+  return combined.map((card, idx) => ({
     ...card,
     id: `play_${idx}_${Math.random().toString(36).substr(2, 9)}`
-  } as PlayerCard)).sort(() => Math.random() - 0.5);
+  } as PlayerCard));
 }
 
 // Helper to fully initialize and shuffle standard special decks
