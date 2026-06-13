@@ -23,6 +23,10 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [age, setAge] = useState<number | "">("");
+  const [gender, setGender] = useState<"male" | "female">("male");
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -84,11 +88,34 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
     try {
       if (authMode === "register") {
         if (!username.trim()) {
-          setAuthError("يرجى إدخال اسم مستخدم مميز ⚠️");
+          setAuthError("يرجى إدخال اسم كابتن مميز ⚠️");
           setAuthLoading(false);
           return;
         }
-        const { user: newUser, error } = await supabaseService.signUp(email, password, username);
+        if (!fullName.trim()) {
+          setAuthError("يرجى إدخال الاسم الكامل بالكامل ⚠️");
+          setAuthLoading(false);
+          return;
+        }
+        if (!age || Number(age) < 8) {
+          setAuthError("يرجى إدخال عمر صحيح (8 سنوات على الأقل) ⚠️");
+          setAuthLoading(false);
+          return;
+        }
+        if (!acceptTerms) {
+          setAuthError("يجب الموافقة على شروط الاستخدام وسياسة الخصوصية بالموقع ⚠️");
+          setAuthLoading(false);
+          return;
+        }
+        const { user: newUser, error } = await supabaseService.signUp(
+          email,
+          password,
+          username,
+          fullName,
+          Number(age),
+          gender,
+          acceptTerms
+        );
         if (error) setAuthError(error);
         else setUser(newUser);
       } else {
@@ -235,57 +262,111 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
                 </div>
               )}
 
-              <form onSubmit={handleAuth} className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                {authMode === "register" && (
+              <form onSubmit={handleAuth} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {authMode === "register" && (
+                    <>
+                      <div className="space-y-1">
+                        <label className="block text-[11px] text-[#e0e0e0]/60 font-semibold text-right">الاسم الكامل:</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="الاسم الثلاثي أو الثنائي"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-white focus:outline-none focus:border-emerald-500 text-right"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[11px] text-[#e0e0e0]/60 font-semibold text-right">اسم الكابتن المميز (اللقب):</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="مثال: AbouTrika_7"
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                          className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-white focus:outline-none focus:border-emerald-500 text-right"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[11px] text-[#e0e0e0]/60 font-semibold text-right">السن / العمر:</label>
+                        <input
+                          type="number"
+                          required
+                          min={8}
+                          max={120}
+                          placeholder="السن بالسنوات"
+                          value={age}
+                          onChange={(e) => setAge(e.target.value === "" ? "" : Number(e.target.value))}
+                          className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-white focus:outline-none focus:border-emerald-500 text-right"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[11px] text-[#e0e0e0]/60 font-semibold text-right">الجنس:</label>
+                        <select
+                          value={gender}
+                          onChange={(e) => setGender(e.target.value as any)}
+                          className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-[#e0e0e0]/80 focus:outline-none focus:border-emerald-500 text-right"
+                        >
+                          <option value="male" className="bg-[#121412] text-white">ذكر ♂</option>
+                          <option value="female" className="bg-[#121412] text-white">أنثى ♀</option>
+                        </select>
+                      </div>
+                    </>
+                  )}
                   <div className="space-y-1">
-                    <label className="block text-[11px] text-[#e0e0e0]/60">اسم الكابتن المميز:</label>
+                    <label className="block text-[11px] text-[#e0e0e0]/60 font-semibold text-right">البريد الإلكتروني:</label>
                     <input
-                      type="text"
+                      type="email"
                       required
-                      placeholder="اسمك بالملعب"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-white focus:outline-none focus:border-emerald-500 text-right"
+                      placeholder="name@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-white focus:outline-none focus:border-emerald-500 text-left"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-[11px] text-[#e0e0e0]/60 font-semibold text-right">كلمة السر:</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-white focus:outline-none focus:border-emerald-500 text-left"
+                    />
+                  </div>
+                </div>
+
+                {authMode === "register" && (
+                  <div className="flex items-center justify-end gap-2 py-1.5 border-t border-white/5">
+                    <label htmlFor="accept-terms-checkbox" className="text-[11px] text-[#e0e0e0]/70 cursor-pointer select-none text-right">
+                      أوافق على <span className="text-emerald-400 font-bold hover:underline">شروط الاستخدام</span> و <span className="text-emerald-400 font-bold hover:underline">سياسة الخصوصية</span> الخاصة بلعبة مرتدة التكتيكية ⚽
+                    </label>
+                    <input
+                      id="accept-terms-checkbox"
+                      type="checkbox"
+                      checked={acceptTerms}
+                      onChange={(e) => setAcceptTerms(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-500"
                     />
                   </div>
                 )}
-                <div className="space-y-1">
-                  <label className="block text-[11px] text-[#e0e0e0]/60 font-semibold">بريد كروي إلكتروني:</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="name@coach.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-white focus:outline-none focus:border-emerald-500 text-left"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-[11px] text-[#e0e0e0]/60">كلمة السر:</label>
-                  <input
-                    type="password"
-                    required
-                    maxLength={20}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-white focus:outline-none focus:border-emerald-500 text-left"
-                  />
-                </div>
-                <div className="flex items-end gap-2">
-                  <button
-                    type="submit"
-                    disabled={authLoading}
-                    className="flex-1 py-2 px-4 rounded bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white font-bold text-xs cursor-pointer transition-colors"
-                  >
-                    {authLoading ? "جاري المعالجة..." : authMode === "register" ? "انضم وتفعيل" : "تسجيل دخول"}
-                  </button>
+
+                <div className="flex items-center justify-between gap-4 pt-2 border-t border-white/5">
                   <button
                     type="button"
                     onClick={() => setAuthMode(authMode === "register" ? "login" : "register")}
-                    className="text-[11px] text-emerald-400 hover:underline px-2 py-2 cursor-pointer"
+                    className="text-[11px] text-emerald-400 hover:underline cursor-pointer"
                   >
-                    {authMode === "register" ? "لديك حساب؟" : "إنشاء حساب جديد"}
+                    {authMode === "register" ? "لديك حساب بالفعل؟ سجل دخولك" : "ليس لديك حساب؟ إنشاء حساب مدرب جديد"}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={authLoading}
+                    className="py-2 px-6 rounded bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white font-bold text-xs cursor-pointer transition-colors"
+                  >
+                    {authLoading ? "جاري التحقق..." : authMode === "register" ? "إنشاء الحساب وتفعيل المدرب" : "تسجيل الدخول للملعب"}
                   </button>
                 </div>
               </form>
@@ -544,44 +625,230 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
           </div>
 
           <div className="relative">
-            <pre className="p-3.5 bg-black/80 text-amber-400 border border-white/5 rounded-lg text-[10px] font-mono select-all overflow-x-auto text-left leading-normal max-h-60" dir="ltr">
-{`-- 1. إنشاء جدول الغرف والمباريات
+            <pre className="p-3.5 bg-black/80 text-amber-400 border border-white/5 rounded-lg text-[10px] font-mono select-all overflow-x-auto text-left leading-normal max-h-80" dir="ltr">
+{`-- =======================================================================
+-- 1. ENUMS & CUSTOM TYPES (أنواع البيانات المخصصة للعبة مرتدة)
+-- =======================================================================
+
+-- مراحل اللعبة المختلفة لتتبع تدفق الجيم
+DO $$ BEGIN
+    CREATE TYPE public.game_phase AS ENUM (
+        'warm_up',          -- مرحلة التسخين (تبديل حر متاح)
+        'turn_start',       -- بداية الدور (انتظار سحب كارتين)
+        'player_actions',    -- مرحلة تنفيذ الـ 3 حركات كحد أقصى للمهاجم
+        'opponent_defense',  -- مرحلة رد المدافع (3 حركات للرد على الهجوم)
+        'resolution',        -- حسم النتيجة وحساب الهجمات المرتدة الناجحة
+        'game_over'         -- انتهاء المباراة وفوز أحد اللاعبين
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- أنواع الكروت المتاحة في اللعبة
+DO $$ BEGIN
+    CREATE TYPE public.card_type AS ENUM (
+        'player',   -- لاعب عادي
+        'legend',   -- لاعب أسطورة (يتطلب حرق كارتين)
+        'special',  -- كارت خاص
+        'bonto'     -- كارت البونطو المستخدم لزيادة قوة الهجوم
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- أماكن تواجد الكروت أثناء المباراة
+DO $$ BEGIN
+    CREATE TYPE public.card_location AS ENUM (
+        'deck',       -- داخل مجموعة السحب العمومية
+        'hand',       -- في يد اللاعب
+        'field',      -- في الملعب (الـ 5 كروت أمامه)
+        'discarded'   -- محروق / خارج اللعب تماماً
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- أنواع شروط تشغيل القدرة الخاصة للكارت
+DO $$ BEGIN
+    CREATE TYPE public.ability_trigger AS ENUM (
+        'on_reveal',   -- عند كشف الكارت في الملعب
+        'on_attack',   -- عند البدء بالهجوم به
+        'on_defense',  -- عند استخدامه لصد هجوم
+        'instant'      -- كارت خاص يلعب من اليد مباشرة ويموت
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- تحديد جنس اللاعب عند التسجيل
+DO $$ BEGIN
+    CREATE TYPE public.user_gender AS ENUM ('male', 'female');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- =======================================================================
+-- 2. CREATE OR ALTER EXISTING ROOMS TABLE (تحديث وتطوير جدول الغرف الحالي)
+-- =======================================================================
+
 CREATE TABLE IF NOT EXISTS public.rooms (
-  id text PRIMARY KEY,
-  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-  host_id text NOT NULL,
-  host_name text NOT NULL,
-  host_vibe text NOT NULL,
-  opponent_id text,
-  opponent_name text,
-  opponent_vibe text,
-  status text NOT NULL DEFAULT 'waiting',
-  current_turn text NOT NULL DEFAULT 'host',
-  game_state jsonb,
-  last_activity bigint NOT NULL,
-  host_confirmed boolean DEFAULT false,
-  opponent_confirmed boolean DEFAULT false
+    id text PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    host_id text NOT NULL,
+    host_name text NOT NULL,
+    host_vibe text NOT NULL,
+    opponent_id text,
+    opponent_name text,
+    opponent_vibe text,
+    status text NOT NULL DEFAULT 'waiting',
+    current_turn text NOT NULL DEFAULT 'host',
+    game_state jsonb,
+    last_activity bigint NOT NULL,
+    host_confirmed boolean DEFAULT false,
+    opponent_confirmed boolean DEFAULT false
 );
 
--- 2. إتاحة الوصول والقراءة والكتابة العامة (سياسات الأمان RLS)
+-- إضافة الأعمدة الجديدة المطلوبة لإدارة الـ Game Logic دون تغيير الأعمدة القديمة
+ALTER TABLE public.rooms 
+    ADD COLUMN IF NOT EXISTS current_attacker text NULL, -- معرف المهاجم الحالي
+    ADD COLUMN IF NOT EXISTS phase public.game_phase DEFAULT 'warm_up'::public.game_phase, -- مرحلة الجيم
+    ADD COLUMN IF NOT EXISTS p1_counter_attacks INT DEFAULT 0 CHECK (p1_counter_attacks >= 0 AND p1_counter_attacks <= 5), -- أهداف المضيف
+    ADD COLUMN IF NOT EXISTS p2_counter_attacks INT DEFAULT 0 CHECK (p2_counter_attacks >= 0 AND p2_counter_attacks <= 5), -- أهداف الضيف
+    ADD COLUMN IF NOT EXISTS moves_left INT DEFAULT 3 CHECK (moves_left >= 0 AND moves_left <= 3), -- الـ 3 حركات
+    ADD COLUMN IF NOT EXISTS current_attack_score INT DEFAULT 0, -- حساب قوة الهجوم لحظياً
+    ADD COLUMN IF NOT EXISTS current_defense_score INT DEFAULT 0, -- حساب قوة الدفاع لحظياً
+    ADD COLUMN IF NOT EXISTS winner_id text NULL, -- معرف الفائز النهائي
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone default now();
+
+-- =======================================================================
+-- 3. CREATING NEW TABLES (إنشاء الجداول الجديدة المتوافقة)
+-- =======================================================================
+
+--- أ. جدول الملف الشخصي للاعبين (Profiles)
+CREATE TABLE IF NOT EXISTS public.profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    full_name VARCHAR(100) NOT NULL,
+    age INT NOT NULL CHECK (age >= 8),
+    gender public.user_gender NOT NULL,
+    terms_accepted BOOLEAN NOT NULL DEFAULT true CHECK (terms_accepted = true),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+--- ب. جدول الكروت الثابتة (Static Cards Metadata)
+CREATE TABLE IF NOT EXISTS public.cards_catalog (
+    card_id VARCHAR(50) PRIMARY KEY, -- معرف فريد مثل 'c_messi'
+    name VARCHAR(100) NOT NULL,
+    type public.card_type NOT NULL,
+    attack_power INT DEFAULT 0,
+    defense_power INT DEFAULT 0,
+    description TEXT,
+    image_url TEXT,
+    ability_trigger public.ability_trigger DEFAULT NULL, -- شرط تفعيل القدرة
+    ability_value INT DEFAULT 0, -- القيمة الرقمية للتأثير الخاص
+    max_uses_per_game INT DEFAULT 1
+);
+
+--- ج. جدول الكروت الحية للمباراة (Live Game Cards State)
+-- تم ضبط الـ room_id ليكون TEXT ليتوافق تماماً مع الـ Primary Key لجدول الغرف القديم عندك
+CREATE TABLE IF NOT EXISTS public.game_cards (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id text NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE,
+    card_id VARCHAR(50) NOT NULL REFERENCES public.cards_catalog(card_id),
+    owner_id text, -- تم ضبطه كـ text تماشياً مع الـ ID المستخدم في جدول الـ rooms القديم
+    location public.card_location DEFAULT 'deck'::public.card_location,
+    field_position INT CHECK (field_position >= 1 AND field_position <= 5),
+    is_face_up BOOLEAN DEFAULT false,
+    deck_order INT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+--- د. جدول سجل الحركات (Game Logs)
+CREATE TABLE IF NOT EXISTS public.game_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id text NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE,
+    player_id text,
+    action_type VARCHAR(50) NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- =======================================================================
+-- 4. POLICIES & SECURITY (سياسات الأمان RLS)
+-- =======================================================================
+
 ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cards_catalog ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.game_cards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.game_logs ENABLE ROW LEVEL SECURITY;
+
+-- سياسات عامة لتسهيل اللعب والربط دون تعقيدات صلاحيات
+DROP POLICY IF EXISTS "Allow public select" ON public.rooms;
+DROP POLICY IF EXISTS "Allow public insert" ON public.rooms;
+DROP POLICY IF EXISTS "Allow public update" ON public.rooms;
+DROP POLICY IF EXISTS "Allow public delete" ON public.rooms;
 
 CREATE POLICY "Allow public select" ON public.rooms FOR SELECT USING (true);
 CREATE POLICY "Allow public insert" ON public.rooms FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public update" ON public.rooms FOR UPDATE USING (true);
 CREATE POLICY "Allow public delete" ON public.rooms FOR DELETE USING (true);
 
--- 3. تفعيل الاتصال المباشر الفوري بالوقت الحقيقي (Realtime Sync)
-ALTER TABLE public.rooms REPLICA IDENTITY FULL;
+-- سياسات Profiles
+DROP POLICY IF EXISTS "Allow profiles select" ON public.profiles;
+DROP POLICY IF EXISTS "Allow profiles insert" ON public.profiles;
+DROP POLICY IF EXISTS "Allow profiles update" ON public.profiles;
+CREATE POLICY "Allow profiles select" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Allow profiles insert" ON public.profiles FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow profiles update" ON public.profiles FOR UPDATE USING (true);
 
+-- سياسات Catalog
+DROP POLICY IF EXISTS "Allow catalog select" ON public.cards_catalog;
+CREATE POLICY "Allow catalog select" ON public.cards_catalog FOR SELECT USING (true);
+
+-- سياسات Game Cards
+DROP POLICY IF EXISTS "Allow game_cards select" ON public.game_cards;
+DROP POLICY IF EXISTS "Allow game_cards insert" ON public.game_cards;
+DROP POLICY IF EXISTS "Allow game_cards update" ON public.game_cards;
+DROP POLICY IF EXISTS "Allow game_cards delete" ON public.game_cards;
+CREATE POLICY "Allow game_cards select" ON public.game_cards FOR SELECT USING (true);
+CREATE POLICY "Allow game_cards insert" ON public.game_cards FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow game_cards update" ON public.game_cards FOR UPDATE USING (true);
+CREATE POLICY "Allow game_cards delete" ON public.game_cards FOR DELETE USING (true);
+
+-- سياسات Game Logs
+DROP POLICY IF EXISTS "Allow game_logs select" ON public.game_logs;
+DROP POLICY IF EXISTS "Allow game_logs insert" ON public.game_logs;
+CREATE POLICY "Allow game_logs select" ON public.game_logs FOR SELECT USING (true);
+CREATE POLICY "Allow game_logs insert" ON public.game_logs FOR INSERT WITH CHECK (true);
+
+-- =======================================================================
+-- 5. TRIGGERS & REALTIME ENABLEMENT (التحديث التلقائي والبث اللحظي)
+-- =======================================================================
+
+-- فانكشن لتحديث عمود updated_at تلقائياً
+CREATE OR REPLACE FUNCTION public.update_modified_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ربط التريجر بجدول الـ rooms
+DROP TRIGGER IF EXISTS update_rooms_modtime ON public.rooms;
+CREATE TRIGGER update_rooms_modtime
+    BEFORE UPDATE ON public.rooms
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_modified_column();
+
+-- تفعيل ميزة الـ Realtime للبث اللحظي على الجداول الأساسية
+ALTER TABLE public.rooms REPLICA IDENTITY FULL;
+ALTER TABLE public.game_cards REPLICA IDENTITY FULL;
+ALTER TABLE public.game_logs REPLICA IDENTITY FULL;
+ALTER TABLE public.profiles REPLICA IDENTITY FULL;
+
+-- إضافة الجداول لبث السوبربيز اللحظي
 BEGIN;
   DO $$
   BEGIN
     IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
-      ALTER PUBLICATION supabase_realtime ADD TABLE public.rooms;
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.rooms, public.game_cards, public.game_logs, public.profiles;
     ELSE
-      CREATE PUBLICATION supabase_realtime FOR TABLE public.rooms;
+      CREATE PUBLICATION supabase_realtime FOR TABLE public.rooms, public.game_cards, public.game_logs, public.profiles;
     END IF;
+  EXCEPTION WHEN others THEN
+    -- Fallback safety edge-case
+    NULL;
   END $$;
 COMMIT;`}
             </pre>

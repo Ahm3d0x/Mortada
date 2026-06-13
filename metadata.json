@@ -1,6 +1,6 @@
 {
-  "name": "لعبة كروت بونطو - Ponto Card Game",
-  "description": "موقع تفاعلي للعبة كروت كرة القدم التكتيكية 'بونطو' (Ponto)، مع لوحة تكتيكية كاملة، ومؤثرات صوتية، ولعب ضد الذكاء الاصطناعي مع شرح تفصيلي للقوانين.",
+  "name": "لعبة كروت مرتدة - Mortada Card Game",
+  "description": "موقع تفاعلي للعبة كروت كرة القدم التكتيكية 'مرتدة' (Mortada)، مع لوحة تكتيكية كاملة، ومؤثرات صوتية، ولعب ضد الذكاء الاصطناعي مع شرح تفصيلي للقوانين، ومزامنة أونلاين عبر Supabase.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

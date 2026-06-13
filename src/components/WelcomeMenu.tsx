@@ -55,10 +55,10 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
           <span>بطولة تكتيك كروت كرة القدم</span>
         </div>
         <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 via-teal-300 to-green-400 drop-shadow">
-          لعبة كروت بونطو
+          لعبة كروت مرتدة
         </h1>
         <p className="mt-3 text-slate-400 max-w-lg mx-auto text-sm md:text-base leading-relaxed">
-          تحدي تكتيكي مثير (1 ضد 1). جهز خطتك السحرية، واكشف أوراق حراسك، واهجم بقوة كروت البونطو في طريقك لتسجيل 5 أهداف وتحقيق اللقب!
+          تحدي تكتيكي مثير (1 ضد 1). جهز خطتك السحرية، واكشف أوراق حراسك، واهجم بقوة كروت الهجمات المرتدة في طريقك لتسجيل 5 أهداف وتحقيق اللقب!
         </p>
       </div>
 

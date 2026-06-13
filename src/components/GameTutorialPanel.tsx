@@ -42,7 +42,7 @@ export default function GameTutorialPanel({ isOpen, onClose }: GameTutorialPanel
             <X className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold text-white text-right">كتاب قوانين لعبة بونطو التكتيكية</h2>
+            <h2 className="text-xl font-bold text-white text-right">كتاب قوانين لعبة مرتدة التكتيكية</h2>
             <BookOpen className="w-5 h-5 text-emerald-400" />
           </div>
         </div>
@@ -165,7 +165,7 @@ export default function GameTutorialPanel({ isOpen, onClose }: GameTutorialPanel
                   <span className="text-red-400 font-bold block">1. المهاجم (دورك للهجوم):</span>
                   <ul className="list-disc list-inside space-y-1 text-slate-400">
                     <li>أعلن هجوماً (يكلف 2 حركة) وحدد لاعب مقلوب لتكشفه.</li>
-                    <li>تسحب كارت <strong className="text-white">بونطو</strong> عشوائي (+1 إلى +10) يضاف لنسبة هذا الهجوم لزيادة فرصة التسجيل.</li>
+                    <li>تسحب كارت <strong className="text-white">معزز المرتدة</strong> عشوائي (+1 إلى +10) يضاف لنسبة هذا الهجوم لزيادة فرصة تسجيل هدف!</li>
                     <li>إذا تبقت لك حركة أخيرة دورية، يمكنك استخدامها لكشف مهاجم إضافي أو لعب ورقة تكتيكية.</li>
                   </ul>
                 </div>
@@ -183,9 +183,9 @@ export default function GameTutorialPanel({ isOpen, onClose }: GameTutorialPanel
               <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl">
                 <h4 className="font-bold text-white text-sm mb-1.5">كيفية حسم نتيجة الدربـي التكتيكي:</h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  يجمع إجمالي هجومك (المهاجمين المكشوفين + كارت البونطو المسحوب) ونقارنه بإجمالي نقاط دفاع خصمك.
+                  يجمع إجمالي هجومك (المهاجمين المكشوفين + كارت معزز المرتدة المسحوب) ونقارنه بإجمالي نقاط دفاع خصمك.
                   <br />
-                  🟢 <strong className="text-emerald-400">نجاح الهجمة (هدف!):</strong> إذا كانت نقاط الهجوم أكبر من الدفاع، تسجل بونت (نقطة هدف).
+                  🟢 <strong className="text-emerald-400">نجاح الهجمة (هدف!):</strong> إذا كانت نقاط الهجوم أكبر من الدفاع، تسجل هجمة مرتدة ناجحة (هدف).
                   <br />
                   🔴 <strong className="text-rose-400">فشل الهجمة (تصدي رائع!):</strong> إذا كان الدفاع أكبر من أو مساوياً للهجوم، يتصدى الخصم بنجاح ولا تكتسب شيئاً.
                 </p>
@@ -197,7 +197,7 @@ export default function GameTutorialPanel({ isOpen, onClose }: GameTutorialPanel
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-emerald-400 mb-2">استخدام الكروت الخاصة لقلب الطاولة</h3>
               <p className="text-sm leading-relaxed">
-                الكروت الخاصة تمثل الدعم الخططي والخدع الحربية في عالم التكتيكات الساحرة البونطو. يمكنك استخدامها في دورك أو مداورة بالردود الدفاعية السريعة:
+                الكروت الخاصة تمثل الدعم الخططي والخدع الحربية في عالم التكتيكات الساحرة للعبة مرتدة. يمكنك استخدامها في دورك أو مداورة بالردود الدفاعية السريعة:
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">

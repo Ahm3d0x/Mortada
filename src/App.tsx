@@ -1069,7 +1069,7 @@ export default function App() {
     setPhase("attacking");
 
     addLog(`📢 صافرة الهجوم! كشفت رأس الحربة [ ${attacker.name} ] هجومه: ${attacker.attack}.`, "warning");
-    addLog(`🔥 قمت بسحب كارت بونطو عشوائي [ ${drawnPonto.text} ] ليمنحك +${drawnPonto.value} نقاط هجوم ممتازة!`, "success");
+    addLog(`🔥 قمت بسحب كارت معزز المرتدة عشوائي [ ${drawnPonto.text} ] ليمنحك +${drawnPonto.value} نقاط هجوم ممتازة!`, "success");
     SoundEffects.playWhistle();
 
     if (isMultiplayer) {
@@ -1086,7 +1086,7 @@ export default function App() {
         {
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
-          text: `🔥 قمت بسحب كارت بونطو عشوائي [ ${drawnPonto.text} ] ليمنحك +${drawnPonto.value} نقاط هجوم ممتازة!`,
+          text: `🔥 قمت بسحب كارت معزز المرتدة عشوائي [ ${drawnPonto.text} ] ليمنحك +${drawnPonto.value} نقاط هجوم ممتازة!`,
           type: "success" as const
         }
       ];
@@ -1181,11 +1181,11 @@ export default function App() {
       setPlayerScore(newScore);
       SoundEffects.playGoalCelebration();
       setCelebrationMessage({
-        title: "جــوووووول! بونطو رائع! ⚽🔥",
-        subtitle: `إجمالي هجومك (${finalAttack}) تجاوز بنجاح تكتلات دفاع الخصم (${finalDefense}) لتسجل بونت حاسم!`,
+        title: "جــوووووول! هجمة مرتدة قاتلة! ⚽🔥",
+        subtitle: `إجمالي هجومك (${finalAttack}) تجاوز بنجاح تكتلات دفاع الخصم (${finalDefense}) لتسجل هدفاً تكتيكياً مميزاً!`,
         isGoal: true
       });
-      addLog(`⚽ جــوووووول خيالي! أحرز المهاجم هدفاً ثمنياً (بونطو) لصالحك! النتيجة الآن: ${newScore} - ${aiScore}`, "success");
+      addLog(`⚽ جــوووووول خيالي! أحرز المهاجم هدفاً ثمنياً (مرتدة) لصالحك! النتيجة الآن: ${newScore} - ${aiScore}`, "success");
     } else {
       SoundEffects.playTackleBlock();
       setCelebrationMessage({
@@ -1393,7 +1393,7 @@ export default function App() {
           setDefenseMovesLeft(3); // Player gets 3 defense moves!
 
           addLog(`⚠️ هجوم عدواني باغت! الخصم يكشف مهاجمه [ ${aiAttacker.name} ] هجوم: ${aiAttacker.attack}.`, "danger");
-          addLog(`⚠️ الخصم سحب كارت بونطو معزز [ ${drawnPonto.text} ] بقوة +${drawnPonto.value}!`, "warning");
+          addLog(`⚠️ الخصم سحب كارت معزز المرتدة عشوائي [ ${drawnPonto.text} ] بقوة +${drawnPonto.value}!`, "warning");
           SoundEffects.playWhistle();
 
           // Player has 3 defense moves, we pause here so the player can take defensive reactions
@@ -1555,7 +1555,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
             <h1 className="text-sm md:text-lg font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-200">
-              بونطو © تكتيك كرة القدم
+              مرتدة © تكتيك كرة القدم
             </h1>
           </div>
         </header>

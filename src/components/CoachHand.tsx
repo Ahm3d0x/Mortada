@@ -180,23 +180,30 @@ export default function CoachHand({
             const isBurning = burningCardIds.includes(card.id);
             
             return (
-              <div key={card.id} className="relative flex-shrink-0">
+              <div key={card.id} className="relative flex-shrink-0 font-sans">
                 <GameCard
-                  card={card}
-                  isRevealed={true}
-                  size="md"
-                  isSelected={isSelected}
-                  isBurning={isBurning}
-                  onClick={() => {
-                    SoundEffects.playCardDraw();
-                    onSelectCard(card.id);
-                  }}
+                   card={card}
+                   isRevealed={true}
+                   size="md"
+                   isSelected={isSelected}
+                   isBurning={isBurning}
+                   onClick={() => {
+                     SoundEffects.playCardDraw();
+                     onSelectCard(card.id);
+                   }}
                 />
               </div>
             );
           })
         )}
       </div>
+
+      {/* Horizontal scroll indicators on mobile */}
+      {hand.length > 2 && (
+        <div className="flex sm:hidden justify-center items-center gap-1.5 text-slate-500 text-[10px] mt-2 animate-pulse font-sans">
+          <span>↔ اسحب لليمين واليسار لتصَفُّح باقي تكتيكات يدك</span>
+        </div>
+      )}
     </div>
   );
 }

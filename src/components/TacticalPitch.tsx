@@ -54,6 +54,120 @@ export default function TacticalPitch({
   isSelectable
 }: TacticalPitchProps) {
 
+  // Helper to render AI Slots
+  const renderAiSlot = (idx: number, isMobile: boolean = false) => {
+    const slot = aiSlots[idx];
+    if (!slot) return null;
+    const selectable = isSelectable(idx, true);
+    const isSelected = phase === "attacking" && currentAttackerIdx === idx;
+    
+    return (
+      <div key={`ai_pitch_${idx}`} className={`flex flex-col items-center gap-1 w-full ${isMobile ? 'max-w-[75px] xs:max-w-[85px] sm:max-w-[100px]' : 'max-w-[120px]'}`} id={`ai_slot_pos_${idx}`}>
+        <span className="text-[8px] md:text-[9px] font-bold text-slate-500 truncate w-full text-center">
+          {isMobile ? SLOT_POSITIONS[idx].icon + " " + SLOT_POSITIONS[idx].label.split(" (")[0] : SLOT_POSITIONS[idx].label}
+        </span>
+
+        <div
+          onClick={() => selectable && onSelectSlot(idx)}
+          className={`relative w-full aspect-[2/3] rounded-xl border flex flex-col items-center justify-center transition-all ${
+            slot.card 
+              ? "bg-transparent border-transparent" 
+              : "bg-black/35 border-white/5 shadow-inner"
+          } ${
+            selectable 
+              ? "cursor-pointer ring-2 ring-emerald-500/70 shadow-[0_0_12px_rgba(16,185,129,0.5)] scale-[1.02] animate-pulse" 
+              : "opacity-95"
+          }`}
+        >
+          {slot.card ? (
+            <GameCard
+              card={slot.card}
+              isRevealed={slot.isRevealed}
+              size="pitch"
+              disabled={!selectable}
+              className={isSelected ? "border-rose-500 ring-4 ring-rose-500/30" : ""}
+            />
+          ) : (
+            <div className="text-center p-1.5 flex flex-col items-center justify-center gap-0.5 text-slate-700">
+              <span className="text-sm">{SLOT_POSITIONS[idx].icon}</span>
+              <span className="text-[7.5px] font-medium leading-tight text-[#e0e0e0]/30">خالٍ</span>
+            </div>
+          )}
+
+          {slot.card && (
+            <div className={`absolute -top-1.5 -left-1.5 px-1 py-0.5 rounded text-[7px] font-bold shadow-md z-20 ${
+              slot.isRevealed 
+                ? "bg-amber-500 text-black border border-amber-300/30" 
+                : "bg-[#1a1c1a] text-[#e0e0e0]/70 border border-white/5"
+            }`}>
+              {slot.isRevealed ? "مكشوف" : "مخفي"}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Helper to render Player Slots
+  const renderPlayerSlot = (idx: number, isMobile: boolean = false) => {
+    const slot = playerSlots[idx];
+    if (!slot) return null;
+    const selectable = isSelectable(idx, false);
+    const isSelected = selectedSlotIdx === idx;
+    const isActiveAttacker = phase === "attacking" && currentAttackerIdx === idx;
+
+    return (
+      <div key={`player_pitch_${idx}`} className={`flex flex-col items-center gap-1 w-full ${isMobile ? 'max-w-[75px] xs:max-w-[85px] sm:max-w-[100px]' : 'max-w-[120px]'}`} id={`player_slot_pos_${idx}`}>
+        <span className="text-[8px] md:text-[9px] font-bold text-slate-300 truncate w-full text-center">
+          {isMobile ? SLOT_POSITIONS[idx].icon + " " + SLOT_POSITIONS[idx].label.split(" (")[0] : SLOT_POSITIONS[idx].label}
+        </span>
+
+        <div
+          onClick={() => selectable && onSelectSlot(idx)}
+          className={`relative w-full aspect-[2/3] rounded-xl border flex flex-col items-center justify-center transition-all ${
+            slot.card 
+              ? "bg-transparent border-transparent" 
+              : "bg-black/35 border-white/5 cursor-pointer hover:border-emerald-500/20 shadow-inner"
+          } ${
+            isSelected 
+              ? "border-amber-400 ring-2 ring-amber-400 shadow-md scale-[1.02]" 
+              : ""
+          } ${
+            selectable 
+              ? "cursor-pointer ring-2 ring-emerald-500/70 shadow-[0_0_12px_rgba(16,185,129,0.5)] scale-[1.02] animate-pulse" 
+              : ""
+          }`}
+        >
+          {slot.card ? (
+            <GameCard
+              card={slot.card}
+              isRevealed={slot.isRevealed}
+              size="pitch"
+              isSelected={isSelected}
+              disabled={!selectable}
+              className={isActiveAttacker ? "border-emerald-400 ring-4 ring-emerald-500/40" : ""}
+            />
+          ) : (
+            <div className="text-center p-1.5 flex flex-col items-center justify-center gap-0.5 text-slate-600 group hover:text-slate-400">
+              <span className="text-xs group-hover:scale-110 transition-transform">➕</span>
+              <span className="text-[7.5px] font-medium leading-tight">شغل</span>
+            </div>
+          )}
+
+          {slot.card && (
+            <div className={`absolute -top-1.5 -right-1.5 px-1 py-0.5 rounded text-[7px] font-bold shadow-md z-20 ${
+              slot.isRevealed 
+                ? "bg-teal-500 text-black border border-teal-300/30" 
+                : "bg-[#1a1c1a] text-[#e0e0e0]/70 border border-white/5"
+            }`}>
+              {slot.isRevealed ? "مكشوف" : "مخفي"}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="w-full bg-[#0a0c0a] rounded-2xl p-4 md:p-6 border border-white/10 shadow-2xl overflow-hidden relative">
       {/* Pitch Lines Decoration */}
@@ -73,75 +187,41 @@ export default function TacticalPitch({
           {/* AI Header Scoreboard Bar */}
           <div className="flex items-center justify-between pb-3 mb-4 bg-[#121412] border border-white/5 p-3 rounded-xl shadow-lg">
             <div className="text-left">
-              <span className="text-[10px] uppercase font-mono tracking-wider text-[#e0e0e0]/30 font-semibold">Coach Team Style</span>
+              <span className="text-[10px] uppercase font-mono tracking-wider text-[#e0e0e0]/30 font-semibold font-sans">أسلوب اللعب للخصم</span>
               <h4 className="text-xs font-bold text-[#e0e0e0]/70">{aiTeam}</h4>
             </div>
             {/* Score pill */}
             <div className="flex items-center gap-1.5 bg-[#1a1c1a] border border-white/10 px-3.5 py-1 rounded-full shadow-inner">
               <span className="text-white font-mono font-bold text-sm">{aiScore}</span>
-              <span className="text-[#e0e0e0]/40 text-[9px]">بونطو (PTS)</span>
+              <span className="text-[#e0e0e0]/40 text-[9px] font-sans">أهداف</span>
             </div>
             <div className="text-right">
-              <span className="text-[10px] text-[#e0e0e0]/40 block mb-0.5">المدرب الخصم</span>
+              <span className="text-[10px] text-[#e0e0e0]/40 block mb-0.5 font-sans">المدرب الخصم</span>
               <h3 className="font-serif font-bold text-white text-sm md:text-base leading-none">{aiCoachName}</h3>
             </div>
           </div>
 
-          {/* AI Pitch Slots */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 justify-items-center">
-            {aiSlots.map((slot, idx) => {
-              const selectable = isSelectable(idx, true);
-              const isSelected = phase === "attacking" && currentAttackerIdx === idx; // AI active attacker
-              
-              return (
-                <div key={`ai_pitch_${idx}`} className="flex flex-col items-center gap-2 w-full max-w-[120px]">
-                  {/* Slot Position Title */}
-                  <span className="text-[9px] font-bold text-slate-500 truncate w-full text-center">
-                    {SLOT_POSITIONS[idx].label}
-                  </span>
+          {/* AI Pitch Slots - Desktop layout */}
+          <div className="hidden sm:grid sm:grid-cols-5 gap-3 justify-items-center">
+            {aiSlots.map((_, idx) => renderAiSlot(idx, false))}
+          </div>
 
-                  {/* Slot Container Card */}
-                  <div
-                    onClick={() => selectable && onSelectSlot(idx)}
-                    className={`relative w-full aspect-[2/3] max-w-[110px] rounded-xl border flex flex-col items-center justify-center transition-all ${
-                      slot.card 
-                        ? "bg-transparent border-transparent" 
-                        : "bg-black/30 border-white/5 shadow-inner"
-                    } ${
-                      selectable 
-                        ? "cursor-pointer ring-2 ring-emerald-500/70 shadow-[0_0_12px_rgba(16,185,129,0.5)] scale-[1.02] animate-pulse" 
-                        : "opacity-95"
-                    }`}
-                  >
-                    {slot.card ? (
-                      <GameCard
-                        card={slot.card}
-                        isRevealed={slot.isRevealed}
-                        size="md"
-                        disabled={!selectable}
-                        className={isSelected ? "border-rose-500 ring-4 ring-rose-500/30" : ""}
-                      />
-                    ) : (
-                      <div className="text-center p-2 flex flex-col items-center justify-center gap-1 text-slate-700">
-                        <span className="text-lg">{SLOT_POSITIONS[idx].icon}</span>
-                        <span className="text-[8px] font-medium leading-tight">مركز فارغ</span>
-                      </div>
-                    )}
-
-                    {/* Reveal indicator for AI cards */}
-                    {slot.card && (
-                      <div className={`absolute -top-1.5 -left-1.5 px-1.5 py-0.5 rounded text-[8px] font-bold shadow-md z-20 ${
-                        slot.isRevealed 
-                          ? "bg-amber-500 text-black border border-amber-300/30" 
-                          : "bg-[#1a1c1a] text-[#e0e0e0]/70 border border-white/5"
-                      }`}>
-                        {slot.isRevealed ? "مكشوف" : "مقلوب"}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          {/* AI Pitch Slots - Mobile 3-Tier Soccer Formation */}
+          <div className="flex sm:hidden flex-col gap-2 bg-emerald-950/20 p-3 rounded-xl border border-emerald-500/10 shadow-inner">
+            {/* GK Row (Index 0) */}
+            <div className="flex justify-center w-full">
+              {renderAiSlot(0, true)}
+            </div>
+            {/* DF & MF Row (Index 1 & 2) */}
+            <div className="flex justify-center gap-4 w-full">
+              {renderAiSlot(1, true)}
+              {renderAiSlot(2, true)}
+            </div>
+            {/* Forwards Row (Index 3 & 4) */}
+            <div className="flex justify-center gap-4 w-full">
+              {renderAiSlot(3, true)}
+              {renderAiSlot(4, true)}
+            </div>
           </div>
         </div>
 
@@ -157,81 +237,41 @@ export default function TacticalPitch({
           {/* Player Header Scoreboard Bar */}
           <div className="flex items-center justify-between pb-3 mb-4 bg-[#121412] border border-white/5 p-3 rounded-xl shadow-lg">
             <div className="text-left">
-              <span className="text-[10px] text-[#e0e0e0]/40 block mb-0.5">فريقك المختار</span>
+              <span className="text-[10px] text-[#e0e0e0]/40 block mb-0.5 font-sans font-medium">فريقك المختار</span>
               <h3 className="font-serif font-bold text-white text-sm md:text-base leading-none">{playerCoachName}</h3>
             </div>
             {/* Score pill */}
             <div className="flex items-center gap-1.5 bg-[#1a1c1a] border border-white/10 px-3.5 py-1 rounded-full shadow-inner">
               <span className="text-emerald-400 font-mono font-bold text-sm">{playerScore}</span>
-              <span className="text-[#e0e0e0]/45 text-[9px]">بونطو (PTS)</span>
+              <span className="text-[#e0e0e0]/45 text-[9px] font-sans">أهداف</span>
             </div>
             <div className="text-right">
-              <span className="text-[10px] uppercase font-mono tracking-wider text-[#e0e0e0]/30 font-semibold">Coach Team Style</span>
+              <span className="text-[10px] uppercase font-mono tracking-wider text-[#e0e0e0]/30 font-semibold font-sans">الهوية التكتيكية</span>
               <h4 className="text-xs font-bold text-emerald-400">{playerTeam}</h4>
             </div>
           </div>
 
-          {/* Player Pitch Slots */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 justify-items-center">
-            {playerSlots.map((slot, idx) => {
-              const selectable = isSelectable(idx, false);
-              const isSelected = selectedSlotIdx === idx;
-              const isActiveAttacker = phase === "attacking" && currentAttackerIdx === idx;
+          {/* Player Pitch Slots - Desktop layout */}
+          <div className="hidden sm:grid sm:grid-cols-5 gap-3 justify-items-center">
+            {playerSlots.map((_, idx) => renderPlayerSlot(idx, false))}
+          </div>
 
-              return (
-                <div key={`player_pitch_${idx}`} className="flex flex-col items-center gap-2 w-full max-w-[120px]">
-                  {/* Slot Position Title */}
-                  <span className="text-[9px] font-bold text-slate-300 truncate w-full text-center">
-                    {SLOT_POSITIONS[idx].label}
-                  </span>
-
-                  {/* Slot Container Card */}
-                  <div
-                    onClick={() => selectable && onSelectSlot(idx)}
-                    className={`relative w-full aspect-[2/3] max-w-[110px] rounded-xl border flex flex-col items-center justify-center transition-all ${
-                      slot.card 
-                        ? "bg-transparent border-transparent" 
-                        : "bg-black/30 border-white/5 cursor-pointer hover:border-emerald-500/20 shadow-inner"
-                    } ${
-                      isSelected 
-                        ? "border-amber-400 ring-2 ring-amber-400 shadow-md scale-[1.02]" 
-                        : ""
-                    } ${
-                      selectable 
-                        ? "cursor-pointer ring-2 ring-emerald-500/70 shadow-[0_0_12px_rgba(16,185,129,0.5)] scale-[1.02] animate-pulse" 
-                        : ""
-                    }`}
-                  >
-                    {slot.card ? (
-                      <GameCard
-                        card={slot.card}
-                        isRevealed={slot.isRevealed}
-                        size="md"
-                        isSelected={isSelected}
-                        disabled={!selectable}
-                        className={isActiveAttacker ? "border-emerald-400 ring-4 ring-emerald-500/40" : ""}
-                      />
-                    ) : (
-                      <div className="text-center p-2 flex flex-col items-center justify-center gap-1 text-slate-600 group hover:text-slate-400">
-                        <span className="text-lg group-hover:scale-110 transition-transform">➕</span>
-                        <span className="text-[8px] font-medium leading-tight">اضغط لتنزيل لاعب هنا</span>
-                      </div>
-                    )}
-
-                    {/* Status Badge */}
-                    {slot.card && (
-                      <div className={`absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded text-[8px] font-bold shadow-md z-20 ${
-                        slot.isRevealed 
-                          ? "bg-teal-500 text-black border border-teal-300/30" 
-                          : "bg-[#1a1c1a] text-[#e0e0e0]/70 border border-white/5"
-                      }`}>
-                        {slot.isRevealed ? "مكشوف" : "مقلوب"}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          {/* Player Pitch Slots - Mobile 3-Tier Soccer Formation */}
+          <div className="flex sm:hidden flex-col gap-2 bg-emerald-950/20 p-3 rounded-xl border border-emerald-500/10 shadow-inner">
+            {/* Forwards Row (Index 3 & 4) */}
+            <div className="flex justify-center gap-4 w-full">
+              {renderPlayerSlot(3, true)}
+              {renderPlayerSlot(4, true)}
+            </div>
+            {/* DF & MF Row (Index 1 & 2) */}
+            <div className="flex justify-center gap-4 w-full">
+              {renderPlayerSlot(1, true)}
+              {renderPlayerSlot(2, true)}
+            </div>
+            {/* GK Row (Index 0) */}
+            <div className="flex justify-center w-full">
+              {renderPlayerSlot(0, true)}
+            </div>
           </div>
         </div>
 

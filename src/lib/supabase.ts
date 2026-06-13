@@ -79,23 +79,61 @@ const saveFallbackRooms = (rooms: MatchRoom[]) => {
 // MULTIPLAYER ROOM OPERATIONS
 export const supabaseService = {
   // Authentication Mock & Real wrappers
-  async signUp(email: string, pass: string, username: string): Promise<{ user: any; error: string | null }> {
+  async signUp(
+    email: string, 
+    pass: string, 
+    username: string,
+    fullName?: string,
+    age?: number,
+    gender?: "male" | "female",
+    termsAccepted?: boolean
+  ): Promise<{ user: any; error: string | null }> {
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase.auth.signUp({
         email,
         password: pass,
         options: {
-          data: { username }
+          data: { 
+            username,
+            full_name: fullName,
+            age,
+            gender,
+            terms_accepted: termsAccepted
+          }
         }
       });
       if (error) return { user: null, error: error.message };
+
+      if (data.user) {
+        try {
+          // Attempt to insert profile in profiles table
+          await supabase.from("profiles").insert([
+            {
+              id: data.user.id,
+              full_name: fullName || username,
+              age: age || 18,
+              gender: gender || "male",
+              terms_accepted: !!termsAccepted
+            }
+          ]);
+        } catch (err) {
+          console.error("Failed to insert profiles record, schema may need SQL setting up", err);
+        }
+      }
+
       return { user: data.user, error: null };
     } else {
       // Local fallbacks
       const mockUser = {
         id: "usr_" + Math.random().toString(36).substring(2, 9),
         email,
-        user_metadata: { username }
+        user_metadata: { 
+          username,
+          full_name: fullName,
+          age,
+          gender,
+          terms_accepted: termsAccepted
+        }
       };
       localStorage.setItem("mock_supabase_user", JSON.stringify(mockUser));
       return { user: mockUser, error: null };

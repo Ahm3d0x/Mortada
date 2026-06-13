@@ -73,7 +73,7 @@ export default function ActionDashboard({
       case "attacking":
         return {
           title: "مرحلة الهجوم والتسديد 활",
-          desc: `لقد حددت المهاجم [ ${activeAttackerName || "صاحب التسديدة" } ] للتقدم، وسحبت كارت البونطو المنشط لتعزيز تسديدتك! هل تود استغلال آخر حركة لك لكشف لاعب مكشوف آخر أو إطلاق التسديدة مباشرة للمرمى؟`,
+          desc: `لقد حددت المهاجم [ ${activeAttackerName || "صاحب التسديدة" } ] للتقدم، وسحبت كارت معزز المرتدة لتسجيل الهجمة! هل تود استغلال آخر حركة لك لكشف لاعب مكشوف آخر أو إطلاق التسديدة مباشرة للمرمى؟`,
           bg: "bg-[#121412] border-teal-500/20 shadow-black/30",
           badge: "bg-teal-500/20 text-teal-300 border-teal-500/40"
         };
@@ -87,14 +87,14 @@ export default function ActionDashboard({
       case "resolution":
         return {
           title: "محاكمة الهجمة واحتساب النقاط",
-          desc: "يقوم الحكم الآن بجمع إجمالي نقاط المهاجم والمدرب مع البونطو مقارنة بقدرة الصد التكتيكية لخطوط الدفاع المتأهبة.",
+          desc: "يقوم الحكم الآن بجمع إجمالي نقاط المهاجم والمدرب مع كارت معزز المرتدة مقارنة بقدرة الصد التكتيكية لخطوط الدفاع المتأهبة.",
           bg: "bg-[#121412] border-white/5 shadow-black/30",
           badge: "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
         };
       default:
         return {
           title: "انتهت المقابلة!",
-          desc: "تم تصفير صافرة النهاية للمباراة التكتيكية الشيقة لبونطو. يمكنك الاستبيان من إحصائيات اللعب وإعادة خوض البطولة مجدداً.",
+          desc: "تم تصفير صافرة النهاية للمباراة التكتيكية الشيقة للعبة مرتدة. يمكنك الاستبيان من إحصائيات اللعب وإعادة خوض البطولة مجدداً.",
           bg: "bg-[#121412] border-white/10",
           badge: "bg-amber-500/10 text-amber-400"
         };
@@ -142,7 +142,7 @@ export default function ActionDashboard({
             
             {currentPonto && (
               <div className="border-r border-white/5 pr-3 mr-1 flex items-center gap-1 text-amber-400 text-[11px] font-sans">
-                <span>كارت البونطو: ({currentPonto.text} +{currentPonto.value})</span>
+                <span>كارت معزز المرتدة: ({currentPonto.text} +{currentPonto.value})</span>
                 <span>🔥</span>
               </div>
             )}
