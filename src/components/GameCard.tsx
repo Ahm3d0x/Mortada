@@ -55,7 +55,7 @@ export default function GameCard({
       case "sm":
         return "w-24 h-36 text-[10px]";
       case "pitch":
-        return "w-full aspect-[2/3] text-[9px] md:w-28 md:h-40";
+        return "w-full max-w-[110px] h-[160px] xs:w-[110px] xs:h-[160px] md:w-[130px] md:h-[190px] text-[10.5px]";
       case "lg":
         return "w-44 h-64 text-sm";
       default: // md
@@ -68,7 +68,7 @@ export default function GameCard({
       case "sm":
         return "p-2";
       case "pitch":
-        return "p-2 md:p-2.5";
+        return "p-2 md:p-3";
       case "lg":
         return "p-5";
       default: // md
@@ -247,10 +247,12 @@ export default function GameCard({
               
               return (
                 <div className={`flex items-center justify-between z-10 w-full ${size === "pitch" ? "mb-0.5" : "mb-1"}`}>
-                  <span className="text-[9px] text-[#e0e0e0]/45 font-black whitespace-nowrap overflow-hidden text-ellipsis max-w-[55%]">
-                    {player.team}
-                  </span>
-                  <span className={`px-1 rounded text-[8px] font-black border tracking-tight ${roleColors[player.role] || ""}`}>
+                  {size !== "pitch" && (
+                    <span className="text-[9px] text-[#e0e0e0]/45 font-black whitespace-nowrap overflow-hidden text-ellipsis max-w-[55%]">
+                      {player.team}
+                    </span>
+                  )}
+                  <span className={`px-1 rounded text-[8px] font-black border tracking-tight ${roleColors[player.role] || ""} ${size === "pitch" ? "mx-auto text-[8.5px] px-1.5 py-0.5" : ""}`}>
                     {player.roleArabic}
                   </span>
                 </div>
@@ -285,14 +287,14 @@ export default function GameCard({
                       size === "lg" 
                         ? "w-16 h-16 text-3xl" 
                         : size === "pitch" 
-                        ? "w-9 h-9 text-lg" 
+                        ? "w-11 h-11 text-xl" 
                         : "w-11 h-11 text-2xl"
                     } rounded-full bg-[#1a1c1a]/80 border border-white/5 shadow-inner`}
                   >
                     <span>{player.avatar}</span>
                   </motion.div>
                   <span className={`font-serif font-black mt-1 text-center text-white whitespace-nowrap overflow-hidden text-ellipsis w-full ${
-                    size === "lg" ? "text-base" : size === "pitch" ? "text-[10px]" : "text-xs"
+                    size === "lg" ? "text-base" : size === "pitch" ? "text-[11px] font-sans tracking-tight" : "text-xs"
                   }`}>
                     {player.name}
                   </span>
@@ -310,7 +312,7 @@ export default function GameCard({
                       size === "lg" 
                         ? "w-14 h-14 text-3xl" 
                         : size === "pitch" 
-                        ? "w-8 h-8 text-xl" 
+                        ? "w-9 h-9 text-xl" 
                         : "w-10 h-10 text-xl"
                     } rounded-full bg-black/40 border border-white/5`}
                   >
@@ -331,29 +333,34 @@ export default function GameCard({
             (() => {
               const player = card as PlayerCard;
               return (
-                <div className={`grid grid-cols-2 gap-0.5 bg-[#121312] ${
+                <div className={`grid grid-cols-2 gap-1 bg-[#090b0a]/90 ${
                   size === "pitch" ? "p-1 rounded-md" : "p-1.5 rounded-lg"
                 } border border-white/5 z-10 mt-0.5`}>
+                  
                   {/* Attack stat banner */}
                   <div className="flex flex-col items-center justify-center border-l border-white/5">
                     <div className="flex items-center gap-0.5 text-rose-400">
-                      <span className={`font-mono font-black ${size === "pitch" ? "text-[10px]" : "text-xs"}`}>
+                      <span className={`font-mono font-black ${size === "pitch" ? "text-[12px]" : "text-xs"}`}>
                         {player.attack}
                       </span>
-                      <Swords className="w-2.5 h-2.5 text-rose-500" />
+                      <Swords className="w-3 h-3 text-rose-500" />
                     </div>
-                    <span className="text-[7.5px] text-[#e0e0e0]/40 mt-0.5 scale-90 font-bold">هجوم</span>
+                    {size !== "pitch" && (
+                      <span className="text-[7.5px] text-[#e0e0e0]/40 mt-0.5 scale-90 font-bold">هجوم</span>
+                    )}
                   </div>
 
                   {/* Defense stat banner */}
                   <div className="flex flex-col items-center justify-center">
                     <div className="flex items-center gap-0.5 text-emerald-400">
-                      <span className={`font-mono font-black ${size === "pitch" ? "text-[10px]" : "text-xs"}`}>
+                      <span className={`font-mono font-black ${size === "pitch" ? "text-[12px]" : "text-xs"}`}>
                         {player.defense}
                       </span>
-                      <Shield className="w-2.5 h-2.5 text-emerald-500" />
+                      <Shield className="w-3 h-3 text-emerald-500" />
                     </div>
-                    <span className="text-[7.5px] text-[#e0e0e0]/40 mt-0.5 scale-90 font-bold font-sans">دفاع</span>
+                    {size !== "pitch" && (
+                      <span className="text-[7.5px] text-[#e0e0e0]/40 mt-0.5 scale-90 font-bold font-sans">دفاع</span>
+                    )}
                   </div>
                 </div>
               );

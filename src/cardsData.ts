@@ -416,7 +416,20 @@ export const INITIAL_PONTO_CARDS: Omit<PontoCard, "id">[] = [
 
 // Helper to fully initialize and shuffle standard player decks
 export function generatePlayerDeck(): PlayerCard[] {
-  return INITIAL_PLAYER_CARDS.map((card, idx) => ({
+  const cards: Omit<PlayerCard, "id">[] = [];
+  INITIAL_PLAYER_CARDS.forEach(card => {
+    if (card.isLegend) {
+      cards.push(card);
+    } else {
+      // Duplicate non-legends 4 times to increase standard/common players significantly
+      cards.push(card);
+      cards.push(card);
+      cards.push(card);
+      cards.push(card);
+    }
+  });
+
+  return cards.map((card, idx) => ({
     ...card,
     id: `play_${idx}_${Math.random().toString(36).substr(2, 9)}`
   } as PlayerCard)).sort(() => Math.random() - 0.5);

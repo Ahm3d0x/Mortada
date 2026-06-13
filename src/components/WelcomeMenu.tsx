@@ -156,36 +156,57 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
 
         {/* Match Duration Panel */}
         <div className="p-4 rounded-xl bg-black/30 border border-white/5">
-          <label className="block text-[#e0e0e0]/70 text-xs font-semibold mb-3 text-right uppercase tracking-wider">
-            تحديد الوقت والزمن الرسمي للمباراة التكتيكية:
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { seconds: 90, label: "90 ثانية", desc: "تحدي البرق السريع ⚡" },
-              { seconds: 180, label: "180 ثانية", desc: "ماتش كلاسيكي متوازن ⚽" },
-              { seconds: 300, label: "300 ثانية", desc: "بطولة كبرى للمحترفين 🏆" }
-            ].map((dur) => {
-              const isSelected = matchDuration === dur.seconds;
-              return (
-                <button
-                  key={dur.seconds}
-                  type="button"
-                  id={`duration_btn_${dur.seconds}`}
-                  onClick={() => {
-                    SoundEffects.playCardDraw();
-                    setMatchDuration(dur.seconds);
-                  }}
-                  className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
-                    isSelected
-                      ? "border-emerald-500 text-emerald-400 bg-[#1a1c1a] shadow-md scale-[1.01]"
-                      : "border-white/5 text-[#e0e0e0]/50 bg-transparent hover:border-white/10"
-                  }`}
-                >
-                  <span className="font-semibold text-xs text-white">{dur.label}</span>
-                  <p className="hidden md:block text-[9px] text-[#e0e0e0]/40 leading-none mt-0.5">{dur.desc}</p>
-                </button>
-              );
-            })}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-1.5 bg-[#10b981]/15 border border-[#10b981]/20 px-3 py-1 rounded-lg">
+              <span className="text-sm font-black text-emerald-400">
+                {Math.floor(matchDuration / 60)} دقيقة ({matchDuration} ثانية)
+              </span>
+            </div>
+            <label className="block text-[#e0e0e0]/70 text-xs font-semibold text-right uppercase tracking-wider">
+              صانع وقت المباراة الفني: (من 5 دقائق إلى 60 دقيقة)
+            </label>
+          </div>
+          <div className="space-y-4">
+            <input
+              type="range"
+              min={300}
+              max={3600}
+              step={60}
+              value={matchDuration}
+              onChange={(e) => {
+                SoundEffects.playCardDraw();
+                setMatchDuration(Number(e.target.value));
+              }}
+              className="w-full h-2 bg-black/50 border border-white/5 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+            />
+            {/* Quick Presets row */}
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { label: "5 دقائق", value: 300 },
+                { label: "10 دقائق", value: 600 },
+                { label: "30 دقيقة", value: 1800 },
+                { label: "60 دقيقة", value: 3600 }
+              ].map((preset) => {
+                const isSelected = matchDuration === preset.value;
+                return (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => {
+                      SoundEffects.playCardDraw();
+                      setMatchDuration(preset.value);
+                    }}
+                    className={`py-1.5 px-1 rounded-lg border text-[10px] text-center font-bold tracking-tight transition-all cursor-pointer ${
+                      isSelected
+                        ? "border-emerald-500 bg-[#162a1c] text-emerald-300"
+                        : "border-white/5 text-[#e0e0e0]/50 hover:border-white/10"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 

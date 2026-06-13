@@ -416,25 +416,12 @@ export default function App() {
 
       let activeDeck = aiPitchInit.remainingDeck;
 
-      const drawHand = (pDeckRef: PlayerCard[], sDeckRef: SpecialCard[]) => {
-        const pHand = pDeckRef.slice(0, 2);
-        const sHand = sDeckRef.slice(0, 3);
-        return {
-          hand: [...pHand, ...sHand],
-          remP: pDeckRef.slice(2),
-          remS: sDeckRef.slice(3)
-        };
-      };
-
-      const playerHandData = drawHand(activeDeck, sDeck);
-      const aiHandData = drawHand(playerHandData.remP, playerHandData.remS);
-
-      const initialPlayerSlots = playerPitchInit.slots.map((card) => ({ card, isRevealed: false }));
+      const initialPlayerSlots = playerPitchInit.slots.map((card) => ({ card, isRevealed: true }));
       const initialAiSlots = aiPitchInit.slots.map((card) => ({ card, isRevealed: false }));
-      const initialPlayerHand = playerHandData.hand;
-      const initialAiHand = aiHandData.hand;
-      const finalPlayerDeck = aiHandData.remP;
-      const finalSpecialDeck = aiHandData.remS;
+      const initialPlayerHand: Card[] = [];
+      const initialAiHand: Card[] = [];
+      const finalPlayerDeck = activeDeck;
+      const finalSpecialDeck = sDeck;
 
       setPlayerSlots(initialPlayerSlots);
       setAiSlots(initialAiSlots);
@@ -553,34 +540,20 @@ export default function App() {
       return { slots, remainingDeck: remDeck };
     };
 
-    const aiPitchInit = prepareInitialPitchSlots(pDeck);
+    const playerPitchInit = prepareInitialPitchSlots(pDeck);
+    const aiPitchInit = prepareInitialPitchSlots(playerPitchInit.remainingDeck);
 
     let activeDeck = aiPitchInit.remainingDeck;
 
-    // 2. "بعد ذلك، يسحب كل مدرب كارتين من نوع لاعبين و3 كروت خاصة ويضعهم في يده"
-    const drawHand = (pDeckRef: PlayerCard[], sDeckRef: SpecialCard[]) => {
-      const pHand = pDeckRef.slice(0, 2);
-      const sHand = sDeckRef.slice(0, 3);
-      const hand: Card[] = [...pHand, ...sHand];
-      return {
-        hand,
-        remP: pDeckRef.slice(2),
-        remS: sDeckRef.slice(3)
-      };
-    };
-
-    const playerHandData = drawHand(activeDeck, sDeck);
-    const aiHandData = drawHand(playerHandData.remP, playerHandData.remS);
-
-    // Empty slots initially so the player draws manually (Requirement 6)
-    setPlayerSlots(Array(5).fill(null).map(() => ({ card: null, isRevealed: false })));
+    // Both players get their initial 5 cards on the pitch immediately! (Revealed for player, covered for AI)
+    setPlayerSlots(playerPitchInit.slots.map((card) => ({ card, isRevealed: true })));
     setAiSlots(aiPitchInit.slots.map((card) => ({ card, isRevealed: false })));
 
-    setPlayerHand(playerHandData.hand);
-    setAiHand(aiHandData.hand);
+    setPlayerHand([]);
+    setAiHand([]);
 
-    setPlayerDeck(aiHandData.remP);
-    setSpecialDeck(aiHandData.remS);
+    setPlayerDeck(activeDeck);
+    setSpecialDeck(sDeck);
     setPontoDeck(poDeck);
 
     // Statistics & Scores reset
@@ -594,8 +567,8 @@ export default function App() {
     setPhase("warmup");
     setLogs([]);
     addLog(`صافرة البداية! دخل المدرب ${name} بهوية ${vibe} لملاقاة خصمه ذو الصعوبة [${diff === "normal" ? "ناشئ" : diff === "tactical" ? "محترف" : "أسطوري"}].`, "success");
-    addLog("مرحلة التسخين: اسحب 5 لاعبين لترتيب خطة الملعب الخمسة أولاً! انقر على باقة اللاعبين المضيئة وسط الملعب لسحب الكروت.", "info");
-    addLog("يمكنك بعد سحب اللاعبين تبديل المراكز وإجراء مبادلة مجانية مع يدك لتجهيز خطتك التكتيكية الضاربة.", "neutral");
+    addLog("مرحلة التسخين جارية واللاعبون متموقعون بالملعب! يمكنك معاينة اللاعبين والتبديل بينهم لتعديل خطتك، ثم اضغط على (تأكيد الخطة) لبدء اللعب مباشرة.", "info");
+    addLog("حقيبة الكروت بيدك فارغة حالياً. بمجرد تأكيد الخطة وبدء اللقاء، يمكنك سحب كروت تكتيكية جديدة في أدوارك ليدك لدعم مهارات وهجوم فريقك.", "neutral");
   };
 
   // REARRANGE / SWAP CARDS FREE IN WARMUP
@@ -964,6 +937,27 @@ export default function App() {
         const handIdx = playerHand.findIndex((c) => c.id === selectedHandCardId);
         if (handIdx !== -1) {
           performWarmupSwap(handIdx, idx);
+        }
+      } else {
+        // Pitch-to-pitch slot swap
+        if (selectedPitchSlotIdx === null) {
+          setSelectedPitchSlotIdx(idx);
+          addLog(`[التسخين] تم تحديد اللاعب بالمركز ${idx + 1}. حدد مركزاً آخر للتبديل معه بالملعب.`, "neutral");
+        } else {
+          if (selectedPitchSlotIdx === idx) {
+            setSelectedPitchSlotIdx(null);
+            return;
+          }
+          const card1 = playerSlots[selectedPitchSlotIdx].card;
+          const card2 = playerSlots[idx].card;
+          const newSlots = [...playerSlots];
+          newSlots[selectedPitchSlotIdx] = { ...newSlots[selectedPitchSlotIdx], card: card2 };
+          newSlots[idx] = { ...newSlots[idx], card: card1 };
+          setPlayerSlots(newSlots);
+          setSelectedPitchSlotIdx(null);
+          addLog(`[التسخين] تم تبديل مراكز اللاعبين بالملعب بين المركز ${selectedPitchSlotIdx + 1} والمركز ${idx + 1} بنجاح!`, "success");
+          SoundEffects.playCardDraw();
+          syncMultiplayerIfActive();
         }
       }
       return;
