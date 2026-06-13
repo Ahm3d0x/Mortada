@@ -123,10 +123,10 @@ export default function DrawDecksDashboard({
   const [showAdvice, setShowAdvice] = React.useState(false);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4" id="decks_dashboard_main_container">
+    <div className="flex flex-col gap-4" id="decks_dashboard_main_container">
       
       {/* LEFT: Live Dynamic Onboarding Coach Guidelines */}
-      <div className="md:col-span-2 bg-[#0c0d0c] border border-white/5 rounded-xl p-4 flex flex-col items-stretch gap-2 text-right">
+      <div className="bg-[#0c0d0c] border border-white/5 rounded-xl p-4 flex flex-col items-stretch gap-2 text-right">
         <div className="flex items-center justify-between">
           <button
             onClick={() => setShowAdvice(!showAdvice)}
@@ -136,11 +136,11 @@ export default function DrawDecksDashboard({
             <span>{showAdvice ? "إخفاء النصائح ❌" : "مساعد تكتيكي؟ 📋 عرض النصائح الكروية"}</span>
           </button>
           
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full">
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] text-emerald-300 font-extrabold bg-emerald-950/80 border border-emerald-500/30 px-3 py-1 rounded">
               توجيهات المدرب المساعد ✨
             </span>
-            <h4 className="text-sm font-bold text-white font-serif">{advice.title}</h4>
+            <h4 className="text-sm md:text-base font-extrabold text-[#fdfdfd]">{advice.title}</h4>
           </div>
         </div>
 
@@ -190,7 +190,7 @@ export default function DrawDecksDashboard({
 
               <div className="w-full flex items-center justify-center">
                 <span className="bg-black/30 text-[9px] font-mono font-bold text-emerald-400 px-1.5 py-0.5 rounded-full">
-                  {playerDeckCount} كارت
+                  كارت {playerDeckCount}
                 </span>
               </div>
             </div>
@@ -228,7 +228,7 @@ export default function DrawDecksDashboard({
 
               <div className="w-full flex items-center justify-center">
                 <span className="bg-black/30 text-[9px] font-mono font-bold text-teal-400 px-1.5 py-0.5 rounded-full">
-                  {specialDeckCount} كارت
+                  كارت {specialDeckCount}
                 </span>
               </div>
             </div>

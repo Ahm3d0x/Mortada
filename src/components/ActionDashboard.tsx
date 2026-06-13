@@ -17,6 +17,9 @@ interface ActionDashboardProps {
   activeAttackerName: string | null;
   attackPower: number;
   defensePower: number;
+  playerScore: number;
+  buttonState?: any; // Keep any optional compatibility fields
+  aiScore: number;
 
   onConfirmLineup: () => void;
   onDeclareAttack: () => void;
@@ -36,6 +39,8 @@ export default function ActionDashboard({
   activeAttackerName,
   attackPower,
   defensePower,
+  playerScore,
+  aiScore,
   onConfirmLineup,
   onDeclareAttack,
   onEndTurn,
@@ -104,22 +109,30 @@ export default function ActionDashboard({
   const currentStyle = getPhaseStyles();
 
   return (
-    <div className={`rounded-xl border p-5 flex flex-col md:flex-row items-center justify-between gap-5 transition-all shadow-xl ${currentStyle.bg}`}>
+    <div className={`rounded-xl border p-3 md:p-5 flex flex-col md:flex-row items-center justify-between gap-3 md:gap-5 transition-all shadow-xl ${currentStyle.bg}`}>
       
       {/* 1. Description and Info text */}
-      <div className="text-right flex-1 space-y-2">
-        <div className="flex items-center justify-end gap-2.5">
+      <div className="text-right flex-1 space-y-2 w-full">
+        <div className="flex flex-wrap items-center justify-end gap-2 pr-1">
+          {/* Integrated Scoreboard Pill */}
+          <div className="flex items-center gap-1.5 bg-black/45 border border-white/10 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold text-[#e0e0e0]/90 shadow-md">
+            <span className="text-emerald-400 font-extrabold">{playerScore}</span>
+            <span className="text-slate-600 font-sans font-normal">-</span>
+            <span className="text-[#ea580c] font-extrabold">{aiScore}</span>
+            <span className="text-slate-400 font-sans font-normal text-[8px] mr-0.5">أهداف</span>
+          </div>
+
           <span className={`px-2.5 py-0.5 rounded-full text-[10px] md:text-xs font-bold border ${currentStyle.badge}`}>
             {currentStyle.title}
           </span>
           {phase === "player_turn" && cardsDrawnThisTurn >= 2 && (
-            <div className="flex items-center gap-1.5 text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono">
+            <div className="flex items-center gap-1.5 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono">
               <span>{movesLeft} / 3</span>
-              <span className="font-sans">الحركات المتبقية</span>
+              <span className="font-sans text-[8px]">الحركات المتبقية</span>
             </div>
           )}
         </div>
-        <p className="text-[#e0e0e0]/70 text-xs md:text-sm leading-relaxed font-light">
+        <p className="hidden sm:block text-[#e0e0e0]/70 text-xs md:text-sm leading-relaxed font-light">
           {currentStyle.desc}
         </p>
 

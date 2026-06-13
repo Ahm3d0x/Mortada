@@ -194,8 +194,8 @@ export default function TacticalPitch({
 
         {/* 1. OPPONENT HALF - AI (RIVER) */}
         <div>
-          {/* AI Header Scoreboard Bar */}
-          <div className="flex items-center justify-between pb-3 mb-4 bg-[#121412] border border-white/5 p-3 rounded-xl shadow-lg">
+          {/* AI Header Scoreboard Bar - Only displayed on large desktop screens to avoid vertical scroll on mobile */}
+          <div className="hidden lg:flex items-center justify-between pb-3 mb-4 bg-[#121412] border border-white/5 p-3 rounded-xl shadow-lg">
             <div className="text-left">
               <span className="text-[10px] uppercase font-mono tracking-wider text-[#e0e0e0]/30 font-semibold font-sans">أسلوب اللعب للخصم</span>
               <h4 className="text-xs font-bold text-[#e0e0e0]/70">{aiTeam}</h4>
@@ -212,17 +212,17 @@ export default function TacticalPitch({
           </div>
 
           {/* AI Pitch Slots - Horizontal Side-by-Side row alignment (Requirement 1 & 7) */}
-          <div className="grid grid-cols-5 gap-1 md:gap-3 justify-items-center bg-emerald-950/10 p-2 md:p-3 rounded-xl border border-emerald-500/10 shadow-inner">
+          <div className="grid grid-cols-5 gap-1 md:gap-3 justify-items-center bg-emerald-950/10 p-2 md:p-3 rounded-xl border border-emerald-500/10 shadow-inner overflow-hidden">
             {aiSlots.map((_, idx) => renderAiSlot(idx, true))}
           </div>
         </div>
 
-        {/* Tactical Middle Pitch divider representing center circle with integrated decks (Requirement 7) */}
-        <div className="flex flex-col xs:flex-row items-center justify-between gap-3 py-2 border-y border-white/5 bg-emerald-950/10 rounded-xl px-4 relative">
+        {/* Tactical Middle Pitch divider - Streamlined and narrow on mobile */}
+        <div className="flex items-center justify-center lg:justify-between gap-3 py-1 border-y border-white/5 bg-emerald-950/5 rounded-xl px-4 relative">
           
-          {/* On-pitch manual player drawing deck stack */}
+          {/* On-pitch manual player drawing deck stack - Only on large desktop, else draw directly from hand popup buttons */}
           {onDrawCard ? (
-            <div className="flex items-center gap-2">
+            <div className="hidden lg:flex items-center gap-2">
               <span className="text-[9px] md:text-[10px] text-slate-400 font-bold hidden xs:inline text-right">
                 {phase === "warmup" ? "سحب كرت الملعب الكروي" : "باقة اللاعبين 🏃‍♂️"}
               </span>
@@ -246,16 +246,16 @@ export default function TacticalPitch({
               </button>
             </div>
           ) : (
-            <div className="w-12 h-16" />
+            <div className="hidden lg:block w-12" />
           )}
 
-          <div className="px-4 py-1 rounded-full bg-[#0a0c0a] border border-white/10 text-xs text-[#e0e0e0]/40 font-bold tracking-widest font-mono shadow-md">
+          <div className="px-4 py-0.5 rounded-full bg-[#0a0c0a] border border-white/10 text-[10px] text-[#e0e0e0]/40 font-bold tracking-widest font-mono shadow-md">
             VS
           </div>
 
-          {/* On-pitch banter / special cards drawing deck stack */}
+          {/* On-pitch banter / special cards drawing deck stack - Only on large desktop */}
           {onDrawCard ? (
-            <div className="flex items-center gap-2">
+            <div className="hidden lg:flex items-center gap-2">
               <button
                 onClick={() => onDrawCard("special")}
                 disabled={specialDeckCount === 0 || phase === "warmup"}
@@ -277,15 +277,15 @@ export default function TacticalPitch({
               </span>
             </div>
           ) : (
-            <div className="w-12 h-16" />
+            <div className="hidden lg:block w-12" />
           )}
 
         </div>
 
         {/* 2. PLAYER HALF - YOU (COACH) */}
         <div>
-          {/* Player Header Scoreboard Bar */}
-          <div className="flex items-center justify-between pb-3 mb-4 bg-[#121412] border border-white/5 p-3 rounded-xl shadow-lg">
+          {/* Player Header Scoreboard Bar - Only displayed on large desktop screens */}
+          <div className="hidden lg:flex items-center justify-between pb-3 mb-4 bg-[#121412] border border-white/5 p-3 rounded-xl shadow-lg">
             <div className="text-left">
               <span className="text-[10px] text-[#e0e0e0]/40 block mb-0.5 font-sans font-medium">فريقك المختار</span>
               <h3 className="font-serif font-bold text-white text-sm md:text-base leading-none">{playerCoachName}</h3>
@@ -302,7 +302,7 @@ export default function TacticalPitch({
           </div>
 
           {/* Player Pitch Slots - Horizontal Side-by-Side row alignment (Requirement 1) */}
-          <div className="grid grid-cols-5 gap-1 md:gap-3 justify-items-center bg-emerald-950/10 p-2 md:p-3 rounded-xl border border-emerald-500/10 shadow-inner">
+          <div className="grid grid-cols-5 gap-1 md:gap-3 justify-items-center bg-emerald-950/10 p-2 md:p-3 rounded-xl border border-emerald-500/10 shadow-inner overflow-hidden">
             {playerSlots.map((_, idx) => renderPlayerSlot(idx, true))}
           </div>
         </div>

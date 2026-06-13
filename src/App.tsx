@@ -1571,8 +1571,8 @@ export default function App() {
       {/* Main Container */}
       <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* TOP STATUS NAVIGATION BAR */}
-        <header className="flex flex-col sm:flex-row items-center justify-between bg-[#0c0d0c] p-3 px-4 rounded-xl border border-white/5 backdrop-blur-md gap-3 select-none">
+        {/* TOP STATUS NAVIGATION BAR - Hidden during matches on small viewports to match scribbled layouts */}
+        <header className={`${phase === "menu" ? "flex" : "hidden lg:flex"} flex-col sm:flex-row items-center justify-between bg-[#0c0d0c] p-3 px-4 rounded-xl border border-white/5 backdrop-blur-md gap-3 select-none`}>
           <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-start">
             <div className="flex items-center gap-1.5">
               <button
@@ -1727,19 +1727,21 @@ export default function App() {
             {/* LEFT / TOP COLUMN (Tactical Live Pitch & Commentary) */}
             <div className="lg:col-span-3 space-y-6">
               
-              {/* Interactive Coach HUD & Draw Center */}
-              <DrawDecksDashboard
-                phase={phase}
-                playerDeckCount={playerDeck.length}
-                specialDeckCount={specialDeck.length}
-                cardsDrawnThisTurn={cardsDrawnThisTurn}
-                playerMovesLeft={playerMovesLeft}
-                selectedHandCardId={selectedHandCardId}
-                selectedPitchSlotIdx={selectedPitchSlotIdx}
-                burningCardCount={burningCardIds.length}
-                currentPonto={currentPonto}
-                onDrawCard={handleDrawCard}
-              />
+              {/* Interactive Coach HUD & Draw Center - Hidden on Mobile to prevent vertical scroll */}
+              <div className="hidden lg:block">
+                <DrawDecksDashboard
+                  phase={phase}
+                  playerDeckCount={playerDeck.length}
+                  specialDeckCount={specialDeck.length}
+                  cardsDrawnThisTurn={cardsDrawnThisTurn}
+                  playerMovesLeft={playerMovesLeft}
+                  selectedHandCardId={selectedHandCardId}
+                  selectedPitchSlotIdx={selectedPitchSlotIdx}
+                  burningCardCount={burningCardIds.length}
+                  currentPonto={currentPonto}
+                  onDrawCard={handleDrawCard}
+                />
+              </div>
 
               {/* Tactical football pitch representation */}
               <TacticalPitch
@@ -1763,7 +1765,7 @@ export default function App() {
                 onDrawCard={handleDrawCard}
               />
 
-              {/* Actions & Turns controller bar */}
+               {/* Actions & Turns controller bar */}
               <ActionDashboard
                 phase={phase}
                 movesLeft={playerMovesLeft}
@@ -1771,6 +1773,8 @@ export default function App() {
                 aiCoachName={aiCoachName}
                 cardsDrawnThisTurn={cardsDrawnThisTurn}
                 currentPonto={currentPonto}
+                playerScore={playerScore}
+                aiScore={aiScore}
                 activeAttackerName={
                   currentAttackerIdx !== null
                     ? (phase === "attacking" 
@@ -1828,8 +1832,8 @@ export default function App() {
 
             </div>
 
-            {/* RIGHT COLUMN (Live commentary ticker, strategy logs) */}
-            <div className="lg:col-span-1 space-y-6">
+            {/* RIGHT COLUMN (Live commentary ticker, strategy logs) - Hidden on mobile screens to maintain zero vertical scroll */}
+            <div className="hidden lg:block lg:col-span-1 space-y-6">
               
               {/* Toggleable Quick Tips sidebar (Requirement 2) */}
               <div className="bg-[#121412] border border-white/5 rounded-xl p-3 text-right">
