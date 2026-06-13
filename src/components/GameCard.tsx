@@ -17,6 +17,7 @@ interface GameCardProps {
   disabled?: boolean;
   size?: "sm" | "md" | "lg" | "pitch";
   className?: string;
+  onInspect?: () => void;
 }
 
 export default function GameCard({
@@ -27,9 +28,26 @@ export default function GameCard({
   isBurning,
   disabled,
   size = "md",
-  className = ""
+  className = "",
+  onInspect
 }: GameCardProps) {
   const isPlayer = card.type === "player";
+  const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (disabled || !onInspect) return;
+    // Set a timeout for 500ms for solid long-press detection
+    timerRef.current = setTimeout(() => {
+      onInspect();
+    }, 500);
+  };
+
+  const handlePointerUpOrCancel = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
 
   // Card size parameters
   const getSizeClasses = () => {
@@ -71,6 +89,10 @@ export default function GameCard({
       <motion.div
         id={`card_3d_wrapper_${card.id}`}
         onClick={disabled ? undefined : onClick}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUpOrCancel}
+        onPointerLeave={handlePointerUpOrCancel}
+        onPointerCancel={handlePointerUpOrCancel}
         style={{ 
           transformStyle: "preserve-3d",
           width: "100%",

@@ -24,6 +24,8 @@ import CoachHand from "./components/CoachHand";
 import ActionTickerLog from "./components/ActionTickerLog";
 import ActionDashboard from "./components/ActionDashboard";
 import DrawDecksDashboard from "./components/DrawDecksDashboard";
+import TopScoreHeader from "./components/TopScoreHeader";
+import CardInspectorModal from "./components/CardInspectorModal";
 
 // Helper to format timestamps 
 const getFormattedTime = () => {
@@ -32,6 +34,10 @@ const getFormattedTime = () => {
 };
 
 export default function App() {
+  // Static AI properties
+  const aiCoachName = "المدرب الغريم (تكتيك روبوت)";
+  const aiTeam = "كتائب الروبوت الذكية 🤖";
+
   // Lobby section tab
   const [menuTab, setMenuTab] = useState<"solo" | "multi">("solo");
 
@@ -100,6 +106,16 @@ export default function App() {
 
   // Goal explosion cinematic state
   const [celebrationMessage, setCelebrationMessage] = useState<{ title: string; subtitle: string; isGoal: boolean } | null>(null);
+  
+  // Match countdown timer
+  const [matchTime, setMatchTime] = useState<number>(180);
+  const [initialMatchTime, setInitialMatchTime] = useState<number>(180);
+
+  // Lifted state to control hand bag openness
+  const [isHandExpanded, setIsHandExpanded] = useState<boolean>(false);
+
+  // Zooms and inspects selected card detailed stats
+  const [inspectedCard, setInspectedCard] = useState<Card | null>(null);
   
   // Ripple waves for action click triggers
   const [btnRipples, setBtnRipples] = useState<{ id: number; x: number; y: number }[]>([]);
@@ -222,6 +238,46 @@ export default function App() {
       }, 50);
     }
   };
+
+  // Countdown Timer ticking
+  useEffect(() => {
+    if (phase === "menu" || phase === "game_over") return;
+
+    const timer = setInterval(() => {
+      setMatchTime((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          SoundEffects.playWhistle();
+          setPhase("game_over");
+          
+          // Determine the winner based on goals
+          if (playerScore > aiScore) {
+            const victoryMsg = `⏰ انتهى وقت المباراة الرسمي! تكتيكات الكابتن ${coachName} حسمت النصر التاريخي بالنتيجة ${playerScore} - ${aiScore}! ⚽🏆`;
+            setLogs(prevLogs => [
+              { id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), text: victoryMsg, type: "success" },
+              ...prevLogs
+            ]);
+          } else if (aiScore > playerScore) {
+            const lossMsg = `⏰ انتهى وقت المباراة الرسمي! للأسف المدرب المنافس ${aiCoachName} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`;
+            setLogs(prevLogs => [
+              { id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), text: lossMsg, type: "danger" },
+               ...prevLogs
+            ]);
+          } else {
+            const drawMsg = `⏰ نهاية الوقت الأصلي بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}! ركلات الترجيح المفتوحة ستحرك الكأس!`;
+            setLogs(prevLogs => [
+              { id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), text: drawMsg, type: "neutral" },
+              ...prevLogs
+            ]);
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [phase, playerScore, aiScore, coachName, aiCoachName]);
 
   // Real-time receiver subscriber
   useEffect(() => {
@@ -467,10 +523,13 @@ export default function App() {
   };
 
   // KICK START GAME FROM MENU
-  const handleStartGame = (name: string, vibe: string, diff: "normal" | "tactical" | "legend") => {
+  const handleStartGame = (name: string, vibe: string, diff: "normal" | "tactical" | "legend", matchDuration: number = 180) => {
     setCoachName(name);
     setTeamVibe(vibe);
     setDifficulty(diff);
+    setMatchTime(matchDuration);
+    setInitialMatchTime(matchDuration);
+    setIsHandExpanded(false);
 
     // Initial decks setup
     const pDeck = generatePlayerDeck();
@@ -1575,10 +1634,6 @@ export default function App() {
     setLogs([]);
   };
 
-  // Setup sample AI Coach details
-  const aiCoachName = "المدرب الغريم (تكتيك روبوت)";
-  const aiTeam = "كتائب الروبوت الذكية 🤖";
-
   return (
     <div className="min-h-screen bg-[#050605] text-[#e0e0e0] font-sans p-4 relative overflow-x-hidden md:p-6 select-none">
       
@@ -1740,26 +1795,24 @@ export default function App() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-fade-in">
             
             {/* LEFT / TOP COLUMN (Tactical Live Pitch & Commentary) */}
-            <div className="lg:col-span-3 space-y-6">
-              
-              {/* Interactive Coach HUD & Draw Center - Hidden on Mobile to prevent vertical scroll */}
-              <div className="hidden lg:block">
-                <DrawDecksDashboard
-                  phase={phase}
-                  playerDeckCount={playerDeck.length}
-                  specialDeckCount={specialDeck.length}
-                  cardsDrawnThisTurn={cardsDrawnThisTurn}
-                  playerMovesLeft={playerMovesLeft}
-                  selectedHandCardId={selectedHandCardId}
-                  selectedPitchSlotIdx={selectedPitchSlotIdx}
-                  burningCardCount={burningCardIds.length}
-                  currentPonto={currentPonto}
-                  onDrawCard={handleDrawCard}
-                />
-              </div>
+            <div className="lg:col-span-3 space-y-5">
+
+              {/* Broadcasting-style Scoreboard and Live Match Clock Timer */}
+              <TopScoreHeader
+                playerCoachName={coachName}
+                playerTeam={teamVibe}
+                playerScore={playerScore}
+                aiCoachName={aiCoachName}
+                aiTeam={aiTeam}
+                aiScore={aiScore}
+                matchTime={matchTime}
+                initialMatchTime={initialMatchTime}
+                phase={phase}
+                difficulty={difficulty}
+              />
 
               {/* Tactical football pitch representation */}
               <TacticalPitch
@@ -1781,6 +1834,10 @@ export default function App() {
                 specialDeckCount={specialDeck.length}
                 cardsDrawnThisTurn={cardsDrawnThisTurn}
                 onDrawCard={handleDrawCard}
+                isHandExpanded={isHandExpanded}
+                setIsHandExpanded={setIsHandExpanded}
+                aiHandCount={aiHand.length}
+                onInspectCard={setInspectedCard}
               />
 
                {/* Actions & Turns controller bar */}
@@ -1829,6 +1886,9 @@ export default function App() {
                 specialDeckCount={specialDeck.length}
                 cardsDrawnThisTurn={cardsDrawnThisTurn}
                 isPlayerTurn={phase === "player_turn" || phase === "warmup"}
+                isHandExpanded={isHandExpanded}
+                setIsHandExpanded={setIsHandExpanded}
+                onInspectCard={setInspectedCard}
                 onSelectCard={(id) => {
                   const card = playerHand.find((c) => c.id === id);
                   if (!card) return;
@@ -2041,6 +2101,12 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Cinematic detailed specialty inspector overlay */}
+      <CardInspectorModal
+        card={inspectedCard}
+        onClose={() => setInspectedCard(null)}
+      />
 
     </div>
   );

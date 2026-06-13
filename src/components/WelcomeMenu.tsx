@@ -9,7 +9,7 @@ import { Shield, Sparkles, Trophy, Users, Zap, Bot } from "lucide-react";
 import { SoundEffects } from "../utils/sounds";
 
 interface WelcomeMenuProps {
-  onStartGame: (coachName: string, teamVibe: string, difficulty: "normal" | "tactical" | "legend") => void;
+  onStartGame: (coachName: string, teamVibe: string, difficulty: "normal" | "tactical" | "legend", matchDuration: number) => void;
 }
 
 const TEAM_VIBES = [
@@ -25,12 +25,13 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
   const [coachName, setCoachName] = useState("");
   const [selectedVibe, setSelectedVibe] = useState(TEAM_VIBES[0]);
   const [difficulty, setDifficulty] = useState<"normal" | "tactical" | "legend">("normal");
+  const [matchDuration, setMatchDuration] = useState<number>(180);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const finalName = coachName.trim() || "الكابتن البطل";
     SoundEffects.playWhistle();
-    onStartGame(finalName, selectedVibe.name, difficulty);
+    onStartGame(finalName, selectedVibe.name, difficulty, matchDuration);
   };
 
   return (
@@ -147,6 +148,41 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
                   <IconComponent className="w-4 h-4" />
                   <span className="font-semibold text-xs">{lvl.label}</span>
                   <p className="hidden md:block text-[9px] text-[#e0e0e0]/40 leading-none">{lvl.desc}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Match Duration Panel */}
+        <div className="p-4 rounded-xl bg-black/30 border border-white/5">
+          <label className="block text-[#e0e0e0]/70 text-xs font-semibold mb-3 text-right uppercase tracking-wider">
+            تحديد الوقت والزمن الرسمي للمباراة التكتيكية:
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { seconds: 90, label: "90 ثانية", desc: "تحدي البرق السريع ⚡" },
+              { seconds: 180, label: "180 ثانية", desc: "ماتش كلاسيكي متوازن ⚽" },
+              { seconds: 300, label: "300 ثانية", desc: "بطولة كبرى للمحترفين 🏆" }
+            ].map((dur) => {
+              const isSelected = matchDuration === dur.seconds;
+              return (
+                <button
+                  key={dur.seconds}
+                  type="button"
+                  id={`duration_btn_${dur.seconds}`}
+                  onClick={() => {
+                    SoundEffects.playCardDraw();
+                    setMatchDuration(dur.seconds);
+                  }}
+                  className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
+                    isSelected
+                      ? "border-emerald-500 text-emerald-400 bg-[#1a1c1a] shadow-md scale-[1.01]"
+                      : "border-white/5 text-[#e0e0e0]/50 bg-transparent hover:border-white/10"
+                  }`}
+                >
+                  <span className="font-semibold text-xs text-white">{dur.label}</span>
+                  <p className="hidden md:block text-[9px] text-[#e0e0e0]/40 leading-none mt-0.5">{dur.desc}</p>
                 </button>
               );
             })}

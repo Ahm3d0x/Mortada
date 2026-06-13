@@ -19,11 +19,14 @@ interface CoachHandProps {
   specialDeckCount: number;
   cardsDrawnThisTurn: number; // Max 2 can be drawn per turn
   isPlayerTurn: boolean;
+  isHandExpanded: boolean;
+  setIsHandExpanded: (val: boolean) => void;
 
   onSelectCard: (id: string) => void;
   onDrawCard: (deckType: "player" | "special") => void;
   onPlaySpecialCard: (id: string) => void;
   onCancelSelection: () => void;
+  onInspectCard?: (card: Card) => void;
 }
 
 export default function CoachHand({
@@ -36,12 +39,14 @@ export default function CoachHand({
   specialDeckCount,
   cardsDrawnThisTurn,
   isPlayerTurn,
+  isHandExpanded,
+  setIsHandExpanded,
   onSelectCard,
   onDrawCard,
   onPlaySpecialCard,
-  onCancelSelection
+  onCancelSelection,
+  onInspectCard
 }: CoachHandProps) {
-  const [isHandExpanded, setIsHandExpanded] = React.useState(true);
 
   // Determine if drawing phase is active
   const isDrawPhase = isPlayerTurn && (phase === "player_turn" || phase === "warmup") && cardsDrawnThisTurn < 2;
@@ -219,6 +224,7 @@ export default function CoachHand({
                        size="md"
                        isSelected={isSelected}
                        isBurning={isBurning}
+                       onInspect={() => onInspectCard && onInspectCard(card)}
                        onClick={() => {
                          SoundEffects.playCardDraw();
                          onSelectCard(card.id);

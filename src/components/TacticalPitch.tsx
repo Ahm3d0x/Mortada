@@ -32,6 +32,12 @@ interface TacticalPitchProps {
   specialDeckCount?: number;
   cardsDrawnThisTurn?: number;
   onDrawCard?: (deckType: "player" | "special") => void;
+
+  // Lifted hand controls
+  isHandExpanded?: boolean;
+  setIsHandExpanded?: (val: boolean) => void;
+  aiHandCount?: number;
+  onInspectCard?: (card: any) => void;
 }
 
 // Tactical Positions Label Map
@@ -61,7 +67,11 @@ export default function TacticalPitch({
   playerDeckCount = 0,
   specialDeckCount = 0,
   cardsDrawnThisTurn = 0,
-  onDrawCard
+  onDrawCard,
+  isHandExpanded = false,
+  setIsHandExpanded,
+  aiHandCount = 3,
+  onInspectCard
 }: TacticalPitchProps) {
 
   const [isPeekMode, setIsPeekMode] = React.useState(false);
@@ -93,6 +103,7 @@ export default function TacticalPitch({
               isRevealed={slot.isRevealed}
               size="pitch"
               disabled={!selectable}
+              onInspect={() => slot.isRevealed && onInspectCard && onInspectCard(slot.card)}
               className={isSelected ? "border-rose-500 ring-4 ring-rose-500/30" : ""}
             />
           ) : (
@@ -152,6 +163,7 @@ export default function TacticalPitch({
                 size="pitch"
                 isSelected={isSelected}
                 disabled={!selectable}
+                onInspect={() => onInspectCard && onInspectCard(slot.card)}
                 className={isActiveAttacker ? "border-emerald-400 ring-4 ring-emerald-500/40" : ""}
               />
               {peekingThisCard && (
@@ -214,114 +226,124 @@ export default function TacticalPitch({
             </div>
           </div>
 
-          {/* AI Pitch Slots - Horizontal Side-by-Side row alignment (Requirement 1 & 7) */}
-          <div className="grid grid-cols-5 gap-1 md:gap-3 justify-items-center bg-emerald-950/10 p-2 md:p-3 rounded-xl border border-emerald-500/10 shadow-inner overflow-hidden">
-            {aiSlots.map((_, idx) => renderAiSlot(idx, true))}
+          {/* Symmetrical Opponent Status Bar (Locked indicator) */}
+          <div className="w-full bg-rose-950/20 border border-rose-500/10 rounded-xl p-2.5 flex flex-col xs:flex-row items-center justify-between gap-2 mt-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs">🤖</span>
+              <span className="text-[10px] md:text-xs text-rose-300 font-bold">حالة الكروت والمجموعات للمنافس</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1 bg-black/40 px-2 py-0.5 rounded-md text-[9px] font-mono border border-white/5">
+                <span className="text-rose-400">👝</span>
+                <span className="text-white font-bold">{aiHandCount} كروت باليد</span>
+              </div>
+              <div className="flex items-center gap-1 bg-black/40 px-2 py-0.5 rounded-md text-[9px] font-mono border border-white/5">
+                <span className="text-amber-400">🏃‍♂️</span>
+                <span className="text-white font-bold">{playerDeckCount} باقة اللاعبين</span>
+              </div>
+              <div className="flex items-center gap-1 bg-black/40 px-2 py-0.5 rounded-md text-[9px] font-mono border border-white/5">
+                <span className="text-teal-400">⚡</span>
+                <span className="text-white font-bold">{specialDeckCount} باقة التكتيك</span>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Tactical Middle Pitch divider - Streamlined and narrow on mobile */}
-        <div className="flex items-center justify-center lg:justify-between gap-3 py-1 border-y border-white/5 bg-emerald-950/5 rounded-xl px-4 relative">
-          
-          {/* On-pitch manual player drawing deck stack - Only on large desktop, else draw directly from hand popup buttons */}
-          {onDrawCard ? (
-            <div className="hidden lg:flex items-center gap-2">
-              <span className="text-[9px] md:text-[10px] text-slate-400 font-bold hidden xs:inline text-right">
-                {phase === "warmup" ? "سحب كرت الملعب الكروي" : "باقة اللاعبين 🏃‍♂️"}
-              </span>
-              <button
-                onClick={() => onDrawCard("player")}
-                disabled={playerDeckCount === 0}
-                className={`relative w-12 h-16 rounded-lg text-center flex flex-col justify-between p-1.5 cursor-pointer select-none transition-all ${
-                  phase === "warmup" && playerSlots.filter(s => s.card !== null).length < 5
-                    ? "ring-2 ring-emerald-400 animate-pulse bg-emerald-950 border border-emerald-500"
-                    : (phase === "player_turn" && cardsDrawnThisTurn < 2)
-                      ? "ring-2 ring-emerald-400 animate-pulse bg-emerald-950 border border-emerald-500"
-                      : "bg-[#121412] border border-white/10 opacity-70 hover:opacity-100"
-                }`}
-                title="اضغط لسحب كارت لاعب مباشرة من الملعب"
-                id="pitch_player_draw_btn"
-              >
-                <span className="text-base">🏃‍♂️</span>
-                <span className="text-[8px] font-mono font-bold text-emerald-400 bg-black/40 px-1 rounded">
-                  {playerDeckCount}
-                </span>
-              </button>
-            </div>
-          ) : (
-            <div className="hidden lg:block w-12" />
-          )}
-
-          <div className="px-4 py-0.5 rounded-full bg-[#0a0c0a] border border-white/10 text-[10px] text-[#e0e0e0]/40 font-bold tracking-widest font-mono shadow-md">
-            VS
+        <div className="relative my-4 flex items-center justify-center">
+          <div className="absolute inset-x-0 h-[2px] bg-emerald-500/20" />
+          <div className="z-10 bg-[#0c0e0c] border border-emerald-500/30 px-4 py-1 rounded-full text-[9px] font-mono font-black text-emerald-400 uppercase tracking-widest shadow-[0_0_12px_rgba(16,185,129,0.25)]">
+            ⚙️ تكتيكات اللقاء الكروي ⚙️
           </div>
-
-          {/* On-pitch banter / special cards drawing deck stack - Only on large desktop */}
-          {onDrawCard ? (
-            <div className="hidden lg:flex items-center gap-2">
-              <button
-                onClick={() => onDrawCard("special")}
-                disabled={specialDeckCount === 0 || phase === "warmup"}
-                className={`relative w-12 h-16 rounded-lg text-center flex flex-col justify-between p-1.5 cursor-pointer select-none transition-all ${
-                  (phase === "player_turn" && cardsDrawnThisTurn < 2)
-                    ? "ring-2 ring-teal-400 animate-pulse bg-teal-950 border border-teal-500"
-                    : "bg-[#121412] border border-white/10 opacity-70 hover:opacity-100 disabled:opacity-40"
-                }`}
-                title="اضغط لسحب كارت تكتيك/سخرية مباشرة من الملعب"
-                id="pitch_special_draw_btn"
-              >
-                <span className="text-base">⚡</span>
-                <span className="text-[8px] font-mono font-bold text-teal-400 bg-black/40 px-1 rounded">
-                  {specialDeckCount}
-                </span>
-              </button>
-              <span className="text-[9px] md:text-[10px] text-slate-400 font-bold hidden xs:inline">
-                كروت السخرية والتكتيك ⚡
-              </span>
-            </div>
-          ) : (
-            <div className="hidden lg:block w-12" />
-          )}
-
         </div>
 
         {/* 2. PLAYER HALF - YOU (COACH) */}
         <div>
-          {/* Player Header Scoreboard Bar - Only displayed on large desktop screens */}
-          <div className="hidden lg:flex items-center justify-between pb-3 mb-4 bg-[#121412] border border-white/5 p-3 rounded-xl shadow-lg">
-            <div className="text-left">
-              <span className="text-[10px] text-[#e0e0e0]/40 block mb-0.5 font-sans font-medium">فريقك المختار</span>
-              <h3 className="font-serif font-bold text-white text-sm md:text-base leading-none">{playerCoachName}</h3>
+          {/* Symmetrical Player Console */}
+          <div className="w-full bg-[#121412]/95 border border-[#10b981]/30 rounded-2xl p-3 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-2 mb-4">
+            <div className="flex items-center justify-between px-1.5">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] md:text-[11px] font-black text-emerald-400">لوحة التحكم التكتيكية للمدرب</span>
+              </div>
+              <span className="text-[8px] text-[#e0e0e0]/30 font-mono font-black">ACTIVE COACH UTILITIES</span>
             </div>
-            {/* Score pill */}
-            <div className="flex items-center gap-1.5 bg-[#1a1c1a] border border-white/10 px-3.5 py-1 rounded-full shadow-inner">
-              <span className="text-emerald-400 font-mono font-bold text-sm">{playerScore}</span>
-              <span className="text-[#e0e0e0]/45 text-[9px] font-sans">أهداف</span>
-            </div>
-            <div className="text-right">
-              <span className="text-[10px] uppercase font-mono tracking-wider text-[#e0e0e0]/30 font-semibold font-sans">الهوية التكتيكية</span>
-              <h4 className="text-xs font-bold text-emerald-400">{playerTeam}</h4>
-            </div>
-          </div>
+            
+            <div className="grid grid-cols-2 xs:grid-cols-4 gap-2">
+              {/* 1. Draw Player Button */}
+              <button
+                type="button"
+                onClick={() => onDrawCard && onDrawCard("player")}
+                disabled={playerDeckCount === 0 || (phase !== "player_turn" && phase !== "warmup") || cardsDrawnThisTurn >= 2}
+                className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                  (phase === "warmup" && playerSlots.filter(s => s.card !== null).length < 5) || (phase === "player_turn" && cardsDrawnThisTurn < 2)
+                    ? "border-emerald-500 bg-emerald-950/40 text-emerald-400 ring-2 ring-emerald-500/30 animate-pulse"
+                    : "border-white/5 bg-black/40 text-slate-400 hover:border-white/10 hover:text-white"
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                id="board_draw_player_widget"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs">🏃‍♂️</span>
+                  <span className="font-bold text-[10px] md:text-xs">سحب كارت لاعب</span>
+                </div>
+                <span className="text-[8px] font-mono opacity-60">الباقي: {playerDeckCount}</span>
+              </button>
 
-          {/* Player Controls Panel with Inspect Toggle */}
-          <div className="flex items-center justify-between mb-3 px-1">
-            <button
-              onClick={() => setIsPeekMode(!isPeekMode)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-black transition-all cursor-pointer border shadow-sm ${
-                isPeekMode 
-                  ? "bg-amber-500/10 text-amber-400 border-amber-500/30 ring-2 ring-amber-500/20" 
-                  : "bg-[#121412] text-slate-400 border-white/5 hover:text-white hover:border-white/10"
-              }`}
-              title="اضغط لمعاينة جميع اللاعبين المخفيين في ملعبك سراً دون كشفهم للخصم"
-              id="player_secret_peek_btn"
-            >
-              <span className="text-xs">👁️</span>
-              <span>{isPeekMode ? "إغلاق المعاينة السرية" : "معاينة كروت ملعبك سرياً"}</span>
-            </button>
-            <span className="text-[9px] md:text-[10px] text-[#e0e0e0]/30 font-bold uppercase tracking-wider font-sans">
-              خطة التشكيلة الخماسية للملعب
-            </span>
+              {/* 2. Draw Special Button */}
+              <button
+                type="button"
+                onClick={() => onDrawCard && onDrawCard("special")}
+                disabled={specialDeckCount === 0 || phase === "warmup" || phase !== "player_turn" || cardsDrawnThisTurn >= 2}
+                className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                  (phase === "player_turn" && cardsDrawnThisTurn < 2)
+                    ? "border-teal-500 bg-teal-950/40 text-teal-400 hover:border-teal-400"
+                    : "border-white/5 bg-black/40 text-slate-400 hover:border-white/10 hover:text-white"
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                id="board_draw_special_widget"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs">⚡</span>
+                  <span className="font-bold text-[10px] md:text-xs">سحب كارت تكتيك</span>
+                </div>
+                <span className="text-[8px] font-mono opacity-60">الباقي: {specialDeckCount}</span>
+              </button>
+
+              {/* 3. Open Hand Button */}
+              <button
+                type="button"
+                onClick={() => setIsHandExpanded && setIsHandExpanded(!isHandExpanded)}
+                className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                  isHandExpanded
+                    ? "border-amber-500 bg-amber-950/40 text-amber-400 ring-2 ring-amber-500/30"
+                    : "border-white/5 bg-black/40 text-slate-400 hover:border-white/10 hover:text-white"
+                }`}
+                id="board_toggle_hand_widget"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs">👝</span>
+                  <span className="font-bold text-[10px] md:text-xs">حقيبة اللعب اليدوية</span>
+                </div>
+                <span className="text-[8px] font-mono opacity-60">{isHandExpanded ? "إخفاء الحقيبة" : "فتح الكروت بيدك"}</span>
+              </button>
+
+              {/* 4. Peek Pitch Cards Button */}
+              <button
+                type="button"
+                onClick={() => setIsPeekMode(!isPeekMode)}
+                className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                  isPeekMode
+                    ? "border-purple-500 bg-purple-950/40 text-purple-400 ring-2 ring-purple-500/30"
+                    : "border-white/5 bg-black/40 text-slate-400 hover:border-white/10 hover:text-white"
+                }`}
+                id="board_preview_peek_widget"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs">👁️</span>
+                  <span className="font-bold text-[10px] md:text-xs">معاينة خطتك سرياً</span>
+                </div>
+                <span className="text-[8px] font-mono opacity-60">{isPeekMode ? "إيقاف المعاينة" : "رؤية خصائص كروتك"}</span>
+              </button>
+            </div>
           </div>
 
           {/* Player Pitch Slots - Horizontal Side-by-Side row alignment (Requirement 1) */}
