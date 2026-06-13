@@ -26,6 +26,12 @@ interface TacticalPitchProps {
 
   onSelectSlot: (idx: number) => void;
   isSelectable: (idx: number, isAi: boolean) => boolean;
+
+  // Embedded drawings on-pitch center (Requirement 7)
+  playerDeckCount?: number;
+  specialDeckCount?: number;
+  cardsDrawnThisTurn?: number;
+  onDrawCard?: (deckType: "player" | "special") => void;
 }
 
 // Tactical Positions Label Map
@@ -51,7 +57,11 @@ export default function TacticalPitch({
   phase,
   playerMovesLeft,
   onSelectSlot,
-  isSelectable
+  isSelectable,
+  playerDeckCount = 0,
+  specialDeckCount = 0,
+  cardsDrawnThisTurn = 0,
+  onDrawCard
 }: TacticalPitchProps) {
 
   // Helper to render AI Slots
@@ -182,7 +192,7 @@ export default function TacticalPitch({
 
       <div className="flex flex-col gap-6 relative z-10">
 
-        {/* 1. OPPONENT HALF - AI (RIVAL) */}
+        {/* 1. OPPONENT HALF - AI (RIVER) */}
         <div>
           {/* AI Header Scoreboard Bar */}
           <div className="flex items-center justify-between pb-3 mb-4 bg-[#121412] border border-white/5 p-3 rounded-xl shadow-lg">
@@ -201,35 +211,75 @@ export default function TacticalPitch({
             </div>
           </div>
 
-          {/* AI Pitch Slots - Desktop layout */}
-          <div className="hidden sm:grid sm:grid-cols-5 gap-3 justify-items-center">
-            {aiSlots.map((_, idx) => renderAiSlot(idx, false))}
-          </div>
-
-          {/* AI Pitch Slots - Mobile 3-Tier Soccer Formation */}
-          <div className="flex sm:hidden flex-col gap-2 bg-emerald-950/20 p-3 rounded-xl border border-emerald-500/10 shadow-inner">
-            {/* GK Row (Index 0) */}
-            <div className="flex justify-center w-full">
-              {renderAiSlot(0, true)}
-            </div>
-            {/* DF & MF Row (Index 1 & 2) */}
-            <div className="flex justify-center gap-4 w-full">
-              {renderAiSlot(1, true)}
-              {renderAiSlot(2, true)}
-            </div>
-            {/* Forwards Row (Index 3 & 4) */}
-            <div className="flex justify-center gap-4 w-full">
-              {renderAiSlot(3, true)}
-              {renderAiSlot(4, true)}
-            </div>
+          {/* AI Pitch Slots - Horizontal Side-by-Side row alignment (Requirement 1 & 7) */}
+          <div className="grid grid-cols-5 gap-1 md:gap-3 justify-items-center bg-emerald-950/10 p-2 md:p-3 rounded-xl border border-emerald-500/10 shadow-inner">
+            {aiSlots.map((_, idx) => renderAiSlot(idx, true))}
           </div>
         </div>
 
-        {/* Tactical Middle Pitch divider representing center circle */}
-        <div className="h-[1px] bg-white/5 my-2 relative">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 px-4 py-1 rounded-full bg-[#0a0c0a] border border-white/10 text-[10px] text-[#e0e0e0]/40 font-bold tracking-widest font-mono shadow-md">
+        {/* Tactical Middle Pitch divider representing center circle with integrated decks (Requirement 7) */}
+        <div className="flex flex-col xs:flex-row items-center justify-between gap-3 py-2 border-y border-white/5 bg-emerald-950/10 rounded-xl px-4 relative">
+          
+          {/* On-pitch manual player drawing deck stack */}
+          {onDrawCard ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] md:text-[10px] text-slate-400 font-bold hidden xs:inline text-right">
+                {phase === "warmup" ? "سحب كرت الملعب الكروي" : "باقة اللاعبين 🏃‍♂️"}
+              </span>
+              <button
+                onClick={() => onDrawCard("player")}
+                disabled={playerDeckCount === 0}
+                className={`relative w-12 h-16 rounded-lg text-center flex flex-col justify-between p-1.5 cursor-pointer select-none transition-all ${
+                  phase === "warmup" && playerSlots.filter(s => s.card !== null).length < 5
+                    ? "ring-2 ring-emerald-400 animate-pulse bg-emerald-950 border border-emerald-500"
+                    : (phase === "player_turn" && cardsDrawnThisTurn < 2)
+                      ? "ring-2 ring-emerald-400 animate-pulse bg-emerald-950 border border-emerald-500"
+                      : "bg-[#121412] border border-white/10 opacity-70 hover:opacity-100"
+                }`}
+                title="اضغط لسحب كارت لاعب مباشرة من الملعب"
+                id="pitch_player_draw_btn"
+              >
+                <span className="text-base">🏃‍♂️</span>
+                <span className="text-[8px] font-mono font-bold text-emerald-400 bg-black/40 px-1 rounded">
+                  {playerDeckCount}
+                </span>
+              </button>
+            </div>
+          ) : (
+            <div className="w-12 h-16" />
+          )}
+
+          <div className="px-4 py-1 rounded-full bg-[#0a0c0a] border border-white/10 text-xs text-[#e0e0e0]/40 font-bold tracking-widest font-mono shadow-md">
             VS
           </div>
+
+          {/* On-pitch banter / special cards drawing deck stack */}
+          {onDrawCard ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onDrawCard("special")}
+                disabled={specialDeckCount === 0 || phase === "warmup"}
+                className={`relative w-12 h-16 rounded-lg text-center flex flex-col justify-between p-1.5 cursor-pointer select-none transition-all ${
+                  (phase === "player_turn" && cardsDrawnThisTurn < 2)
+                    ? "ring-2 ring-teal-400 animate-pulse bg-teal-950 border border-teal-500"
+                    : "bg-[#121412] border border-white/10 opacity-70 hover:opacity-100 disabled:opacity-40"
+                }`}
+                title="اضغط لسحب كارت تكتيك/سخرية مباشرة من الملعب"
+                id="pitch_special_draw_btn"
+              >
+                <span className="text-base">⚡</span>
+                <span className="text-[8px] font-mono font-bold text-teal-400 bg-black/40 px-1 rounded">
+                  {specialDeckCount}
+                </span>
+              </button>
+              <span className="text-[9px] md:text-[10px] text-slate-400 font-bold hidden xs:inline">
+                كروت السخرية والتكتيك ⚡
+              </span>
+            </div>
+          ) : (
+            <div className="w-12 h-16" />
+          )}
+
         </div>
 
         {/* 2. PLAYER HALF - YOU (COACH) */}
@@ -251,27 +301,9 @@ export default function TacticalPitch({
             </div>
           </div>
 
-          {/* Player Pitch Slots - Desktop layout */}
-          <div className="hidden sm:grid sm:grid-cols-5 gap-3 justify-items-center">
-            {playerSlots.map((_, idx) => renderPlayerSlot(idx, false))}
-          </div>
-
-          {/* Player Pitch Slots - Mobile 3-Tier Soccer Formation */}
-          <div className="flex sm:hidden flex-col gap-2 bg-emerald-950/20 p-3 rounded-xl border border-emerald-500/10 shadow-inner">
-            {/* Forwards Row (Index 3 & 4) */}
-            <div className="flex justify-center gap-4 w-full">
-              {renderPlayerSlot(3, true)}
-              {renderPlayerSlot(4, true)}
-            </div>
-            {/* DF & MF Row (Index 1 & 2) */}
-            <div className="flex justify-center gap-4 w-full">
-              {renderPlayerSlot(1, true)}
-              {renderPlayerSlot(2, true)}
-            </div>
-            {/* GK Row (Index 0) */}
-            <div className="flex justify-center w-full">
-              {renderPlayerSlot(0, true)}
-            </div>
+          {/* Player Pitch Slots - Horizontal Side-by-Side row alignment (Requirement 1) */}
+          <div className="grid grid-cols-5 gap-1 md:gap-3 justify-items-center bg-emerald-950/10 p-2 md:p-3 rounded-xl border border-emerald-500/10 shadow-inner">
+            {playerSlots.map((_, idx) => renderPlayerSlot(idx, true))}
           </div>
         </div>
 

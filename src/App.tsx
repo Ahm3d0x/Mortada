@@ -95,6 +95,8 @@ export default function App() {
   // Lists of logs
   const [logs, setLogs] = useState<ActionLog[]>([]);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+  const [showCommentary, setShowCommentary] = useState(false);
+  const [showTips, setShowTips] = useState(false);
 
   // Goal explosion cinematic state
   const [celebrationMessage, setCelebrationMessage] = useState<{ title: string; subtitle: string; isGoal: boolean } | null>(null);
@@ -489,8 +491,7 @@ export default function App() {
       return { slots, remainingDeck: remDeck };
     };
 
-    const playerPitchInit = prepareInitialPitchSlots(pDeck);
-    const aiPitchInit = prepareInitialPitchSlots(playerPitchInit.remainingDeck);
+    const aiPitchInit = prepareInitialPitchSlots(pDeck);
 
     let activeDeck = aiPitchInit.remainingDeck;
 
@@ -509,8 +510,8 @@ export default function App() {
     const playerHandData = drawHand(activeDeck, sDeck);
     const aiHandData = drawHand(playerHandData.remP, playerHandData.remS);
 
-    // Apply pitch configurations
-    setPlayerSlots(playerPitchInit.slots.map((card) => ({ card, isRevealed: false })));
+    // Empty slots initially so the player draws manually (Requirement 6)
+    setPlayerSlots(Array(5).fill(null).map(() => ({ card: null, isRevealed: false })));
     setAiSlots(aiPitchInit.slots.map((card) => ({ card, isRevealed: false })));
 
     setPlayerHand(playerHandData.hand);
@@ -531,7 +532,8 @@ export default function App() {
     setPhase("warmup");
     setLogs([]);
     addLog(`صافرة البداية! دخل المدرب ${name} بهوية ${vibe} لملاقاة خصمه ذو الصعوبة [${diff === "normal" ? "ناشئ" : diff === "tactical" ? "محترف" : "أسطوري"}].`, "success");
-    addLog("مرحلة التسخين: يحق لك الآن ترتيب و مبادلة كروت اللاعبين في يدك مع اللاعبين بملعبك مجاناً لتجهيز خطتك التكتيكية الضاربة.", "info");
+    addLog("مرحلة التسخين: اسحب 5 لاعبين لترتيب خطة الملعب الخمسة أولاً! انقر على باقة اللاعبين المضيئة وسط الملعب لسحب الكروت.", "info");
+    addLog("يمكنك بعد سحب اللاعبين تبديل المراكز وإجراء مبادلة مجانية مع يدك لتجهيز خطتك التكتيكية الضاربة.", "neutral");
   };
 
   // REARRANGE / SWAP CARDS FREE IN WARMUP
@@ -638,6 +640,47 @@ export default function App() {
 
   // DRAW CARDS ACTION IN PLAYER TURN
   const handleDrawCard = (deckType: "player" | "special") => {
+    if (phase === "warmup") {
+      if (deckType === "player") {
+        // Find first empty slot
+        const emptyIdx = playerSlots.findIndex((s) => s.card === null);
+        if (emptyIdx === -1) {
+          addLog("مرحلة التسخين: لقد قمت بسحب وتجهيز 5 كروت لاعبين بالفعل في الملعب! يمكنك الضغط على تأكيد الخطة والبدء بالعب.", "warning");
+          return;
+        }
+
+        if (playerDeck.length === 0) {
+          addLog("باقة اللاعبين فارغة تماماً!", "warning");
+          return;
+        }
+
+        // Find first non-legend card to avoid placing Legend directly in initial line-up (legal restriction)
+        const nonLegendIdx = playerDeck.findIndex((c) => !c.isLegend);
+        if (nonLegendIdx === -1) {
+          addLog("لا يوجد لاعبين مناسبين للتسخين بالمجموعة!", "danger");
+          return;
+        }
+
+        const nextCard = playerDeck[nonLegendIdx];
+        const updatedDeck = [...playerDeck];
+        updatedDeck.splice(nonLegendIdx, 1);
+
+        const updatedSlots = [...playerSlots];
+        updatedSlots[emptyIdx] = { card: nextCard, isRevealed: false };
+
+        setPlayerSlots(updatedSlots);
+        setPlayerDeck(updatedDeck);
+
+        const drawnCount = updatedSlots.filter((s) => s.card !== null).length;
+        addLog(`[التسخين] لقد سحبت اللاعب مقلوباً ووضعته بيدك بمركز الملعب [ ${emptyIdx + 1} ]. (سحبت ${drawnCount}/5)`, "success");
+        SoundEffects.playCardDraw();
+        syncMultiplayerIfActive();
+      } else {
+        addLog("مرحلة التسخين: اسحب كروت اللاعبين فقط (5 كروت) لتشكيل خطتك مقلوبة بالمركز المناسب!", "warning");
+      }
+      return;
+    }
+
     if (cardsDrawnThisTurn >= 2) return;
 
     if (deckType === "player") {
@@ -1529,32 +1572,96 @@ export default function App() {
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* TOP STATUS NAVIGATION BAR */}
-        <header className="flex items-center justify-between bg-[#0c0d0c] p-4 rounded-xl border border-white/5 backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                SoundEffects.playCardDraw();
-                setIsTutorialOpen(true);
-              }}
-              id="rules_button_header"
-              className="px-4 py-2 bg-transparent hover:bg-white/5 text-white border border-white/10 rounded font-medium text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
-            >
-              <HelpCircle className="w-4 h-4 text-emerald-400" />
-              <span>دليل القوانين بالتفصيل</span>
-            </button>
-            <button
-              onClick={handleResetGame}
-              id="reset_game_header_button"
-              className="p-2 bg-transparent hover:bg-white/5 text-slate-450 hover:text-white rounded border border-white/10 transition-colors cursor-pointer"
-              title="العودة لشاشة البداية"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
+        <header className="flex flex-col sm:flex-row items-center justify-between bg-[#0c0d0c] p-3 px-4 rounded-xl border border-white/5 backdrop-blur-md gap-3 select-none">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-start">
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => {
+                  SoundEffects.playCardDraw();
+                  setIsTutorialOpen(true);
+                }}
+                id="rules_button_header"
+                className="px-3 py-1.5 bg-transparent hover:bg-white/5 text-white border border-white/10 rounded font-medium text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden xs:inline">القوانين بالتفصيل</span>
+                <span className="inline xs:hidden">🏆 القوانين</span>
+              </button>
+              <button
+                onClick={handleResetGame}
+                id="reset_game_header_button"
+                className="p-1.5 bg-transparent hover:bg-white/5 text-slate-400 hover:text-white rounded border border-white/10 transition-colors cursor-pointer flex items-center justify-center w-8 h-8"
+                title="العودة لشاشة البداية"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+              
+              {/* Turn-based logging display toggle - Requirement 3 */}
+              {phase !== "menu" && (
+                <button
+                  onClick={() => setShowCommentary(!showCommentary)}
+                  className={`px-3 py-1.5 text-xs font-bold rounded border transition-colors cursor-pointer flex items-center gap-1 ${
+                    showCommentary 
+                      ? "bg-amber-600/20 border-amber-500/30 text-amber-305"
+                      : "bg-transparent border-white/10 text-slate-300 hover:bg-white/5"
+                  }`}
+                >
+                  <span>التعليق 🎙️</span>
+                  <span className="text-[9px] uppercase font-mono px-1 bg-black/30 rounded">
+                    {showCommentary ? "ظاهر" : "مخفي"}
+                  </span>
+                </button>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-2 sm:hidden text-right">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <h1 className="text-xs font-black text-emerald-400 leading-none">
+                مرتدة ©
+              </h1>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-            <h1 className="text-sm md:text-lg font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-200">
+          {/* New Interactive Mid Scoreboard - Requirement 4 */}
+          {phase !== "menu" && (
+            <div className="flex items-center justify-center gap-3 bg-black/40 border border-white/5 px-4 py-1.5 rounded-full shadow-inner w-full sm:w-auto">
+              <div className="flex items-center gap-1 text-right">
+                <span className="text-[10px] text-slate-400 font-bold hidden xs:inline max-w-[60px] truncate">
+                  {coachName || "المدرب"}
+                </span>
+                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">
+                  {playerScore}
+                </span>
+              </div>
+              
+              <div className="text-[10px] text-slate-500 font-black font-sans">
+                -
+              </div>
+
+              <div className="flex items-center gap-1 text-left">
+                <span className="text-[10px] text-rose-450 font-bold bg-rose-500/10 px-2 py-0.5 rounded">
+                  {aiScore}
+                </span>
+                <span className="text-[10px] text-slate-400 font-bold hidden xs:inline max-w-[60px] truncate">
+                  الخصم
+                </span>
+              </div>
+
+              <div className="border-r border-white/10 h-3 mx-1" />
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] text-amber-400 font-bold">
+                  الدور {turnCount}
+                </span>
+                <span className="text-[9px] text-slate-300 bg-white/5 px-2 py-0.5 rounded">
+                  حركاتك: {playerMovesLeft}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="hidden sm:flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <h1 className="text-sm font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-200">
               مرتدة © تكتيك كرة القدم
             </h1>
           </div>
@@ -1650,6 +1757,10 @@ export default function App() {
                 playerMovesLeft={playerMovesLeft}
                 onSelectSlot={handleSelectPitchSlot}
                 isSelectable={isSlotSelectable}
+                playerDeckCount={playerDeck.length}
+                specialDeckCount={specialDeck.length}
+                cardsDrawnThisTurn={cardsDrawnThisTurn}
+                onDrawCard={handleDrawCard}
               />
 
               {/* Actions & Turns controller bar */}
@@ -1720,23 +1831,45 @@ export default function App() {
             {/* RIGHT COLUMN (Live commentary ticker, strategy logs) */}
             <div className="lg:col-span-1 space-y-6">
               
-              <div className="p-4 bg-[#121412] border border-white/5 rounded-xl text-right">
-                <span className="text-[10px] uppercase font-mono tracking-wider text-[#e0e0e0]/40">طريقة اللعب السريعة ⚡</span>
-                <p className="text-xs text-[#e0e0e0]/70 mt-2 leading-relaxed">
-                  1. اسحب كارتين بالبداية.
-                  <br />
-                  2. انقر على لاعب بيدك، ثم اضغط على موضع بملعبك لتنزيله.
-                  <br />
-                  3. الأسطورة يتطلب كارتين حرق باليد.
-                  <br />
-                  4. للهجوم، انقر لاعبك مقفل بالملعب ثم أعلن الهجوم !
-                </p>
+              {/* Toggleable Quick Tips sidebar (Requirement 2) */}
+              <div className="bg-[#121412] border border-white/5 rounded-xl p-3 text-right">
+                <button
+                  onClick={() => setShowTips(!showTips)}
+                  className="w-full text-right px-3 py-1.5 rounded bg-black/30 text-[10px] uppercase font-mono tracking-wider text-[#e0e0e0]/50 hover:text-white flex items-center justify-between transition-colors outline-none cursor-pointer"
+                >
+                  <span className="text-emerald-400 font-bold">{showTips ? "إغلاق الدليل ❌" : "عرض دليل اللعب السريع 💡"}</span>
+                  <span>طريقة اللعب السريعة ⚡</span>
+                </button>
+                {showTips && (
+                  <p className="text-xs text-[#e0e0e0]/70 mt-2 leading-relaxed border-t border-white/5 pt-2 animate-fadeIn">
+                    1. اسحب كارتين بالبداية.
+                    <br />
+                    2. انقر على لاعب بيدك، ثم اضغط على موضع بملعبك لتنزيله.
+                    <br />
+                    3. الأسطورة يتطلب كارتين حرق باليد.
+                    <br />
+                    4. للهجوم، انقر لاعبك مقفل بالملعب ثم أعلن الهجوم !
+                  </p>
+                )}
               </div>
 
-              <ActionTickerLog
-                logs={logs}
-                onClear={() => setLogs([])}
-              />
+              {/* Conditional Commentary Ticker (Requirement 3) */}
+              {showCommentary ? (
+                <ActionTickerLog
+                  logs={logs}
+                  onClear={() => setLogs([])}
+                />
+              ) : (
+                <div className="p-4 bg-black/40 border border-white/5 rounded-xl text-center text-xs text-slate-500">
+                  <p>التعليق المباشر للمباراة مخفي حالياً 🎙️</p>
+                  <button
+                    onClick={() => setShowCommentary(true)}
+                    className="mt-2 text-emerald-400 font-bold hover:underline cursor-pointer"
+                  >
+                    تفعيل وعرض البث الصوتي المباشر والتعليق
+                  </button>
+                </div>
+              )}
 
             </div>
 

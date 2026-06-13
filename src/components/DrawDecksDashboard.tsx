@@ -120,30 +120,41 @@ export default function DrawDecksDashboard({
   };
 
   const advice = getCoachGuideline();
+  const [showAdvice, setShowAdvice] = React.useState(false);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4" id="decks_dashboard_main_container">
       
       {/* LEFT: Live Dynamic Onboarding Coach Guidelines */}
-      <div className="md:col-span-2 bg-[#0c0d0c] border border-white/5 rounded-xl p-4 flex flex-col md:flex-row items-start gap-3 text-right">
-        <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/10 self-start md:self-center">
-          <HeartHandshake className="w-5 h-5 text-emerald-400" />
-        </div>
-        <div className="space-y-1.5 flex-1">
-          <div className="flex items-center justify-end gap-2">
+      <div className="md:col-span-2 bg-[#0c0d0c] border border-white/5 rounded-xl p-4 flex flex-col items-stretch gap-2 text-right">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setShowAdvice(!showAdvice)}
+            className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-300 font-bold text-xs rounded border border-emerald-500/20 transition-all cursor-pointer flex items-center gap-1.5"
+          >
+            <HeartHandshake className="w-4 h-4" />
+            <span>{showAdvice ? "إخفاء النصائح ❌" : "مساعد تكتيكي؟ 📋 عرض النصائح الكروية"}</span>
+          </button>
+          
+          <div className="flex items-center gap-2">
             <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full">
-              مساعدك الفني 📋
+              توجيهات المدرب المساعد ✨
             </span>
             <h4 className="text-sm font-bold text-white font-serif">{advice.title}</h4>
           </div>
-          <p className="text-xs text-[#e0e0e0]/70 leading-relaxed">
-            {advice.main}
-          </p>
-          <div className="pt-1.5 mt-1 border-t border-white/5 text-[11px] text-amber-400 font-medium flex items-center justify-end gap-1">
-            <span>{advice.action}</span>
-            <span>✨</span>
-          </div>
         </div>
+
+        {showAdvice && (
+          <div className="pt-2 border-t border-white/5 space-y-2 animate-fadeIn">
+            <p className="text-xs text-[#e0e0e0]/70 leading-relaxed">
+              {advice.main}
+            </p>
+            <div className="text-[11px] text-amber-400 font-medium flex items-center justify-end gap-1">
+              <span>{advice.action}</span>
+              <span>⚡</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* RIGHT: Beautiful Interactive Deck Stacks */}

@@ -41,6 +41,8 @@ export default function CoachHand({
   onPlaySpecialCard,
   onCancelSelection
 }: CoachHandProps) {
+  const [isHandExpanded, setIsHandExpanded] = React.useState(true);
+
   // Determine if drawing phase is active
   const isDrawPhase = isPlayerTurn && (phase === "player_turn" || phase === "warmup") && cardsDrawnThisTurn < 2;
 
@@ -151,58 +153,72 @@ export default function CoachHand({
           </div>
         )}
 
-        <div className="text-right">
-          <div className="flex items-center justify-end gap-1.5">
-            <span className="text-xs md:text-sm font-semibold text-white">حقيبة كروت المدرب اليدوية</span>
-            <Layers className="w-4 h-4 text-emerald-500" />
+        <div className="text-right flex items-center gap-3">
+          <button
+            onClick={() => setIsHandExpanded(!isHandExpanded)}
+            className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 font-bold text-xs rounded border border-emerald-500/30 transition-all cursor-pointer"
+          >
+            {isHandExpanded ? "إغلاق أوراق اليد 👁️" : "عرض كروت اليد 👝"}
+          </button>
+          <div className="flex-1">
+            <div className="flex items-center justify-end gap-1.5">
+              <span className="text-xs md:text-sm font-semibold text-white">حقيبة كروت المدرب اليدوية</span>
+              <Layers className="w-4 h-4 text-emerald-500" />
+            </div>
+            <p className="text-[10px] text-[#e0e0e0]/30 leading-none mt-1">
+              تضم كروت الحرس الخاص والتكتيك المخطط لتنفيذ حركات اللعب ({hand.length} كروت)
+            </p>
           </div>
-          <p className="text-[10px] text-[#e0e0e0]/30 leading-none mt-1">تضم كروت الحرس الخاص والتكتيك المخطط لتنفيذ حركات اللعب</p>
         </div>
       </div>
 
-      {/* Selected Action warning Alert placeholder */}
-      {selectedCardId && (
-        <div className="mb-4">
-          {renderSelectionAlert()}
-        </div>
-      )}
+      {isHandExpanded && (
+        <>
+          {/* Selected Action warning Alert placeholder */}
+          {selectedCardId && (
+            <div className="mb-4">
+              {renderSelectionAlert()}
+            </div>
+          )}
 
-      {/* Actual Hand Cards Grid Scrollable representation */}
-      <div className="flex items-center gap-4 overflow-x-auto py-3 px-1 scroll-smooth min-h-[220px]" id="hands_grid_flow">
-        {hand.length === 0 ? (
-          <div className="w-full flex flex-col items-center justify-center p-8 text-center text-white/40 gap-2 border border-white/5 bg-black/25 rounded-xl">
-            <span className="text-2xl">👝</span>
-            <p className="text-xs leading-none">حقيبتك المخصصة فارغة حالياً. اسحب كروت في بداية دورك!</p>
-          </div>
-        ) : (
-          hand.map((card) => {
-            const isSelected = selectedCardId === card.id;
-            const isBurning = burningCardIds.includes(card.id);
-            
-            return (
-              <div key={card.id} className="relative flex-shrink-0 font-sans">
-                <GameCard
-                   card={card}
-                   isRevealed={true}
-                   size="md"
-                   isSelected={isSelected}
-                   isBurning={isBurning}
-                   onClick={() => {
-                     SoundEffects.playCardDraw();
-                     onSelectCard(card.id);
-                   }}
-                />
+          {/* Actual Hand Cards Grid Scrollable representation */}
+          <div className="flex items-center gap-4 overflow-x-auto py-3 px-1 scroll-smooth min-h-[220px]" id="hands_grid_flow">
+            {hand.length === 0 ? (
+              <div className="w-full flex flex-col items-center justify-center p-8 text-center text-white/40 gap-2 border border-white/5 bg-black/25 rounded-xl">
+                <span className="text-2xl">👝</span>
+                <p className="text-xs leading-none">حقيبتك المخصصة فارغة حالياً. اسحب كروت في بداية دورك!</p>
               </div>
-            );
-          })
-        )}
-      </div>
+            ) : (
+              hand.map((card) => {
+                const isSelected = selectedCardId === card.id;
+                const isBurning = burningCardIds.includes(card.id);
+                
+                return (
+                  <div key={card.id} className="relative flex-shrink-0 font-sans">
+                    <GameCard
+                       card={card}
+                       isRevealed={true}
+                       size="md"
+                       isSelected={isSelected}
+                       isBurning={isBurning}
+                       onClick={() => {
+                         SoundEffects.playCardDraw();
+                         onSelectCard(card.id);
+                       }}
+                    />
+                  </div>
+                );
+              })
+            )}
+          </div>
 
-      {/* Horizontal scroll indicators on mobile */}
-      {hand.length > 2 && (
-        <div className="flex sm:hidden justify-center items-center gap-1.5 text-slate-500 text-[10px] mt-2 animate-pulse font-sans">
-          <span>↔ اسحب لليمين واليسار لتصَفُّح باقي تكتيكات يدك</span>
-        </div>
+          {/* Horizontal scroll indicators on mobile */}
+          {hand.length > 2 && (
+            <div className="flex sm:hidden justify-center items-center gap-1.5 text-slate-500 text-[10px] mt-2 animate-pulse font-sans">
+              <span>↔ اسحب لليمين واليسار لتصَفُّح باقي تكتيكات يدك</span>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
