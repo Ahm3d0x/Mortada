@@ -6,19 +6,6 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
-/* Force body and html to fit precisely without standard scrolling or rubber-balling */
-html, body, #root {
-  height: 100%;
-  height: 100dvh;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  overscroll-behavior: none;
-  overscroll-behavior-y: none;
-  touch-action: manipulation;
-  -webkit-overflow-scrolling: touch;
-}
-
 @layer utilities {
   .clip-path-pitch {
     clip-path: polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%);

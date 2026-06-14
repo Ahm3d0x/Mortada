@@ -27,7 +27,6 @@ import ActionDashboard from "./components/ActionDashboard";
 import DrawDecksDashboard from "./components/DrawDecksDashboard";
 import TopScoreHeader from "./components/TopScoreHeader";
 import CardInspectorModal from "./components/CardInspectorModal";
-import InstallPromptModal from "./components/InstallPromptModal";
 
 // Helper to format timestamps 
 const getFormattedTime = () => {
@@ -127,11 +126,6 @@ export default function App() {
   // Ripple waves for action click triggers
   const [btnRipples, setBtnRipples] = useState<{ id: number; x: number; y: number }[]>([]);
 
-  // Mobile optimization and PWA states
-  const [activeMobileTab, setActiveMobileTab] = useState<"pitch" | "sidebar">("pitch");
-  const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-
   const isReceivingUpdate = React.useRef(false);
   const customLogContainerRef = React.useRef<HTMLDivElement>(null);
 
@@ -150,32 +144,6 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [celebrationMessage]);
-
-  // Intercept standard PWA installation triggers
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-  }, []);
-
-  const handleTriggerInstall = async () => {
-    if (deferredPrompt) {
-      try {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        console.log(`User accepted PWA installation option: ${outcome}`);
-        setDeferredPrompt(null);
-      } catch (err) {
-        console.warn("Failed to prompt PWA installation:", err);
-        setIsInstallModalOpen(true);
-      }
-    } else {
-      setIsInstallModalOpen(true);
-    }
-  };
 
   // Sync current local state to Supabase
   const syncToSupabaseInstance = async (
@@ -2277,15 +2245,6 @@ export default function App() {
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
-
-              <button
-                onClick={handleTriggerInstall}
-                className="px-3 py-1.5 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 text-[#10b981] border border-emerald-500/30 rounded font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
-                title="تثبيت اللعبة كبرنامج للموبايل"
-              >
-                <span>📱</span>
-                <span className="hidden xs:inline">تثبيت اللعبة</span>
-              </button>
               
               {/* Turn-based logging display toggle - Requirement 3 */}
               {phase !== "menu" && (
@@ -2361,7 +2320,7 @@ export default function App() {
         {/* CONDITION-BASED ROUTING VIEWS */}
         {phase === "menu" ? (
           <div className="flex flex-col justify-center items-center flex-1 py-4 md:py-6" id="welcome_menu_wrapper">
-            <WelcomeMenu onStartGame={handleStartGame} onInstallClick={handleTriggerInstall} />
+            <WelcomeMenu onStartGame={handleStartGame} />
           </div>
         ) : (
           <div className="flex flex-row gap-2 w-full h-full select-none text-right overflow-hidden">
@@ -3000,14 +2959,6 @@ export default function App() {
       <CardInspectorModal
         card={inspectedCard}
         onClose={() => setInspectedCard(null)}
-      />
-
-      {/* PWA mobile helper installation instructions prompt */}
-      <InstallPromptModal
-        isOpen={isInstallModalOpen}
-        onClose={() => setIsInstallModalOpen(false)}
-        onInstall={handleTriggerInstall}
-        isInstallSupported={!!deferredPrompt}
       />
 
     </div>
