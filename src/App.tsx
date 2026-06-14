@@ -2309,57 +2309,8 @@ export default function App() {
 
         {/* CONDITION-BASED ROUTING VIEWS */}
         {phase === "menu" ? (
-          <div className="space-y-6">
-            {/* Mode selection tabs */}
-            <div className="flex justify-center" id="game_mode_tabs_container">
-              <div className="bg-[#0c0d0c] border border-white/5 p-1.5 rounded-2xl flex items-center gap-1 shadow-2xl max-w-lg w-full">
-                
-                {/* 1. Solo Mode Tab */}
-                <button
-                  onClick={() => {
-                    SoundEffects.playCardDraw();
-                    setMenuTab("solo");
-                    setIsMultiplayer(false);
-                  }}
-                  className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs md:text-sm flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                    menuTab === "solo"
-                      ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 shadow-[0_4px_20px_rgba(16,185,129,0.15)] scale-[1.01]"
-                      : "bg-transparent text-slate-400 border border-transparent hover:text-white"
-                  }`}
-                  id="tab_solo_mode"
-                >
-                  <span className="text-base">🤖</span>
-                  <span>اللعب الفردي (سولو)</span>
-                  <span className="text-[9px] font-normal opacity-65 md:block hidden">ضد ذكاء صناعة التكتيك</span>
-                </button>
-
-                {/* 2. Multiplayer Mode Tab */}
-                <button
-                  onClick={() => {
-                    SoundEffects.playCardDraw();
-                    setMenuTab("multi");
-                    setIsMultiplayer(true);
-                  }}
-                  className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs md:text-sm flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                    menuTab === "multi"
-                      ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/30 shadow-[0_4px_20px_rgba(245,158,11,0.15)] scale-[1.01]"
-                      : "bg-transparent text-slate-400 border border-transparent hover:text-white"
-                  }`}
-                  id="tab_multi_mode"
-                >
-                  <span className="text-base">🌐</span>
-                  <span>تحدي أونلاين بمزامنة Supabase</span>
-                  <span className="text-[9px] font-normal opacity-65 md:block hidden animate-pulse">مبارزة لاعب حقيقي مباشر</span>
-                </button>
-
-              </div>
-            </div>
-
-            {menuTab === "solo" ? (
-              <WelcomeMenu onStartGame={handleStartGame} />
-            ) : (
-              <Multilobby onStartMultiplayerGame={handleStartMultiplayerGame} />
-            )}
+          <div className="flex flex-col justify-center items-center flex-1 py-4 md:py-6" id="welcome_menu_wrapper">
+            <WelcomeMenu onStartGame={handleStartGame} />
           </div>
         ) : (
           <div className="flex flex-row gap-2 w-full h-full select-none text-right overflow-hidden">
