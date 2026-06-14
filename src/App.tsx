@@ -2358,40 +2358,30 @@ export default function App() {
             <div className="w-[28%] md:w-[26%] min-w-[210px] max-w-[270px] flex flex-col gap-1.5 h-full justify-between overflow-hidden shrink-0">
               
               {/* Box 1 (Tactics Panel) - ultra compact layout matching the image identically */}
-              <div id="tactics_dashboard_sidebar" className="bg-[#0b100d] border border-[#166534]/30 rounded-xl p-1.5 flex flex-col gap-1 shadow-md">
-                <div>
-                  <div className="text-emerald-400 font-extrabold text-[9.5px] pb-0.5 border-b border-white/5 flex items-center justify-between">
-                    <span className="text-[8px] text-white/35">⚔️</span>
-                    <span>تكتيكاتي</span>
-                  </div>
-                  <div className="flex items-center justify-center p-1 bg-black/44 rounded-md min-h-[22px]">
+              <div id="tactics_dashboard_sidebar" className="bg-[#0b100d] border border-white/5 rounded-xl p-1 flex flex-col gap-1 shadow-md">
+                <div className="flex flex-col gap-1">
+                  {/* Player Tactic (Green highlight) */}
+                  <div className={`flex items-center justify-center p-1 bg-black/44 border-r-2 border-emerald-500 rounded-md min-h-[22px] ${playerActiveSpecial ? "bg-emerald-950/10" : ""}`}>
                     {playerActiveSpecial ? (
                       <span className="text-[#00ff66] font-bold text-[9px] animate-pulse truncate">
                         ⚡ {playerActiveSpecial.name}
                       </span>
                     ) : (
-                      <div className="flex items-center gap-1 text-[#ff3838] font-bold text-[8.5px] leading-tight">
-                        <span>لا يوجد</span>
-                        <span className="text-[7.5px]">✕</span>
+                      <div className="flex items-center gap-1 text-emerald-600/40 text-[8px] leading-tight">
+                        <span>لا يوجد تكتيك فعال</span>
                       </div>
                     )}
                   </div>
-                </div>
 
-                <div>
-                  <div className="text-[#ff5252] font-extrabold text-[9.5px] pb-0.5 border-b border-white/5 flex items-center justify-between mt-0.5">
-                    <span className="text-[8px] text-white/35">🛡️</span>
-                    <span>تكتيكات الخصم</span>
-                  </div>
-                  <div className="flex items-center justify-center p-1 bg-black/44 rounded-md min-h-[22px]">
+                  {/* AI Tactic (Red highlight) */}
+                  <div className={`flex items-center justify-center p-1 bg-black/44 border-r-2 border-rose-500 rounded-md min-h-[22px] ${aiActiveSpecial ? "bg-rose-950/10" : ""}`}>
                     {aiActiveSpecial ? (
                       <span className="text-rose-400 font-bold text-[9px] animate-pulse truncate">
                         🛡️ {aiActiveSpecial.name}
                       </span>
                     ) : (
-                      <div className="flex items-center gap-1 text-[#ff3838] font-bold text-[8.5px] leading-tight">
-                        <span>لا يوجد</span>
-                        <span className="text-[7.5px]">✕</span>
+                      <div className="flex items-center gap-1 text-rose-900/30 text-[8px] leading-tight">
+                        <span>لا يوجد تكتيك فعال</span>
                       </div>
                     )}
                   </div>
@@ -2450,13 +2440,12 @@ export default function App() {
                       addLog("تنبيه: يمكنك سحب كروت فقط في مرحلة السحب الخاصة بدورك!", "warning");
                     }
                   }}
-                  className="bg-[#f59e0b] hover:bg-[#d97706] text-black font-extrabold h-[64px] rounded-xl flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-transform duration-100 active:scale-95 shadow-sm border border-white/5 group relative"
+                  className="bg-[#f59e0b] hover:bg-[#d97706] text-black font-extrabold h-10 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition-transform duration-100 active:scale-95 shadow-sm border border-white/5 shrink-0"
                   title="سحب كارت لاعب"
                 >
-                  <span className="text-lg group-hover:animate-bounce">🏃‍♂️</span>
-                  <span className="text-[9px] font-black leading-none">باقة اللاعبين</span>
-                  <span className="bg-black/10 text-[8px] px-1 py-0.2 rounded font-sans scale-90 font-bold">
-                    كارت {playerDeck.length}
+                  <span className="text-sm">🏃‍♂️</span>
+                  <span className="bg-black/10 text-[10px] px-2 py-0.5 rounded font-mono font-black leading-none">
+                    {playerDeck.length}
                   </span>
                 </button>
 
@@ -2471,13 +2460,12 @@ export default function App() {
                       addLog("تنبيه: يمكنك سحب كروت فقط في مرحلة السحب الخاصة بدورك!", "warning");
                     }
                   }}
-                  className="bg-[#a855f7] hover:bg-[#9333ea] text-white font-extrabold h-[64px] rounded-xl flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-transform duration-100 active:scale-95 shadow-sm border border-white/5 group relative"
+                  className="bg-[#a855f7] hover:bg-[#9333ea] text-white font-extrabold h-10 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition-transform duration-100 active:scale-95 shadow-sm border border-white/5 shrink-0"
                   title="سحب كارت تكتيك"
                 >
-                  <span className="text-lg group-hover:rotate-12 transition-transform">🪄</span>
-                  <span className="text-[9px] font-black leading-none text-purple-100">باقة التكتيكات</span>
-                  <span className="bg-black/20 text-[8px] text-purple-200 px-1 py-0.2 rounded font-sans scale-90 font-bold">
-                    كارت {specialDeck.length}
+                  <span className="text-sm">🪄</span>
+                  <span className="bg-black/20 text-[10px] text-purple-200 px-2 py-0.5 rounded font-mono font-black leading-none">
+                    {specialDeck.length}
                   </span>
                 </button>
 
@@ -2485,13 +2473,11 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setIsHandExpanded(!isHandExpanded)}
-                  className="col-span-2 bg-[#84cc16] hover:bg-[#65a30d] text-black font-extrabold h-7 rounded-lg flex items-center justify-between px-3.5 cursor-pointer shadow-sm transition-all active:scale-[0.98] border border-white/5 shrink-0"
+                  className="col-span-2 bg-[#84cc16] hover:bg-[#65a30d] text-black font-extrabold h-7 rounded-lg flex items-center justify-center gap-3 cursor-pointer shadow-sm transition-all active:scale-[0.98] border border-white/5 shrink-0"
+                  title="البدلاء واستبدال الكروت"
                 >
                   <span className="text-xs">👦</span>
-                  <span className="text-[9px] font-black flex items-center gap-1 justify-center mx-auto">
-                    <span>حقيبة البدلاء (سحب / استبدال)</span>
-                    <span className="text-xs">🔃</span>
-                  </span>
+                  <span className="text-xs font-black">🔃</span>
                   <span className="text-xs">👦</span>
                 </button>
 
@@ -2505,12 +2491,6 @@ export default function App() {
               
               {/* Row 1 (Opponent Football Pitch Slots - Compact Red Border) */}
               <div className="border border-rose-500/60 shadow-[0_0_6px_rgba(244,63,94,0.25)] bg-[#040804]/90 rounded-xl p-1.5 flex flex-col gap-1 relative flex-1 min-h-[100px] justify-between">
-                
-                {/* Header text */}
-                <div className="flex items-center justify-between text-rose-450 font-extrabold text-[8.5px] px-1 uppercase tracking-tight leading-none shrink-0">
-                  <span>الذكاء الاصطناعي 🆚 الخصم</span>
-                  <span>خط دفاع ومحاور الخصم 🛡️</span>
-                </div>
 
                 <div className="grid grid-cols-5 gap-1.5 w-full flex-1 items-center">
                   {aiSlots.map((slot, idx) => {
@@ -2520,7 +2500,7 @@ export default function App() {
                     return (
                       <div 
                         key={`ai-pitch-slot-${idx}`}
-                        className={`relative rounded-lg overflow-hidden aspect-[2/3] max-h-[15.5vh] w-full mx-auto transition-all flex flex-col justify-between ${
+                        className={`relative rounded-lg overflow-hidden aspect-[2/3] max-h-[18.5vh] w-full mx-auto transition-all flex flex-col justify-between ${
                           isSelectable 
                             ? "ring-2 ring-rose-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103" 
                             : ""
@@ -2586,8 +2566,7 @@ export default function App() {
                 <div className="flex items-center gap-1.5 text-right flex-1 select-none">
                   <span className="text-base leading-none">🇦🇷</span>
                   <div className="flex flex-col text-right">
-                    <span className="text-white text-[10px] font-black leading-none">{coachName || "المدرب المحترف"}</span>
-                    <span className="text-[8px] text-[#e0e0e0]/40 leading-none mt-0.5">راقصو التانغو</span>
+                    <span className="text-[8px] font-black text-[#e0e0e0]/60 leading-none">راقصو التانغو</span>
                   </div>
                   <div className="bg-[#052311] border border-[#00ff66]/45 text-[#00ff66] px-2 py-0.5 rounded-full font-mono font-black text-xs shadow-[inset_0_0_4px_rgba(0,255,102,0.15)] min-w-[28px] text-center ml-1">
                     {playerScore}
@@ -2611,9 +2590,8 @@ export default function App() {
                   <div className="bg-[#24060b] border border-rose-500/45 text-rose-400 px-2 py-0.5 rounded-full font-mono font-black text-xs shadow-[inset_0_0_4px_rgba(244,63,94,0.15)] min-w-[28px] text-center mr-1">
                     {aiScore}
                   </div>
-                  <div className="flex flex-col text-right">
-                    <span className="text-white text-[10px] font-black leading-none">{aiCoachName || "الخصم الآلي"}</span>
-                    <span className="text-[8px] text-[#e0e0e0]/45 leading-none mt-0.5">كتائب الروبوت</span>
+                  <div className="flex flex-col text-right ml-1">
+                    <span className="text-[8px] font-black text-[#e0e0e0]/60 leading-none">كتائب الروبوت</span>
                   </div>
                   <span className="text-sm">🤖</span>
                 </div>
@@ -2675,7 +2653,7 @@ export default function App() {
                       onClick={handleConfirmLineup}
                       className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-0.5 px-3 rounded-md text-[10px] cursor-pointer transition-colors leading-normal"
                     >
-                      بدء اللقاء 🏁
+                      🏁
                     </button>
                   )}
 
@@ -2727,12 +2705,6 @@ export default function App() {
 
               {/* Row 4 (Player Pitch Slots - Compact Green Border) */}
               <div className="border border-emerald-500/60 shadow-[0_0_6px_rgba(34,197,94,0.25)] bg-[#040804]/90 rounded-xl p-1.5 flex flex-col gap-1 relative flex-1 min-h-[100px] justify-between">
-                
-                {/* Header text */}
-                <div className="flex items-center justify-between text-emerald-450 font-extrabold text-[8.5px] px-1 uppercase tracking-tight leading-none shrink-0 border-b border-emerald-900/10 pb-0.5">
-                  <span>منتخب التانغو الخاص بك 👑</span>
-                  <span>خط دفاع ومراكز لاعبيك بالملعب ⚔️</span>
-                </div>
 
                 <div className="grid grid-cols-5 gap-1.5 w-full flex-1 items-center">
                   {playerSlots.map((slot, idx) => {
@@ -2743,7 +2715,7 @@ export default function App() {
                     return (
                       <div 
                         key={`player-pitch-slot-${idx}`}
-                        className={`relative rounded-lg overflow-hidden aspect-[2/3] max-h-[15.5vh] w-full mx-auto transition-all flex flex-col justify-between ${
+                        className={`relative rounded-lg overflow-hidden aspect-[2/3] max-h-[18.5vh] w-full mx-auto transition-all flex flex-col justify-between ${
                           isSelectable 
                             ? "ring-2 ring-emerald-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103 animate-pulse" 
                             : ""
