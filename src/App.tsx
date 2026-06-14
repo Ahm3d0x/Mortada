@@ -2505,6 +2505,43 @@ export default function App() {
               
               {/* Row 1 (Opponent Football Pitch Slots - Compact Red Border) */}
               <div className="border border-rose-500/60 shadow-[0_0_6px_rgba(244,63,94,0.25)] bg-[#040804]/90 rounded-xl p-1.5 flex flex-col gap-1 relative flex-1 min-h-[100px] justify-between">
+                
+                {isHandExpanded && (
+                  <div className="absolute inset-0 z-40 bg-[#080d09]/fa backdrop-blur-md rounded-xl p-1.5 flex flex-col justify-between shadow-2xl animate-scaleUp border border-[#10b981]/50">
+                    <CoachHand
+                      hand={playerHand}
+                      selectedCardId={selectedHandCardId}
+                      burningCardIds={burningCardIds}
+                      movesLeft={playerMovesLeft}
+                      phase={phase}
+                      playerDeckCount={playerDeck.length}
+                      specialDeckCount={specialDeck.length}
+                      cardsDrawnThisTurn={cardsDrawnThisTurn}
+                      isPlayerTurn={phase === "player_turn" || phase === "warmup"}
+                      isHandExpanded={isHandExpanded}
+                      setIsHandExpanded={setIsHandExpanded}
+                      playerSlots={playerSlots}
+                      onInspectCard={setInspectedCard}
+                      onSelectCard={(id) => {
+                        const card = playerHand.find((c) => c.id === id);
+                        if (!card) return;
+
+                        // Handle special burning toggles if a legend is selected and this is another card
+                        const currentSelectedCard = playerHand.find((c) => c.id === selectedHandCardId);
+                        const isLegendSelected = currentSelectedCard?.type === "player" && (currentSelectedCard as PlayerCard).isLegend;
+                        
+                        if (isLegendSelected && id !== selectedHandCardId) {
+                          toggleBurningCard(id);
+                        } else {
+                          handleSelectHandCard(id);
+                        }
+                      }}
+                      onDrawCard={handleDrawCard}
+                      onPlaySpecialCard={handlePlaySpecialCard}
+                      onCancelSelection={handleCancelSelection}
+                    />
+                  </div>
+                )}
 
                 <div className="grid grid-cols-5 gap-1.5 w-full flex-1 items-center">
                   {aiSlots.map((slot, idx) => {
@@ -2795,45 +2832,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* SUBSTITUTES DRAWER SLIDE-UP BOTTOM OVERLAY */}
-              {isHandExpanded && (
-                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-4 animate-fadeIn">
-                  <div className="max-w-4xl w-full bg-[#121412] rounded-3xl border border-emerald-500/30 p-2 relative shadow-2xl">
-                    <CoachHand
-                      hand={playerHand}
-                      selectedCardId={selectedHandCardId}
-                      burningCardIds={burningCardIds}
-                      movesLeft={playerMovesLeft}
-                      phase={phase}
-                      playerDeckCount={playerDeck.length}
-                      specialDeckCount={specialDeck.length}
-                      cardsDrawnThisTurn={cardsDrawnThisTurn}
-                      isPlayerTurn={phase === "player_turn" || phase === "warmup"}
-                      isHandExpanded={isHandExpanded}
-                      setIsHandExpanded={setIsHandExpanded}
-                      playerSlots={playerSlots}
-                      onInspectCard={setInspectedCard}
-                      onSelectCard={(id) => {
-                        const card = playerHand.find((c) => c.id === id);
-                        if (!card) return;
-
-                        // Handle special burning toggles if a legend is selected and this is another card
-                        const currentSelectedCard = playerHand.find((c) => c.id === selectedHandCardId);
-                        const isLegendSelected = currentSelectedCard?.type === "player" && (currentSelectedCard as PlayerCard).isLegend;
-                        
-                        if (isLegendSelected && id !== selectedHandCardId) {
-                          toggleBurningCard(id);
-                        } else {
-                          handleSelectHandCard(id);
-                        }
-                      }}
-                      onDrawCard={handleDrawCard}
-                      onPlaySpecialCard={handlePlaySpecialCard}
-                      onCancelSelection={handleCancelSelection}
-                    />
-                  </div>
-                </div>
-              )}
+              {/* Player lineup and slots loaded dynamically */}
 
             </div>
 

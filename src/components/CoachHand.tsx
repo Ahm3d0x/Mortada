@@ -56,7 +56,7 @@ export default function CoachHand({
   const selectedCard = hand.find((c) => c.id === selectedCardId);
   const isLegendSelected = selectedCard?.type === "player" && (selectedCard as PlayerCard).isLegend;
 
-  // Render descriptive alerts based on the selected card type
+  // Render descriptive alerts based on the selected card type (super compact)
   const renderSelectionAlert = () => {
     if (!selectedCardId || !selectedCard) return null;
 
@@ -65,55 +65,47 @@ export default function CoachHand({
       if (p.isLegend) {
         const remainingBurn = 2 - burningCardIds.length;
         return (
-          <div className="bg-amber-950/20 border border-amber-500/20 rounded-xl p-2.5 text-right text-xs text-amber-300 flex items-center justify-between gap-3 animate-fadeIn">
+          <div className="bg-amber-950/40 border border-amber-500/30 rounded-lg py-0.5 px-2 text-right text-[10px] text-amber-300 flex items-center justify-between gap-2 animate-fadeIn shrink-0">
+            <div className="flex items-center gap-1">
+              <Flame className="w-3 h-3 text-amber-500" />
+              <span className="font-extrabold text-[10px]">تنزيل الأسطورة {p.name}!</span>
+              <span className="opacity-70">({remainingBurn > 0 ? `حدد ${remainingBurn} أوراق أخرى لحرقها` : "اختر مركز بالملعب للتنزيل"})</span>
+            </div>
             <button
               onClick={onCancelSelection}
-              className="px-2 py-0.5 rounded bg-black/45 border border-white/5 text-[10px] text-white/50 hover:text-white hover:bg-[#1a1c1a] transition-colors"
+              className="px-1.5 py-px text-[9px] rounded bg-black/45 border border-white/10 text-white/60 hover:text-white hover:bg-amber-900/30 transition-colors"
             >
-              إلغاء
+              إلغاء ✕
             </button>
-            <div className="flex-1">
-              <span className="font-bold font-serif flex items-center justify-end gap-1 text-xs text-amber-400">
-                <Flame className="w-3.5 h-3.5 text-amber-500" />
-                <span>تحضير الأسطورة {p.name}!</span>
-              </span>
-              <p className="text-[#e0e0e0]/60 mt-0.5 text-[10px]">
-                {remainingBurn > 0 
-                  ? `يتطلب حرق قطعتين: اختر ${remainingBurn} أوراق أخرى` 
-                  : "جاهز! انقر مركزاً شاغراً بالملعب"}
-              </p>
-            </div>
           </div>
         );
       } else {
         return (
-          <div className="bg-[#1a1c1a] border border-white/5 rounded-xl p-2.5 text-right text-xs text-[#e0e0e0]/80 flex items-center justify-between gap-3 animate-fadeIn">
+          <div className="bg-[#121412] border border-white/5 rounded-lg py-0.5 px-2 text-right text-[10px] text-emerald-400 flex items-center justify-between gap-2 animate-fadeIn shrink-0">
+            <span className="flex-1 opacity-90">
+              انقر فوق أي من مراكزك في الملعب لتنزيل <strong className="text-white">{p.name}</strong> 🏃‍♂️
+            </span>
             <button
               onClick={onCancelSelection}
-              className="px-2 py-0.5 rounded bg-black/45 border border-white/5 text-[10px] text-white/50 hover:text-white"
+              className="px-1.5 py-px text-[9px] rounded bg-black/45 border border-white/10 text-white/60 hover:text-white"
             >
-              إلغاء
+              إلغاء ✕
             </button>
-            <p className="flex-1 text-[#e0e0e0]/70 text-[10px]">
-              انقر مركزاً بالملعب لتنزيل <strong className="text-emerald-400">{p.name}</strong> 🏃‍♂️
-            </p>
           </div>
         );
       }
     } else {
       const spec = selectedCard as SpecialCard;
       return (
-        <div className="bg-teal-950/20 border border-teal-500/20 rounded-xl p-2.5 text-right text-xs text-teal-300 flex items-center justify-between gap-3 animate-fadeIn">
+        <div className="bg-teal-950/40 border border-teal-500/30 rounded-lg py-0.5 px-2 text-right text-[10px] text-teal-300 flex items-center justify-between gap-2 animate-fadeIn shrink-0">
+          <span className="font-extrabold text-[10px] text-teal-400">{spec.name}</span>
           <button
             onClick={() => onPlaySpecialCard(spec.id)}
             disabled={movesLeft === 0 && phase !== "ai_attacking"}
-            className="px-3 py-1 rounded bg-teal-600 text-white font-bold hover:bg-teal-500 text-[10px] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-2 py-0.5 rounded bg-teal-600 text-white font-black hover:bg-teal-500 text-[9px] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            تفعيل التكتيك
+            تفعيل التكتيك ⚡
           </button>
-          <div className="flex-1">
-            <span className="font-bold text-xs text-teal-400 font-serif">{spec.name}</span>
-          </div>
         </div>
       );
     }
@@ -124,77 +116,65 @@ export default function CoachHand({
   }
 
   return (
-    <div className="w-full bg-[#121412]/95 border border-[#10b981]/35 rounded-2xl p-4 md:p-5 shadow-[0_8px_32px_rgba(0,0,0,0.55)] flex flex-col gap-4 animate-fadeIn mt-4 relative overflow-hidden" id="inline_coach_hand_system">
-      {/* Subtle grass vein texture inside hand bag */}
-      <div className="absolute inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-emerald-500/10 to-transparent top-0" />
-
-      {/* Header row */}
-      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+    <div className="w-full h-full flex flex-col justify-between" id="inline_coach_hand_system">
+      {/* Header Row - ultra compact to prevent vertical overflow */}
+      <div className="flex items-center justify-between border-b border-white/5 pb-1 gap-1 shrink-0">
+        
+        {/* Left: Close Button (✕ icon only to save space) */}
         <button
           onClick={() => setIsHandExpanded(false)}
-          className="px-3 py-1.5 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 font-bold text-xs rounded-lg border border-rose-500/20 transition-all cursor-pointer"
+          className="w-5 h-5 flex items-center justify-center bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 rounded-md transition-all cursor-pointer font-bold text-xs"
+          title="إغلاق الحقيبة"
         >
-          إخفاء ❌
+          ✕
         </button>
-        <div className="text-right flex items-center gap-2">
-          <div className="flex-1">
-            <div className="flex items-center justify-end gap-1.5">
-              <span className="text-xs md:text-sm font-black text-white">أوراقي</span>
-              <Layers className="w-4 h-4 text-emerald-500" />
-            </div>
-            <p className="text-[9px] text-[#e0e0e0]/40 leading-none mt-1">
-              ({hand.length} أوراق بيدك)
-            </p>
-          </div>
+
+        {/* Dynamic alerts or draw choices in center */}
+        <div className="flex-1 flex justify-center overflow-hidden">
+          {selectedCardId ? (
+            renderSelectionAlert()
+          ) : (
+            isPlayerTurn && (phase === "player_turn" || phase === "warmup") && (
+              <div className="flex items-center gap-1.5 py-px">
+                {phase !== "warmup" && (
+                  <button
+                    type="button"
+                    onClick={() => onDrawCard("special")}
+                    disabled={specialDeckCount === 0 || cardsDrawnThisTurn >= 2}
+                    className="px-1.5 py-0.5 bg-teal-950/40 hover:bg-teal-900/50 text-teal-300 border border-teal-500/30 rounded text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                  >
+                    <span>تكتيك</span>
+                    <span className="bg-black/30 px-1 py-px rounded font-mono text-[8px] font-bold">{specialDeckCount}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onDrawCard("player")}
+                  disabled={playerDeckCount === 0 || (phase === "warmup" && playerSlots.filter(s => s.card !== null).length >= 5) || (phase !== "warmup" && cardsDrawnThisTurn >= 2)}
+                  className="px-1.5 py-0.5 bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/30 rounded text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                >
+                  <span>لاعب</span>
+                  <span className="bg-black/30 px-1 py-px rounded font-mono text-[8px] font-bold">{playerDeckCount}</span>
+                </button>
+              </div>
+            )
+          )}
+        </div>
+
+        {/* Right: Badge and Title */}
+        <div className="text-right flex items-center gap-1 shrink-0">
+          <span className="text-[9px] text-[#e0e0e0]/50 font-black">({hand.length})</span>
+          <span className="text-[10px] font-black text-white">حقيبة البدلاء</span>
+          <Layers className="w-3 h-3 text-emerald-500" />
         </div>
       </div>
 
-      {/* Selected Warning / Alerts */}
-      {selectedCardId && (
-        <div className="mb-2">
-          {renderSelectionAlert()}
-        </div>
-      )}
-
-      {/* Draw Buttons row inside inline drawer */}
-      {isPlayerTurn && (phase === "player_turn" || phase === "warmup") && (
-        <div className="bg-black/45 border border-emerald-500/10 p-2.5 rounded-xl text-center space-y-2">
-          <span className="text-emerald-400 text-[10px] font-semibold block animate-pulse">
-            {phase === "warmup" 
-              ? `التسخين: اسحب (${playerSlots.filter(s => s.card !== null).length}/5) لاعبين`
-              : `سحب كروت اللقاء (مسحوب: ${cardsDrawnThisTurn}/2)`}
-          </span>
-          <div className="flex items-center justify-center gap-3">
-            {phase !== "warmup" && (
-              <button
-                type="button"
-                onClick={() => onDrawCard("special")}
-                disabled={specialDeckCount === 0 || cardsDrawnThisTurn >= 2}
-                className="px-3 py-1.5 bg-teal-950/50 hover:bg-teal-900/60 text-teal-300 border border-teal-500/40 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <span>سحب تكتيك</span>
-                <span className="bg-black/40 px-1.5 py-0.5 rounded font-mono font-bold text-[9px]">{specialDeckCount}</span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => onDrawCard("player")}
-              disabled={playerDeckCount === 0 || (phase === "warmup" && playerSlots.filter(s => s.card !== null).length >= 5) || (phase !== "warmup" && cardsDrawnThisTurn >= 2)}
-              className="px-3 py-1.5 bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/40 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <span>سحب لاعب</span>
-              <span className="bg-black/40 px-1.5 py-0.5 rounded font-mono font-bold text-[9px]">{playerDeckCount}</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Actual Cards grid list */}
-      <div className="flex items-center gap-4 overflow-x-auto py-3 px-1 scroll-smooth min-h-[220px] scrollbar-thin scrollbar-thumb-white/10" id="hands_grid_flow">
+      {/* Actual Cards grid list - scroll horizontal - compact height */}
+      <div className="flex-1 flex items-center gap-2 overflow-x-auto py-1 scroll-smooth scrollbar-none" id="hands_grid_flow">
         {hand.length === 0 ? (
-          <div className="w-full flex flex-col items-center justify-center p-8 text-center text-white/40 gap-2 border border-white/5 bg-black/25 rounded-2xl">
-            <span className="text-3xl">👝</span>
-            <p className="text-xs font-bold leading-relaxed">الحقيبة فارغة حالياً.</p>
+          <div className="w-full flex flex-col items-center justify-center p-2 text-center text-white/30 gap-1 border border-white/5 bg-black/25 rounded-lg h-full">
+            <span className="text-base">👝</span>
+            <p className="text-[9px] font-medium leading-relaxed">الحقيبة فارغة حالياً.</p>
           </div>
         ) : (
           hand.map((card) => {
@@ -202,11 +182,12 @@ export default function CoachHand({
             const isBurning = burningCardIds.includes(card.id);
             
             return (
-              <div key={card.id} className="relative flex-shrink-0 font-sans transform hover:scale-105 transition-transform">
+              <div key={card.id} className="relative flex-shrink-0 font-sans transform hover:scale-[1.03] transition-transform">
+                {/* We render GameCard using sm size for compact, comfortable handling */}
                 <GameCard
                    card={card}
                    isRevealed={true}
-                   size="md"
+                   size="sm"
                    isSelected={isSelected}
                    isBurning={isBurning}
                    onInspect={() => onInspectCard && onInspectCard(card)}
@@ -220,12 +201,6 @@ export default function CoachHand({
           })
         )}
       </div>
-
-      {hand.length > 2 && (
-        <div className="text-center text-slate-500 text-[10px] uppercase tracking-wider font-mono animate-pulse">
-          ↔ تصفح الأوراق بيدك
-        </div>
-      )}
 
     </div>
   );
