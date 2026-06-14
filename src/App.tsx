@@ -2364,10 +2364,10 @@ export default function App() {
             <WelcomeMenu onStartGame={handleStartGame} onInstallClick={handleTriggerInstall} />
           </div>
         ) : (
-          <div className="flex flex-col lg:flex-row gap-1.5 lg:gap-2.5 w-full h-full select-none text-right overflow-hidden">
+          <div className="flex flex-row gap-2 w-full h-full select-none text-right overflow-hidden">
             
             {/* LEFT SIDEBAR PANEL (Tactics block + Commentary log + Draw blocks) */}
-            <div className={`${activeMobileTab === "sidebar" ? "flex" : "hidden"} lg:flex w-full lg:w-[26%] lg:max-w-[270px] flex-col gap-1.5 h-full justify-between overflow-hidden shrink-0`}>
+            <div className="w-[28%] md:w-[26%] min-w-[210px] max-w-[270px] flex flex-col gap-1.5 h-full justify-between overflow-hidden shrink-0">
               
               {/* Box 1 (Tactics Panel) - ultra compact layout matching the image identically */}
               <div id="tactics_dashboard_sidebar" className="bg-[#0b100d] border border-white/5 rounded-xl p-1 flex flex-col gap-1 shadow-md select-none">
@@ -2836,32 +2836,6 @@ export default function App() {
 
               {/* Player lineup and slots loaded dynamically */}
 
-            </div>
-
-            {/* Mobile Bottom Navigation Bar (ONLY shown during matches on small viewports) */}
-            <div className="lg:hidden flex items-center justify-between gap-1.5 w-full bg-[#0c0d0c]/95 border border-white/10 rounded-xl p-1.5 shrink-0 select-none z-10 shadow-lg mt-0.5">
-              <button
-                type="button"
-                onClick={() => setActiveMobileTab("pitch")}
-                className={`flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border-none ${
-                  activeMobileTab === "pitch"
-                    ? "bg-gradient-to-r from-emerald-600 to-emerald-500 text-black shadow-[0_0_10px_rgba(16,185,129,0.3)]"
-                    : "bg-transparent text-slate-400 hover:text-white"
-                }`}
-              >
-                <span>⚽ الملعب التكتيكي واللعب</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveMobileTab("sidebar")}
-                className={`flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border-none ${
-                  activeMobileTab === "sidebar"
-                    ? "bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/30 shadow-[0_0_10px_rgba(168,85,247,0.1)]"
-                    : "bg-transparent text-slate-400 hover:text-white"
-                }`}
-              >
-                <span>🎙️ سحب الكروت والتعليق</span>
-              </button>
             </div>
 
           </div>
