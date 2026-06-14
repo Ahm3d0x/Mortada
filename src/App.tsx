@@ -135,6 +135,16 @@ export default function App() {
     }
   }, [logs]);
 
+  // Auto-dismiss celebration/event window after 3 seconds
+  useEffect(() => {
+    if (celebrationMessage) {
+      const timer = setTimeout(() => {
+        handleAcknowledgeResolution();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [celebrationMessage]);
+
   // Sync current local state to Supabase
   const syncToSupabaseInstance = async (
     overridePhase?: GamePhase,
@@ -2562,7 +2572,7 @@ export default function App() {
 
 
               {/* Row 2 (Beautiful Scoreboard and Clock Indicator - Cyan Neon Glow - Sleek) */}
-              <div className="border border-cyan-400/80 shadow-[0_0_8px_rgba(34,211,238,0.35)] bg-[#030604]/95 rounded-xl px-3 py-1 flex items-center justify-between gap-3 w-full h-[40px] shrink-0 select-none">
+              <div className={`border border-cyan-400/80 shadow-[0_0_8px_rgba(34,211,238,0.35)] bg-[#030604]/95 rounded-xl px-3 py-1 items-center justify-between gap-3 w-full h-[40px] shrink-0 select-none ${isHandExpanded ? "hidden" : "flex"}`}>
                 
                 {/* Scoreboard Left Team (User) */}
                 <div className="flex items-center gap-1.5 text-right flex-1 select-none">
@@ -2632,7 +2642,7 @@ export default function App() {
 
 
               {/* Row 3 (Golden Dashboard controller toolbar - Amber Neon Glow - Compact) */}
-              <div className="border border-amber-400/80 shadow-[0_0_8px_rgba(245,158,11,0.3)] bg-[#030604]/95 rounded-xl px-3 py-1 flex items-center justify-between gap-3 w-full h-[40px] shrink-0 select-none">
+              <div className={`border border-amber-400/80 shadow-[0_0_8px_rgba(245,158,11,0.3)] bg-[#030604]/95 rounded-xl px-3 py-1 items-center justify-between gap-3 w-full h-[40px] shrink-0 select-none ${isHandExpanded ? "hidden" : "flex"}`}>
                 
                 {/* State Tag badge */}
                 <div className="bg-gradient-to-r from-emerald-600/15 to-teal-600/15 text-emerald-400 border border-emerald-500/25 px-2 py-0.5 rounded-lg font-black text-[9px] shadow-sm whitespace-nowrap shrink-0 leading-none">
@@ -2805,16 +2815,27 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-black/95 backdrop-blur-md"
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-black/95 backdrop-blur-md cursor-pointer"
             id="celebration_cinematic_dialog"
+            onClick={handleAcknowledgeResolution}
           >
             <motion.div
               initial={{ scale: 0.8, y: 50 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.8, y: 50 }}
               transition={{ type: "spring", damping: 15 }}
-              className="max-w-md w-full rounded-xl p-6 text-center border border-white/10 shadow-2xl relative overflow-hidden bg-[#0c0d0c] text-white"
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-md w-full max-h-[90vh] overflow-y-auto rounded-xl p-4 sm:p-6 text-center border border-white/10 shadow-2xl relative bg-[#0c0d0c] text-white flex flex-col items-center cursor-default"
             >
+              {/* Close Button X */}
+              <button 
+                onClick={handleAcknowledgeResolution}
+                className="absolute top-2.5 right-2.5 w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-20 cursor-pointer border-none text-xs"
+                title="إغلاق"
+              >
+                ✕
+              </button>
+
               {/* Confetti or dust effect circles */}
               <div className="absolute top-0 left-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
               <div className="absolute bottom-0 right-0 w-24 h-24 bg-teal-500/10 rounded-full blur-xl pointer-events-none" />
@@ -2860,7 +2881,7 @@ export default function App() {
               </div>
 
               {/* Dynamic Scaling Hero Emoji with pulsate ripple */}
-              <div className="relative inline-block mb-6 z-10">
+              <div className="relative inline-block mb-3 sm:mb-6 z-10">
                 <motion.div
                   className="absolute inset-0 bg-yellow-500/20 rounded-full blur-xl filter"
                   animate={{
@@ -2875,7 +2896,7 @@ export default function App() {
                 />
                 
                 <motion.div
-                  className="text-5xl sm:text-6xl md:text-7xl block relative select-none cursor-pointer"
+                  className="text-4xl sm:text-5xl md:text-6xl block relative select-none cursor-pointer"
                   animate={{
                     scale: [1, 1.25, 0.9, 1.15, 1],
                     rotate: [0, 15, -15, 8, -8, 0],
@@ -2893,18 +2914,18 @@ export default function App() {
                 </motion.div>
               </div>
 
-              <h3 className="text-2xl md:text-3xl font-serif font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-200">
+              <h3 className="text-xl sm:text-2xl md:text-3xl font-serif font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-200">
                 {celebrationMessage.title}
               </h3>
 
-              <p className="mt-4 text-xs md:text-sm text-[#e0e0e0]/70 leading-relaxed max-w-sm mx-auto p-3 bg-black/40 rounded-xl border border-white/5">
+              <p className="mt-3 text-xs md:text-sm text-[#e0e0e0]/70 leading-relaxed max-w-sm mx-auto p-2.5 bg-black/40 rounded-xl border border-white/5">
                 {celebrationMessage.subtitle}
               </p>
 
               <button
                 onClick={handleCelebrationClick}
                 id="acknowledge_celebration_button"
-                className="relative overflow-hidden mt-6 px-10 py-3 bg-amber-600 hover:bg-amber-500 text-black font-extrabold rounded text-xs md:text-sm cursor-pointer transition-all duration-150 transform hover:scale-105 active:scale-95 hover:shadow-[0_0_20px_rgba(245,158,11,0.5)] border-none shadow-md"
+                className="relative overflow-hidden mt-4 sm:mt-6 px-10 py-2.5 bg-amber-600 hover:bg-amber-500 text-black font-extrabold rounded text-xs md:text-sm cursor-pointer transition-all duration-150 transform hover:scale-105 active:scale-95 hover:shadow-[0_0_20px_rgba(245,158,11,0.5)] border-none shadow-md"
               >
                 {/* Visual ripple waves */}
                 {btnRipples.map((ripple) => (

@@ -78,7 +78,7 @@ export default function GameCard({
       case "sm":
         return "p-1.5";
       case "pitch":
-        return "p-1.5 xs:p-2 md:p-2.5";
+        return "p-0.5 xs:p-1";
       case "lg":
         return "p-5";
       default: // md
@@ -296,21 +296,21 @@ export default function GameCard({
             (() => {
               const player = card as PlayerCard;
               return (
-                <div className="flex flex-col items-center justify-center my-0.5 z-10">
+                <div className={`flex flex-col items-center justify-center z-10 w-full ${size === "pitch" ? "my-0" : "my-0.5"}`}>
                   <motion.div 
                     whileHover={{ scale: 1.12, rotate: 5 }}
                     className={`relative flex items-center justify-center ${
                       size === "lg" 
                         ? "w-16 h-16 text-3xl" 
                         : size === "pitch" 
-                        ? "w-8 h-8 text-sm xs:w-10 xs:h-10 xs:text-base md:w-11 md:h-11 md:text-xl" 
+                        ? "w-6 h-6 text-xs xs:w-8 xs:h-8 xs:text-sm sm:w-9 sm:h-9 sm:text-base md:w-10 md:h-10 md:text-lg" 
                         : "w-11 h-11 text-2xl"
                     } rounded-full bg-[#1a1c1a]/80 border border-white/5 shadow-inner`}
                   >
                     <span>{player.avatar}</span>
                   </motion.div>
-                  <span className={`font-serif font-black mt-1 text-center text-white whitespace-nowrap overflow-hidden text-ellipsis w-full ${
-                    size === "lg" ? "text-base" : size === "pitch" ? "text-[9px] xs:text-[10px] md:text-[11px] font-sans tracking-tight" : "text-xs"
+                  <span className={`font-serif font-black text-center text-white whitespace-nowrap overflow-hidden text-ellipsis w-full ${
+                    size === "lg" ? "text-base mt-1" : size === "pitch" ? "text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-sans tracking-tight leading-none mt-0.5" : "text-xs mt-1"
                   }`}>
                     {player.name}
                   </span>
@@ -328,14 +328,14 @@ export default function GameCard({
                       size === "lg" 
                         ? "w-14 h-14 text-3xl" 
                         : size === "pitch" 
-                        ? "w-7 h-7 text-sm xs:w-8 h-8 xs:text-base md:w-9 md:h-9 md:text-xl" 
+                        ? "w-6 h-6 text-xs xs:w-7 h-7 xs:text-sm sm:w-8 h-8 sm:text-base md:w-9 md:h-9" 
                         : "w-10 h-10 text-xl"
                     } rounded-full bg-black/40 border border-white/5`}
                   >
                     <span>{special.icon}</span>
                   </motion.div>
-                  <span className={`font-serif font-black mt-1 text-center text-teal-200 overflow-hidden text-ellipsis w-full ${
-                    size === "lg" ? "text-sm" : size === "pitch" ? "text-[10px]" : "text-[11px]"
+                  <span className={`font-serif font-black text-center text-teal-200 overflow-hidden text-ellipsis w-full ${
+                    size === "lg" ? "text-sm mt-1" : size === "pitch" ? "text-[7.5px] xs:text-[8.5px] leading-none mt-0.5" : "text-[11px] mt-1"
                   }`}>
                     {special.name}
                   </span>
@@ -350,15 +350,15 @@ export default function GameCard({
               const player = card as PlayerCard;
               if (size === "pitch") {
                 return (
-                  <div className="flex items-center justify-center gap-1.5 bg-black/60 py-0.5 px-1 rounded-md border border-white/5 z-10 w-full">
-                    <div className="flex items-center gap-0.5 text-rose-400">
-                      <span className="font-mono text-[9px] xs:text-[10px] sm:text-[11px] font-black">{player.attack}</span>
-                      <span className="text-[10px]">⚔️</span>
+                  <div className="flex items-center justify-around bg-black/60 py-0.5 px-0.5 rounded border border-white/5 z-10 w-full mt-auto">
+                    <div className="flex items-center gap-0.2 md:gap-0.5 text-rose-400">
+                      <span className="font-mono text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-black">{player.attack}</span>
+                      <span className="text-[8px] xs:text-[10px]">⚔️</span>
                     </div>
-                    <div className="w-[1px] h-2.5 bg-white/10" />
-                    <div className="flex items-center gap-0.5 text-emerald-400">
-                      <span className="font-mono text-[9px] xs:text-[10px] sm:text-[11px] font-black">{player.defense}</span>
-                      <span className="text-[10px]">🛡️</span>
+                    <div className="w-[1px] h-2 bg-white/10" />
+                    <div className="flex items-center gap-0.2 md:gap-0.5 text-emerald-400">
+                      <span className="font-mono text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-black">{player.defense}</span>
+                      <span className="text-[8px] xs:text-[10px]">🛡️</span>
                     </div>
                   </div>
                 );
