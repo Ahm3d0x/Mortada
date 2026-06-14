@@ -20,6 +20,7 @@ import Multilobby from "./components/Multilobby";
 import { supabaseService, MatchRoom } from "./lib/supabase";
 import GameTutorialPanel from "./components/GameTutorialPanel";
 import TacticalPitch from "./components/TacticalPitch";
+import GameCard from "./components/GameCard";
 import CoachHand from "./components/CoachHand";
 import ActionTickerLog from "./components/ActionTickerLog";
 import ActionDashboard from "./components/ActionDashboard";
@@ -126,6 +127,13 @@ export default function App() {
   const [btnRipples, setBtnRipples] = useState<{ id: number; x: number; y: number }[]>([]);
 
   const isReceivingUpdate = React.useRef(false);
+  const customLogContainerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (customLogContainerRef.current) {
+      customLogContainerRef.current.scrollTop = customLogContainerRef.current.scrollHeight;
+    }
+  }, [logs]);
 
   // Sync current local state to Supabase
   const syncToSupabaseInstance = async (
@@ -2344,168 +2352,469 @@ export default function App() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-fade-in">
+          <div className="flex flex-col lg:flex-row gap-3 w-full h-full lg:h-[calc(100vh-140px)] select-none text-right">
             
-            {/* LEFT / TOP COLUMN (Tactical Live Pitch & Commentary) */}
-            <div className="lg:col-span-3 space-y-5">
+            {/* LEFT SIDEBAR PANEL (Tactics block + Commentary log + Draw blocks) */}
+            <div className="w-full lg:w-[28%] flex flex-col gap-3 h-full justify-between">
+              
+              {/* Box 1 (Tactics Panel) - matches the image layout identically */}
+              <div id="tactics_dashboard_sidebar" className="bg-[#0b100d] border-2 border-emerald-950/40 rounded-2xl p-3 flex flex-col gap-2.5 shadow-lg">
+                <div>
+                  <div className="text-emerald-400 font-bold text-xs pb-1.5 border-b border-white/5 flex items-center justify-between">
+                    <span className="text-[10px] text-white/30">⚔️</span>
+                    <span>تكتيكاتي</span>
+                  </div>
+                  <div className="flex flex-col items-center justify-center p-3 mt-1.5 bg-black/44 rounded-xl min-h-[44px]">
+                    {playerActiveSpecial ? (
+                      <span className="text-[#00ff66] font-bold text-xs animate-pulse">
+                        ⚡ {playerActiveSpecial.name}
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-[#ff3838] font-bold text-xs">
+                        <span>لا يوجد</span>
+                        <span className="bg-[#ff3838]/10 text-[#ff3838] w-4 h-4 rounded-full flex items-center justify-center text-[10px]">✕</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-              {/* Broadcasting-style Scoreboard and Live Match Clock Timer */}
-              <TopScoreHeader
-                playerCoachName={coachName}
-                playerTeam={teamVibe}
-                playerScore={playerScore}
-                aiCoachName={aiCoachName}
-                aiTeam={aiTeam}
-                aiScore={aiScore}
-                matchTime={matchTime}
-                initialMatchTime={initialMatchTime}
-                phase={phase}
-                difficulty={difficulty}
-              />
+                <div>
+                  <div className="text-[#ff5252] font-bold text-xs pb-1.5 border-b border-white/5 flex items-center justify-between">
+                    <span className="text-[10px] text-white/30">🛡️</span>
+                    <span>تكتيكات الخصم</span>
+                  </div>
+                  <div className="flex flex-col items-center justify-center p-3 mt-1.5 bg-black/44 rounded-xl min-h-[44px]">
+                    {aiActiveSpecial ? (
+                      <span className="text-rose-400 font-bold text-xs animate-pulse">
+                        🛡️ {aiActiveSpecial.name}
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-[#ff3838] font-bold text-xs">
+                        <span>لا يوجد</span>
+                        <span className="bg-[#ff3838]/10 text-[#ff3838] w-4 h-4 rounded-full flex items-center justify-center text-[10px]">✕</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
 
-              {/* Tactical football pitch representation */}
-              <TacticalPitch
-                playerCoachName={coachName}
-                playerTeam={teamVibe}
-                playerScore={playerScore}
-                playerSlots={playerSlots}
-                aiCoachName={aiCoachName}
-                aiTeam={aiTeam}
-                aiScore={aiScore}
-                aiSlots={aiSlots}
-                selectedSlotIdx={selectedPitchSlotIdx}
-                currentAttackerIdx={currentAttackerIdx}
-                phase={phase}
-                playerMovesLeft={playerMovesLeft}
-                turnCount={turnCount}
-                onSelectSlot={handleSelectPitchSlot}
-                isSelectable={isSlotSelectable}
-                playerActiveSpecial={playerActiveSpecial}
-                aiActiveSpecial={aiActiveSpecial}
-                playerDeckCount={playerDeck.length}
-                specialDeckCount={specialDeck.length}
-                cardsDrawnThisTurn={cardsDrawnThisTurn}
-                onDrawCard={handleDrawCard}
-                isHandExpanded={isHandExpanded}
-                setIsHandExpanded={setIsHandExpanded}
-                aiHandCount={aiHand.length}
-                onInspectCard={setInspectedCard}
-                currentPonto={currentPonto}
-              />
+              {/* Box 2 (Actions Commentary Log) */}
+              <div 
+                id="commentary_sidebar_panel"
+                className="border-2 border-[#125827]/40 bg-[#060c07] rounded-2xl flex-1 flex flex-col overflow-hidden p-3 min-h-[140px] shadow-lg"
+              >
+                <div className="text-white/40 text-[9px] font-bold font-sans border-b border-white/5 pb-1 mb-2 text-right flex items-center justify-between">
+                  <span>⏱️ التعليق المباشر</span>
+                  <span>سجل حركات اللعب</span>
+                </div>
+                <div 
+                  ref={customLogContainerRef}
+                  className="flex-1 overflow-y-auto space-y-1.5 pr-1 scroll-smooth text-right direction-rtl scrollbar-thin select-text"
+                >
+                  {logs.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-white/20 text-[10px] p-2 leading-relaxed">
+                      <span>جرى التحضير... ابدأ بتحريك خطوطك! 🏃‍♂️</span>
+                    </div>
+                  ) : (
+                    logs.map((log) => {
+                      const isDanger = log.type === "danger";
+                      const isSuccess = log.type === "success";
+                      const isWarning = log.type === "warning";
+                      let colorClass = "text-white/70";
+                      if (isDanger) colorClass = "text-[#ff4c4c]";
+                      else if (isSuccess) colorClass = "text-[#00ff77] font-semibold";
+                      else if (isWarning) colorClass = "text-amber-400";
+                      
+                      return (
+                        <div key={log.id} className="text-[10px] md:text-[11px] leading-normal border-b border-white/5 pb-1 flex items-start gap-1 justify-end font-sans">
+                          <span className={`${colorClass} flex-1 text-right`}>{log.text}</span>
+                          <span className="text-emerald-500/60 font-black shrink-0">-</span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
 
-               {/* Actions & Turns controller bar */}
-              <ActionDashboard
-                phase={phase}
-                movesLeft={playerMovesLeft}
-                playerCoachName={coachName}
-                aiCoachName={aiCoachName}
-                cardsDrawnThisTurn={cardsDrawnThisTurn}
-                currentPonto={currentPonto}
-                playerScore={playerScore}
-                aiScore={aiScore}
-                isAttackBlocked={isAttackBlocked}
-                onForceEndAttack={handleForceEndAttack}
-                activeAttackerName={
-                  currentAttackerIdx !== null
-                    ? (phase === "attacking" 
-                        ? playerSlots[currentAttackerIdx]?.card?.name 
-                        : aiSlots[currentAttackerIdx]?.card?.name) || null
-                    : null
-                }
-                attackPower={
-                  phase === "attacking" 
-                    ? calculateTotalAttack(true, currentAttackerIdx || 0, currentPonto, playerActiveSpecial)
-                    : calculateTotalAttack(false, currentAttackerIdx || 0, currentPonto, aiActiveSpecial)
-                }
-                defensePower={
-                  phase === "attacking"
-                    ? calculateTotalDefense(false, aiActiveSpecial)
-                    : calculateTotalDefense(true, playerActiveSpecial)
-                }
-                onConfirmLineup={handleConfirmLineup}
-                onDeclareAttack={handleDeclareAttack}
-                onEndTurn={handleEndPlayerTurn}
-                onResolveAttack={handleResolveAttack}
-                onConfirmDefense={handleConfirmDefense}
-                onResetGame={handleResetGame}
-              />
+              {/* Box 3 (Draw Decks & Substitutes controls) */}
+              <div id="decks_action_grid" className="grid grid-cols-2 gap-2 mt-auto pt-1">
+                
+                {/* DRAW PLAYER CARD BLOCK (Yellow background) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const isDrawPhase = (phase === "player_turn" || phase === "warmup") && cardsDrawnThisTurn < 2;
+                    if (isDrawPhase) {
+                      handleDrawCard("player");
+                    } else {
+                      addLog("تنبيه: يمكنك سحب كروت فقط في مرحلة السحب الخاصة بدورك!", "warning");
+                    }
+                  }}
+                  className="bg-[#f59e0b] hover:bg-[#d97706] text-black font-extrabold p-2.5 rounded-2xl flex flex-col items-center justify-center gap-1 aspect-square cursor-pointer transition-transform duration-200 active:scale-95 shadow-md border border-white/10 group relative"
+                  title="سحب كارت لاعب"
+                >
+                  <span className="text-2xl group-hover:animate-bounce">🏃‍♂️</span>
+                  <span className="text-[10px] font-black leading-none">باقة اللاعبين</span>
+                  <span className="bg-black/15 text-[8.5px] px-1.5 py-0.5 rounded-full font-sans">
+                    {playerDeck.length} كارت
+                  </span>
+                </button>
 
-              {/* Hand cards display */}
-              <CoachHand
-                hand={playerHand}
-                selectedCardId={selectedHandCardId}
-                burningCardIds={burningCardIds}
-                movesLeft={playerMovesLeft}
-                phase={phase}
-                playerDeckCount={playerDeck.length}
-                specialDeckCount={specialDeck.length}
-                cardsDrawnThisTurn={cardsDrawnThisTurn}
-                isPlayerTurn={phase === "player_turn" || phase === "warmup"}
-                isHandExpanded={isHandExpanded}
-                setIsHandExpanded={setIsHandExpanded}
-                playerSlots={playerSlots}
-                onInspectCard={setInspectedCard}
-                onSelectCard={(id) => {
-                  const card = playerHand.find((c) => c.id === id);
-                  if (!card) return;
+                {/* DRAW TACTIC CARD BLOCK (Purple background) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const isDrawPhase = (phase === "player_turn" || phase === "warmup") && cardsDrawnThisTurn < 2;
+                    if (isDrawPhase) {
+                      handleDrawCard("special");
+                    } else {
+                      addLog("تنبيه: يمكنك سحب كروت فقط في مرحلة السحب الخاصة بدورك!", "warning");
+                    }
+                  }}
+                  className="bg-[#a855f7] hover:bg-[#9333ea] text-white font-extrabold p-2.5 rounded-2xl flex flex-col items-center justify-center gap-1 aspect-square cursor-pointer transition-transform duration-200 active:scale-95 shadow-md border border-white/10 group relative"
+                  title="سحب كارت تكتيك"
+                >
+                  <span className="text-2xl group-hover:rotate-12 transition-transform">🪄</span>
+                  <span className="text-[10px] font-black leading-none">باقة التكتيكات</span>
+                  <span className="bg-black/30 text-[8.5px] text-purple-200 px-1.5 py-0.5 rounded-full font-sans">
+                    {specialDeck.length} كارت
+                  </span>
+                </button>
 
-                  // Handle special burning toggles if a legend is selected and this is another card
-                  const currentSelectedCard = playerHand.find((c) => c.id === selectedHandCardId);
-                  const isLegendSelected = currentSelectedCard?.type === "player" && (currentSelectedCard as PlayerCard).isLegend;
-                  
-                  if (isLegendSelected && id !== selectedHandCardId) {
-                    toggleBurningCard(id);
-                  } else {
-                    handleSelectHandCard(id);
-                  }
-                }}
-                onDrawCard={handleDrawCard}
-                onPlaySpecialCard={handlePlaySpecialCard}
-                onCancelSelection={handleCancelSelection}
-              />
+                {/* SUBSTITUTES BAG TRIGGER BUTTON (Double column) */}
+                <button
+                  type="button"
+                  onClick={() => setIsHandExpanded(!isHandExpanded)}
+                  className="col-span-2 bg-[#84cc16] hover:bg-[#65a30d] text-black font-extrabold h-11 rounded-2xl flex items-center justify-center gap-3 cursor-pointer shadow-md transition-all active:scale-[0.98] border border-white/10 relative"
+                >
+                  <span className="text-base">👤</span>
+                  <span className="text-xs font-black">حقيبة البدلاء (سحب / استبدال)</span>
+                  <span className="text-lg text-blue-800 font-bold">🔃</span>
+                  <span className="text-base">👤</span>
+                </button>
+
+              </div>
 
             </div>
 
-            {/* RIGHT COLUMN (Live commentary ticker, strategy logs) - Hidden on mobile screens to maintain zero vertical scroll */}
-            <div className="hidden lg:block lg:col-span-1 space-y-6">
+
+            {/* RIGHT FIELD MAIN PANEL (Opponent Slots, Scoreboard, Actions Bar, Player Slots) */}
+            <div className="flex-1 flex flex-col gap-3 h-full justify-between">
               
-              {/* Toggleable Quick Tips sidebar (Requirement 2) */}
-              <div className="bg-[#121412] border border-white/5 rounded-xl p-3 text-right">
-                <button
-                  onClick={() => setShowTips(!showTips)}
-                  className="w-full text-right px-3 py-1.5 rounded bg-black/30 text-[10px] uppercase font-mono tracking-wider text-[#e0e0e0]/50 hover:text-white flex items-center justify-between transition-colors outline-none cursor-pointer"
-                >
-                  <span className="text-emerald-400 font-bold">{showTips ? "إغلاق الدليل ❌" : "عرض دليل اللعب السريع 💡"}</span>
-                  <span>طريقة اللعب السريعة ⚡</span>
-                </button>
-                {showTips && (
-                  <p className="text-xs text-[#e0e0e0]/70 mt-2 leading-relaxed border-t border-white/5 pt-2 animate-fadeIn">
-                    1. اسحب كارتين بالبداية.
-                    <br />
-                    2. انقر على لاعب بيدك، ثم اضغط على موضع بملعبك لتنزيله.
-                    <br />
-                    3. الأسطورة يتطلب كارتين حرق باليد.
-                    <br />
-                    4. للهجوم، انقر لاعبك مقفل بالملعب ثم أعلن الهجوم !
-                  </p>
-                )}
+              {/* Row 1 (Opponent Football Pitch Slots - Red Neon Grid) */}
+              <div className="border-2 border-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.45)] bg-[#040804]/90 rounded-2xl p-2.5 flex flex-col gap-2 relative">
+                
+                {/* Header text */}
+                <div className="flex items-center justify-between text-rose-400 font-black text-[9.5px] px-1 uppercase tracking-wider">
+                  <span>الذكاء الاصطناعي 🆚 الخصم</span>
+                  <span>خط دفاع ومحاور الخصم 🛡️</span>
+                </div>
+
+                <div className="grid grid-cols-5 gap-2 w-full">
+                  {aiSlots.map((slot, idx) => {
+                    const isSelectable = isSlotSelectable(idx, true);
+                    const isChosenToAttack = currentAttackerIdx === idx && phase !== "player_turn";
+                    
+                    return (
+                      <div 
+                        key={`ai-pitch-slot-${idx}`}
+                        className={`relative rounded-xl overflow-hidden aspect-[2/3] transition-all flex flex-col justify-between ${
+                          isSelectable 
+                            ? "ring-2 ring-rose-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-105" 
+                            : ""
+                        }`}
+                      >
+                        {slot.card ? (
+                          slot.isRevealed || slot.revealedInAttack ? (
+                            <GameCard
+                              card={slot.card}
+                              isRevealed={true}
+                              size="pitch"
+                              disabled={true}
+                            />
+                          ) : (
+                            /* Covered card back representing mockup style exactly */
+                            <div 
+                              onClick={() => isSelectable && handleSelectPitchSlot(idx)}
+                              className="w-full h-full rounded-xl border-2 border-red-500/90 bg-gradient-to-b from-[#141514] to-black p-2 flex flex-col justify-between shadow-[0_0_8px_rgba(239,68,68,0.55)] cursor-pointer hover:scale-103 transition-transform select-none"
+                            >
+                              <div className="w-full flex justify-between items-center opacity-40 text-[7px] text-white/50 font-black font-sans leading-none">
+                                <span>MORTADA</span>
+                                <span>مرتدة</span>
+                              </div>
+
+                              <div className="flex flex-col items-center gap-1">
+                                <div className="w-7 h-7 rounded-full bg-[#121412] border border-white/5 flex items-center justify-center shadow-lg">
+                                  <span className="text-xs">⚽</span>
+                                </div>
+                              </div>
+
+                              <div className="w-full flex justify-center text-center">
+                                <span className="text-[8px] text-emerald-400 font-black tracking-widest uppercase">
+                                  تكتيك
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        ) : (
+                          /* Empty Opponent Slot placeholder */
+                          <div 
+                            onClick={() => isSelectable && handleSelectPitchSlot(idx)}
+                            className="w-full h-full rounded-xl border border-dashed border-rose-950/40 bg-black/40 flex items-center justify-center p-1 cursor-pointer"
+                          >
+                            <span className="text-rose-900/60 font-sans text-[9px] font-black">شاغر 🕳️</span>
+                          </div>
+                        )}
+
+                        {/* Chosen Attacker Marker glow */}
+                        {isChosenToAttack && (
+                          <div className="absolute inset-0 bg-rose-900/25 border-2 border-rose-500 animate-ping pointer-events-none rounded-xl" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Conditional Commentary Ticker (Requirement 3) */}
-              {showCommentary ? (
-                <ActionTickerLog
-                  logs={logs}
-                  onClear={() => setLogs([])}
-                />
-              ) : (
-                <div className="p-4 bg-black/40 border border-white/5 rounded-xl text-center text-xs text-slate-500">
-                  <p>التعليق المباشر للمباراة مخفي حالياً 🎙️</p>
-                  <button
-                    onClick={() => setShowCommentary(true)}
-                    className="mt-2 text-emerald-400 font-bold hover:underline cursor-pointer"
-                  >
-                    تفعيل وعرض البث الصوتي المباشر والتعليق
-                  </button>
+
+              {/* Row 2 (Beautiful Scoreboard and Clock Indicator - Cyan Neon Glow) */}
+              <div className="border-2 border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.5)] bg-[#030604]/95 rounded-2xl px-4 py-2 flex items-center justify-between gap-4 w-full h-[52px]">
+                
+                {/* Scoreboard Left Team (User) */}
+                <div className="flex items-center gap-2.5 text-right flex-1">
+                  <span className="text-lg">🇦🇷</span>
+                  <div className="flex flex-col text-right">
+                    <span className="text-white text-xs font-black leading-none">{coachName || "المدرب المحترف"}</span>
+                    <span className="text-[9px] text-[#e0e0e0]/40 leading-none mt-1">راقصو التانغو</span>
+                  </div>
+                  <div className="bg-[#052311] border border-[#00ff66]/45 text-[#00ff66] px-3.5 py-1 rounded-full font-mono font-black text-sm shadow-[inset_0_0_6px_rgba(0,255,102,0.15)] min-w-[34px] text-center ml-1">
+                    {playerScore}
+                  </div>
+                </div>
+
+                {/* Clock Stopwatch in the middle */}
+                <div className="flex items-center justify-center gap-1.5 text-emerald-400 font-mono font-black text-xs bg-black/60 px-3 py-1 rounded-xl shadow-inner border border-white/5 whitespace-nowrap shrink-0">
+                  <span>⏱️</span>
+                  <span className="tracking-widest">
+                    {(() => {
+                      const m = Math.floor(matchTime / 60).toString().padStart(2, "0");
+                      const s = (matchTime % 60).toString().padStart(2, "0");
+                      return `${m}:${s}`;
+                    })()}
+                  </span>
+                </div>
+
+                {/* Scoreboard Right Team (Opponent) */}
+                <div className="flex items-center gap-2.5 text-left flex-1 justify-end">
+                  <div className="bg-[#24060b] border border-rose-500/45 text-rose-400 px-3.5 py-1 rounded-full font-mono font-black text-sm shadow-[inset_0_0_6px_rgba(244,63,94,0.15)] min-w-[34px] text-center mr-1">
+                    {aiScore}
+                  </div>
+                  <div className="flex flex-col text-right">
+                    <span className="text-white text-xs font-black leading-none">{aiCoachName || "الخصم الآلي"}</span>
+                    <span className="text-[9px] text-[#e0e0e0]/45 leading-none mt-1">كتائب الروبوت الذكية</span>
+                  </div>
+                  <span className="text-base">🤖</span>
+                  <span className="text-xs font-black">⚽</span>
+                </div>
+
+              </div>
+
+
+              {/* Row 3 (Golden Dashboard controller toolbar - Amber Neon Glow) */}
+              <div className="border-2 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.4)] bg-[#030604]/95 rounded-2xl px-4 py-2 flex items-center justify-between gap-4 w-full h-[52px]">
+                
+                {/* State Tag badge */}
+                <div className="bg-gradient-to-r from-emerald-600/15 to-teal-600/15 text-emerald-400 border border-emerald-500/25 px-2.5 py-1 rounded-lg font-black text-[10px] shadow-sm whitespace-nowrap shrink-0">
+                  {phase === "warmup" && "مرحلة التسخين ⚽"}
+                  {phase === "player_turn" && "دورك التكتيكي 🧠"}
+                  {phase === "ai_turn" && "دفاع الخصم مستعد 🤖"}
+                  {phase === "attacking" && "التسديد والهجوم ⚔️"}
+                  {phase === "ai_attacking" && "صد دفاعي شرس 🛡️"}
+                  {phase === "resolution" && "تحليل الهجمة 📊"}
+                  {phase === "game_over" && "انتهت المقابلة 🏁"}
+                </div>
+
+                {/* Status Counters pills */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded-md text-[9px] font-black font-sans leading-none">
+                    حركة {playerMovesLeft} / 3
+                  </div>
+                  <div className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md text-[9px] font-black font-sans leading-none">
+                    سحب {cardsDrawnThisTurn} / 2
+                  </div>
+                </div>
+
+                {/* Actionable Buttons depending on phase */}
+                <div className="flex items-center gap-2 justify-end">
+                  
+                  {phase === "player_turn" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleDeclareAttack}
+                        disabled={playerMovesLeft < 2 && selectedPitchSlotIdx === null}
+                        className="bg-[#881337] hover:bg-[#9f1239] disabled:opacity-40 text-white font-extrabold py-1 px-3 rounded-lg text-[10.5px] flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <span>هجوم مباشر</span>
+                        <span>⚔️</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleEndPlayerTurn}
+                        className="bg-[#2d3748] hover:bg-[#3d4a5f] text-slate-300 font-extrabold py-1 px-2.5 rounded-lg text-[10.5px] border border-white/5 cursor-pointer transition-colors"
+                      >
+                        <span>إنهاء الدور</span>
+                        <span>⏳</span>
+                      </button>
+                    </>
+                  )}
+
+                  {phase === "warmup" && (
+                    <button
+                      type="button"
+                      onClick={handleConfirmLineup}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-1 px-4.5 rounded-lg text-[10.5px] cursor-pointer transition-colors"
+                    >
+                      بدء اللقاء 🏁
+                    </button>
+                  )}
+
+                  {phase === "attacking" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleResolveAttack}
+                        className="bg-rose-600 hover:bg-rose-500 text-white font-black py-1 px-4 rounded-lg text-[10.5px] cursor-pointer transition-colors"
+                      >
+                        تسديدة حاسمة ⚽
+                      </button>
+                      {isAttackBlocked && (
+                        <button
+                          type="button"
+                          onClick={handleForceEndAttack}
+                          className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-1 px-3 rounded-lg text-[10px] cursor-pointer"
+                        >
+                          إنهاء الهجمة 🛑
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {phase === "ai_attacking" && (
+                    <button
+                      type="button"
+                      onClick={handleConfirmDefense}
+                      className="bg-blue-600 hover:bg-blue-500 text-white font-black py-1 px-4 rounded-lg text-[10.5px] cursor-pointer transition-colors"
+                    >
+                      تأكيد الدفاع 🛡️
+                    </button>
+                  )}
+
+                  {phase === "game_over" && (
+                    <button
+                      type="button"
+                      onClick={handleResetGame}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-1 px-4 rounded-lg text-[10.5px] cursor-pointer"
+                    >
+                      مباراة جديدة 🔁
+                    </button>
+                  )}
+
+                </div>
+
+              </div>
+
+
+              {/* Row 4 (Player Pitch Slots - Neon Green Grid) */}
+              <div className="border-2 border-emerald-500 shadow-[0_0_12px_rgba(34,197,94,0.45)] bg-[#040804]/90 rounded-2xl p-2.5 flex flex-col gap-2 relative">
+                
+                {/* Header text */}
+                <div className="flex items-center justify-between text-emerald-400 font-black text-[9.5px] px-1 uppercase tracking-wider">
+                  <span>منتخب التانغو الخاص بك 👑</span>
+                  <span>خط دفاع ومراكز لاعبيك بالملعب ⚔️</span>
+                </div>
+
+                <div className="grid grid-cols-5 gap-2 w-full">
+                  {playerSlots.map((slot, idx) => {
+                    const isSelectable = isSlotSelectable(idx, false);
+                    const isSelected = selectedPitchSlotIdx === idx;
+                    const isSpent = slot.spent;
+                    
+                    return (
+                      <div 
+                        key={`player-pitch-slot-${idx}`}
+                        className={`relative rounded-xl overflow-hidden aspect-[2/3] transition-all flex flex-col justify-between ${
+                          isSelectable 
+                            ? "ring-2 ring-emerald-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-105 animate-pulse" 
+                            : ""
+                        } ${isSelected ? "ring-2 ring-amber-400 ring-offset-1 ring-offset-black scale-102" : ""}`}
+                      >
+                        {slot.card ? (
+                          <div className="relative w-full h-full" onClick={() => handleSelectPitchSlot(idx)}>
+                            <GameCard
+                              card={slot.card}
+                              isRevealed={slot.isRevealed}
+                              size="pitch"
+                            />
+                            {isSpent && (
+                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl pointer-events-none">
+                                <span className="text-[10px] text-yellow-500 font-extrabold uppercase bg-black/80 px-1 py-0.5 rounded border border-yellow-500/20">منتهي</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          /* Empty Player Slot matching mockup exactly */
+                          <div 
+                            onClick={() => handleSelectPitchSlot(idx)}
+                            className="w-full h-full rounded-xl border-2 border-dashed border-emerald-500/20 bg-black/60 flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-emerald-500/40 hover:bg-emerald-950/20 transition-all p-1"
+                          >
+                            <span className="text-emerald-400 font-black text-xl leading-none">+</span>
+                            <span className="text-emerald-500/60 font-sans text-[9px] font-bold">تنزيل لاعب</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* SUBSTITUTES DRAWER SLIDE-UP BOTTOM OVERLAY */}
+              {isHandExpanded && (
+                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-4 animate-fadeIn">
+                  <div className="max-w-4xl w-full bg-[#121412] rounded-3xl border border-emerald-500/30 p-2 relative shadow-2xl">
+                    <CoachHand
+                      hand={playerHand}
+                      selectedCardId={selectedHandCardId}
+                      burningCardIds={burningCardIds}
+                      movesLeft={playerMovesLeft}
+                      phase={phase}
+                      playerDeckCount={playerDeck.length}
+                      specialDeckCount={specialDeck.length}
+                      cardsDrawnThisTurn={cardsDrawnThisTurn}
+                      isPlayerTurn={phase === "player_turn" || phase === "warmup"}
+                      isHandExpanded={isHandExpanded}
+                      setIsHandExpanded={setIsHandExpanded}
+                      playerSlots={playerSlots}
+                      onInspectCard={setInspectedCard}
+                      onSelectCard={(id) => {
+                        const card = playerHand.find((c) => c.id === id);
+                        if (!card) return;
+
+                        // Handle special burning toggles if a legend is selected and this is another card
+                        const currentSelectedCard = playerHand.find((c) => c.id === selectedHandCardId);
+                        const isLegendSelected = currentSelectedCard?.type === "player" && (currentSelectedCard as PlayerCard).isLegend;
+                        
+                        if (isLegendSelected && id !== selectedHandCardId) {
+                          toggleBurningCard(id);
+                        } else {
+                          handleSelectHandCard(id);
+                        }
+                      }}
+                      onDrawCard={handleDrawCard}
+                      onPlaySpecialCard={handlePlaySpecialCard}
+                      onCancelSelection={handleCancelSelection}
+                    />
+                  </div>
                 </div>
               )}
 
