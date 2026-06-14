@@ -2191,6 +2191,16 @@ export default function App() {
     setLogs([]);
   };
 
+  // Dynamic Scoreboard Offensive/Defensive Statistics - requested by user
+  const isAttackDefActive = currentAttackerIdx !== null && (phase === "attacking" || phase === "ai_attacking" || phase === "resolution");
+  const showPlayerAttack = isAttackDefActive && isPlayerAttacker;
+  const showPlayerDefense = isAttackDefActive && !isPlayerAttacker;
+  const showAiAttack = isAttackDefActive && !isPlayerAttacker;
+  const showAiDefense = isAttackDefActive && isPlayerAttacker;
+
+  const activeOffenseVal = isAttackDefActive ? calculateTotalAttack(isPlayerAttacker, currentAttackerIdx!, currentPonto, isPlayerAttacker ? playerActiveSpecial : aiActiveSpecial) : 0;
+  const activeDefenseVal = isAttackDefActive ? calculateTotalDefense(!isPlayerAttacker, !isPlayerAttacker ? playerActiveSpecial : aiActiveSpecial) : 0;
+
   return (
     <div className={`min-h-screen bg-[#050605] text-[#e0e0e0] font-sans relative ${phase === "menu" ? "p-4 md:p-6 overflow-y-auto" : "p-1.5 h-screen max-h-screen overflow-hidden md:p-2.5"} select-none`}>
       
@@ -2358,29 +2368,33 @@ export default function App() {
             <div className="w-[28%] md:w-[26%] min-w-[210px] max-w-[270px] flex flex-col gap-1.5 h-full justify-between overflow-hidden shrink-0">
               
               {/* Box 1 (Tactics Panel) - ultra compact layout matching the image identically */}
-              <div id="tactics_dashboard_sidebar" className="bg-[#0b100d] border border-white/5 rounded-xl p-1 flex flex-col gap-1 shadow-md">
+              <div id="tactics_dashboard_sidebar" className="bg-[#0b100d] border border-white/5 rounded-xl p-1 flex flex-col gap-1 shadow-md select-none">
                 <div className="flex flex-col gap-1">
                   {/* Player Tactic (Green highlight) */}
-                  <div className={`flex items-center justify-center p-1 bg-black/44 border-r-2 border-emerald-500 rounded-md min-h-[22px] ${playerActiveSpecial ? "bg-emerald-950/10" : ""}`}>
-                    {playerActiveSpecial ? (
-                      <span className="text-[#00ff66] font-bold text-[9px] animate-pulse truncate">
-                        ⚡ {playerActiveSpecial.name}
+                  <div className={`flex items-center justify-center p-1 bg-black/44 border-r-2 border-emerald-500 rounded-md min-h-[22.5px] transition-all duration-300 ${playerActiveSpecial.length > 0 ? "bg-emerald-950/20" : "opacity-35"}`}>
+                    {playerActiveSpecial.length > 0 ? (
+                      <span className="text-[#00ff66] font-extrabold text-[9px] animate-pulse truncate flex items-center gap-1">
+                        <span className="text-[9px]">⚡</span>
+                        <span>{playerActiveSpecial[0].name}</span>
                       </span>
                     ) : (
                       <div className="flex items-center gap-1 text-emerald-600/40 text-[8px] leading-tight">
+                        <span className="text-[7.5px] opacity-10">⚡</span>
                         <span>لا يوجد تكتيك فعال</span>
                       </div>
                     )}
                   </div>
 
                   {/* AI Tactic (Red highlight) */}
-                  <div className={`flex items-center justify-center p-1 bg-black/44 border-r-2 border-rose-500 rounded-md min-h-[22px] ${aiActiveSpecial ? "bg-rose-950/10" : ""}`}>
-                    {aiActiveSpecial ? (
-                      <span className="text-rose-400 font-bold text-[9px] animate-pulse truncate">
-                        🛡️ {aiActiveSpecial.name}
+                  <div className={`flex items-center justify-center p-1 bg-black/44 border-r-2 border-rose-500 rounded-md min-h-[22.5px] transition-all duration-300 ${aiActiveSpecial.length > 0 ? "bg-rose-950/20" : "opacity-35"}`}>
+                    {aiActiveSpecial.length > 0 ? (
+                      <span className="text-rose-400 font-extrabold text-[9px] animate-pulse truncate flex items-center gap-1">
+                        <span className="text-[9px]">🛡️</span>
+                        <span>{aiActiveSpecial[0].name}</span>
                       </span>
                     ) : (
                       <div className="flex items-center gap-1 text-rose-900/30 text-[8px] leading-tight">
+                        <span className="text-[7.5px] opacity-10">🛡️</span>
                         <span>لا يوجد تكتيك فعال</span>
                       </div>
                     )}
@@ -2500,7 +2514,7 @@ export default function App() {
                     return (
                       <div 
                         key={`ai-pitch-slot-${idx}`}
-                        className={`relative rounded-lg overflow-hidden aspect-[2/3] max-h-[18.5vh] w-full mx-auto transition-all flex flex-col justify-between ${
+                        className={`relative rounded-lg overflow-hidden aspect-[2/3] max-h-[22.5vh] md:max-h-[24vh] w-full mx-auto transition-all flex flex-col justify-between ${
                           isSelectable 
                             ? "ring-2 ring-rose-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103" 
                             : ""
@@ -2512,7 +2526,7 @@ export default function App() {
                               card={slot.card}
                               isRevealed={true}
                               size="pitch"
-                              disabled={true}
+                              onInspect={() => setInspectedCard(slot.card)}
                             />
                           ) : (
                             /* Covered card back representing mockup style exactly */
@@ -2568,6 +2582,21 @@ export default function App() {
                   <div className="flex flex-col text-right">
                     <span className="text-[8px] font-black text-[#e0e0e0]/60 leading-none">راقصو التانغو</span>
                   </div>
+
+                  {/* Dynamic player Attack/Defense badge - requested by user */}
+                  {showPlayerAttack && (
+                    <div className="mr-auto ml-1.5 bg-amber-500/10 border border-amber-500/30 text-yellow-300 px-1.5 py-0.5 rounded-md text-[9px] font-black flex items-center gap-1 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.2)]">
+                      <span>🔥⚽</span>
+                      <span>{activeOffenseVal}</span>
+                    </div>
+                  )}
+                  {showPlayerDefense && (
+                    <div className="mr-auto ml-1.5 bg-sky-500/10 border border-sky-500/30 text-sky-300 px-1.5 py-0.5 rounded-md text-[9px] font-black flex items-center gap-1 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.2)]">
+                      <span>🛡️</span>
+                      <span>{activeDefenseVal}</span>
+                    </div>
+                  )}
+
                   <div className="bg-[#052311] border border-[#00ff66]/45 text-[#00ff66] px-2 py-0.5 rounded-full font-mono font-black text-xs shadow-[inset_0_0_4px_rgba(0,255,102,0.15)] min-w-[28px] text-center ml-1">
                     {playerScore}
                   </div>
@@ -2590,6 +2619,21 @@ export default function App() {
                   <div className="bg-[#24060b] border border-rose-500/45 text-rose-400 px-2 py-0.5 rounded-full font-mono font-black text-xs shadow-[inset_0_0_4px_rgba(244,63,94,0.15)] min-w-[28px] text-center mr-1">
                     {aiScore}
                   </div>
+
+                  {/* Dynamic AI Attack/Defense badge - requested by user */}
+                  {showAiDefense && (
+                    <div className="ml-auto mr-1.5 bg-sky-500/10 border border-sky-500/30 text-sky-300 px-1.5 py-0.5 rounded-md text-[9px] font-black flex items-center gap-1 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.25)]">
+                      <span>🛡️</span>
+                      <span>{activeDefenseVal}</span>
+                    </div>
+                  )}
+                  {showAiAttack && (
+                    <div className="ml-auto mr-1.5 bg-amber-500/10 border border-amber-500/30 text-yellow-300 px-1.5 py-0.5 rounded-md text-[9px] font-black flex items-center gap-1 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.25)]">
+                      <span>🔥⚽</span>
+                      <span>{activeOffenseVal}</span>
+                    </div>
+                  )}
+
                   <div className="flex flex-col text-right ml-1">
                     <span className="text-[8px] font-black text-[#e0e0e0]/60 leading-none">كتائب الروبوت</span>
                   </div>
@@ -2715,7 +2759,7 @@ export default function App() {
                     return (
                       <div 
                         key={`player-pitch-slot-${idx}`}
-                        className={`relative rounded-lg overflow-hidden aspect-[2/3] max-h-[18.5vh] w-full mx-auto transition-all flex flex-col justify-between ${
+                        className={`relative rounded-lg overflow-hidden aspect-[2/3] max-h-[22.5vh] md:max-h-[24vh] w-full mx-auto transition-all flex flex-col justify-between ${
                           isSelectable 
                             ? "ring-2 ring-emerald-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103 animate-pulse" 
                             : ""
@@ -2725,8 +2769,9 @@ export default function App() {
                           <div className="relative w-full h-full" onClick={() => handleSelectPitchSlot(idx)}>
                             <GameCard
                               card={slot.card}
-                              isRevealed={slot.isRevealed}
+                              isRevealed={true}
                               size="pitch"
+                              onInspect={() => setInspectedCard(slot.card)}
                             />
                             {isSpent && (
                               <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg pointer-events-none">
