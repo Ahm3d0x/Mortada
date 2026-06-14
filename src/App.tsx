@@ -2192,14 +2192,14 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050605] text-[#e0e0e0] font-sans p-4 relative overflow-x-hidden md:p-6 select-none">
+    <div className={`min-h-screen bg-[#050605] text-[#e0e0e0] font-sans relative ${phase === "menu" ? "p-4 md:p-6 overflow-y-auto" : "p-1.5 h-screen max-h-screen overflow-hidden md:p-2.5"} select-none`}>
       
       {/* Background glow effects */}
       <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-10 left-1/4 w-[400px] h-[400px] bg-teal-500/5 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Main Container */}
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className={`max-w-7xl mx-auto h-full flex flex-col ${phase === "menu" ? "space-y-6" : "space-y-1.5 lg:space-y-2 justify-between"}`}>
         
         {/* TOP STATUS NAVIGATION BAR - Hidden during matches on small viewports to match scribbled layouts */}
         <header className={`${phase === "menu" ? "flex" : "hidden lg:flex"} flex-col sm:flex-row items-center justify-between bg-[#0c0d0c] p-3 px-4 rounded-xl border border-white/5 backdrop-blur-md gap-3 select-none`}>
@@ -2352,67 +2352,67 @@ export default function App() {
             )}
           </div>
         ) : (
-          <div className="flex flex-col lg:flex-row gap-3 w-full h-full lg:h-[calc(100vh-140px)] select-none text-right">
+          <div className="flex flex-row gap-2 w-full h-full select-none text-right overflow-hidden">
             
             {/* LEFT SIDEBAR PANEL (Tactics block + Commentary log + Draw blocks) */}
-            <div className="w-full lg:w-[28%] flex flex-col gap-3 h-full justify-between">
+            <div className="w-[28%] md:w-[26%] min-w-[210px] max-w-[270px] flex flex-col gap-1.5 h-full justify-between overflow-hidden shrink-0">
               
-              {/* Box 1 (Tactics Panel) - matches the image layout identically */}
-              <div id="tactics_dashboard_sidebar" className="bg-[#0b100d] border-2 border-emerald-950/40 rounded-2xl p-3 flex flex-col gap-2.5 shadow-lg">
+              {/* Box 1 (Tactics Panel) - ultra compact layout matching the image identically */}
+              <div id="tactics_dashboard_sidebar" className="bg-[#0b100d] border border-[#166534]/30 rounded-xl p-1.5 flex flex-col gap-1 shadow-md">
                 <div>
-                  <div className="text-emerald-400 font-bold text-xs pb-1.5 border-b border-white/5 flex items-center justify-between">
-                    <span className="text-[10px] text-white/30">⚔️</span>
+                  <div className="text-emerald-400 font-extrabold text-[9.5px] pb-0.5 border-b border-white/5 flex items-center justify-between">
+                    <span className="text-[8px] text-white/35">⚔️</span>
                     <span>تكتيكاتي</span>
                   </div>
-                  <div className="flex flex-col items-center justify-center p-3 mt-1.5 bg-black/44 rounded-xl min-h-[44px]">
+                  <div className="flex items-center justify-center p-1 bg-black/44 rounded-md min-h-[22px]">
                     {playerActiveSpecial ? (
-                      <span className="text-[#00ff66] font-bold text-xs animate-pulse">
+                      <span className="text-[#00ff66] font-bold text-[9px] animate-pulse truncate">
                         ⚡ {playerActiveSpecial.name}
                       </span>
                     ) : (
-                      <div className="flex items-center gap-1.5 text-[#ff3838] font-bold text-xs">
+                      <div className="flex items-center gap-1 text-[#ff3838] font-bold text-[8.5px] leading-tight">
                         <span>لا يوجد</span>
-                        <span className="bg-[#ff3838]/10 text-[#ff3838] w-4 h-4 rounded-full flex items-center justify-center text-[10px]">✕</span>
+                        <span className="text-[7.5px]">✕</span>
                       </div>
                     )}
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-[#ff5252] font-bold text-xs pb-1.5 border-b border-white/5 flex items-center justify-between">
-                    <span className="text-[10px] text-white/30">🛡️</span>
+                  <div className="text-[#ff5252] font-extrabold text-[9.5px] pb-0.5 border-b border-white/5 flex items-center justify-between mt-0.5">
+                    <span className="text-[8px] text-white/35">🛡️</span>
                     <span>تكتيكات الخصم</span>
                   </div>
-                  <div className="flex flex-col items-center justify-center p-3 mt-1.5 bg-black/44 rounded-xl min-h-[44px]">
+                  <div className="flex items-center justify-center p-1 bg-black/44 rounded-md min-h-[22px]">
                     {aiActiveSpecial ? (
-                      <span className="text-rose-400 font-bold text-xs animate-pulse">
+                      <span className="text-rose-400 font-bold text-[9px] animate-pulse truncate">
                         🛡️ {aiActiveSpecial.name}
                       </span>
                     ) : (
-                      <div className="flex items-center gap-1.5 text-[#ff3838] font-bold text-xs">
+                      <div className="flex items-center gap-1 text-[#ff3838] font-bold text-[8.5px] leading-tight">
                         <span>لا يوجد</span>
-                        <span className="bg-[#ff3838]/10 text-[#ff3838] w-4 h-4 rounded-full flex items-center justify-center text-[10px]">✕</span>
+                        <span className="text-[7.5px]">✕</span>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Box 2 (Actions Commentary Log) */}
+              {/* Box 2 (Actions Commentary Log) - Scrollable list strictly bounded with custom thin scrollbar */}
               <div 
                 id="commentary_sidebar_panel"
-                className="border-2 border-[#125827]/40 bg-[#060c07] rounded-2xl flex-1 flex flex-col overflow-hidden p-3 min-h-[140px] shadow-lg"
+                className="border border-[#125827]/45 bg-[#050a06] rounded-xl flex-1 flex flex-col overflow-hidden p-2 shadow-sm min-h-[90px]"
               >
-                <div className="text-white/40 text-[9px] font-bold font-sans border-b border-white/5 pb-1 mb-2 text-right flex items-center justify-between">
+                <div className="text-white/40 text-[8.5px] font-bold font-sans border-b border-white/5 pb-0.5 mb-1 text-right flex items-center justify-between shrink-0">
                   <span>⏱️ التعليق المباشر</span>
                   <span>سجل حركات اللعب</span>
                 </div>
                 <div 
                   ref={customLogContainerRef}
-                  className="flex-1 overflow-y-auto space-y-1.5 pr-1 scroll-smooth text-right direction-rtl scrollbar-thin select-text"
+                  className="flex-1 overflow-y-auto space-y-1 pr-1 scroll-smooth text-right direction-rtl select-text scrollbar-thin scrollbar-thumb-emerald-800/50"
                 >
                   {logs.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-white/20 text-[10px] p-2 leading-relaxed">
+                    <div className="h-full flex flex-col items-center justify-center text-white/20 text-[8.5px] p-1.5 leading-relaxed">
                       <span>جرى التحضير... ابدأ بتحريك خطوطك! 🏃‍♂️</span>
                     </div>
                   ) : (
@@ -2426,7 +2426,7 @@ export default function App() {
                       else if (isWarning) colorClass = "text-amber-400";
                       
                       return (
-                        <div key={log.id} className="text-[10px] md:text-[11px] leading-normal border-b border-white/5 pb-1 flex items-start gap-1 justify-end font-sans">
+                        <div key={log.id} className="text-[9px] leading-snug border-b border-white/5 pb-0.5 flex items-start gap-1 justify-end font-sans">
                           <span className={`${colorClass} flex-1 text-right`}>{log.text}</span>
                           <span className="text-emerald-500/60 font-black shrink-0">-</span>
                         </div>
@@ -2436,10 +2436,10 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Box 3 (Draw Decks & Substitutes controls) */}
-              <div id="decks_action_grid" className="grid grid-cols-2 gap-2 mt-auto pt-1">
+              {/* Box 3 (Draw Decks & Substitutes controls) - Standard compact sizes exactly as requested */}
+              <div id="decks_action_grid" className="grid grid-cols-2 gap-1.5 mt-auto pt-0.5 shrink-0">
                 
-                {/* DRAW PLAYER CARD BLOCK (Yellow background) */}
+                {/* DRAW PLAYER CARD BLOCK (Yellow background - runner emoji layout) */}
                 <button
                   type="button"
                   onClick={() => {
@@ -2450,17 +2450,17 @@ export default function App() {
                       addLog("تنبيه: يمكنك سحب كروت فقط في مرحلة السحب الخاصة بدورك!", "warning");
                     }
                   }}
-                  className="bg-[#f59e0b] hover:bg-[#d97706] text-black font-extrabold p-2.5 rounded-2xl flex flex-col items-center justify-center gap-1 aspect-square cursor-pointer transition-transform duration-200 active:scale-95 shadow-md border border-white/10 group relative"
+                  className="bg-[#f59e0b] hover:bg-[#d97706] text-black font-extrabold h-[64px] rounded-xl flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-transform duration-100 active:scale-95 shadow-sm border border-white/5 group relative"
                   title="سحب كارت لاعب"
                 >
-                  <span className="text-2xl group-hover:animate-bounce">🏃‍♂️</span>
-                  <span className="text-[10px] font-black leading-none">باقة اللاعبين</span>
-                  <span className="bg-black/15 text-[8.5px] px-1.5 py-0.5 rounded-full font-sans">
-                    {playerDeck.length} كارت
+                  <span className="text-lg group-hover:animate-bounce">🏃‍♂️</span>
+                  <span className="text-[9px] font-black leading-none">باقة اللاعبين</span>
+                  <span className="bg-black/10 text-[8px] px-1 py-0.2 rounded font-sans scale-90 font-bold">
+                    كارت {playerDeck.length}
                   </span>
                 </button>
 
-                {/* DRAW TACTIC CARD BLOCK (Purple background) */}
+                {/* DRAW TACTIC CARD BLOCK (Purple background - wand/stars logo layout) */}
                 <button
                   type="button"
                   onClick={() => {
@@ -2471,26 +2471,28 @@ export default function App() {
                       addLog("تنبيه: يمكنك سحب كروت فقط في مرحلة السحب الخاصة بدورك!", "warning");
                     }
                   }}
-                  className="bg-[#a855f7] hover:bg-[#9333ea] text-white font-extrabold p-2.5 rounded-2xl flex flex-col items-center justify-center gap-1 aspect-square cursor-pointer transition-transform duration-200 active:scale-95 shadow-md border border-white/10 group relative"
+                  className="bg-[#a855f7] hover:bg-[#9333ea] text-white font-extrabold h-[64px] rounded-xl flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-transform duration-100 active:scale-95 shadow-sm border border-white/5 group relative"
                   title="سحب كارت تكتيك"
                 >
-                  <span className="text-2xl group-hover:rotate-12 transition-transform">🪄</span>
-                  <span className="text-[10px] font-black leading-none">باقة التكتيكات</span>
-                  <span className="bg-black/30 text-[8.5px] text-purple-200 px-1.5 py-0.5 rounded-full font-sans">
-                    {specialDeck.length} كارت
+                  <span className="text-lg group-hover:rotate-12 transition-transform">🪄</span>
+                  <span className="text-[9px] font-black leading-none text-purple-100">باقة التكتيكات</span>
+                  <span className="bg-black/20 text-[8px] text-purple-200 px-1 py-0.2 rounded font-sans scale-90 font-bold">
+                    كارت {specialDeck.length}
                   </span>
                 </button>
 
-                {/* SUBSTITUTES BAG TRIGGER BUTTON (Double column) */}
+                {/* SUBSTITUTES BAG TRIGGER BUTTON (Double column) - Matches the layout: 👦 🔃 👦 */}
                 <button
                   type="button"
                   onClick={() => setIsHandExpanded(!isHandExpanded)}
-                  className="col-span-2 bg-[#84cc16] hover:bg-[#65a30d] text-black font-extrabold h-11 rounded-2xl flex items-center justify-center gap-3 cursor-pointer shadow-md transition-all active:scale-[0.98] border border-white/10 relative"
+                  className="col-span-2 bg-[#84cc16] hover:bg-[#65a30d] text-black font-extrabold h-7 rounded-lg flex items-center justify-between px-3.5 cursor-pointer shadow-sm transition-all active:scale-[0.98] border border-white/5 shrink-0"
                 >
-                  <span className="text-base">👤</span>
-                  <span className="text-xs font-black">حقيبة البدلاء (سحب / استبدال)</span>
-                  <span className="text-lg text-blue-800 font-bold">🔃</span>
-                  <span className="text-base">👤</span>
+                  <span className="text-xs">👦</span>
+                  <span className="text-[9px] font-black flex items-center gap-1 justify-center mx-auto">
+                    <span>حقيبة البدلاء (سحب / استبدال)</span>
+                    <span className="text-xs">🔃</span>
+                  </span>
+                  <span className="text-xs">👦</span>
                 </button>
 
               </div>
@@ -2499,18 +2501,18 @@ export default function App() {
 
 
             {/* RIGHT FIELD MAIN PANEL (Opponent Slots, Scoreboard, Actions Bar, Player Slots) */}
-            <div className="flex-1 flex flex-col gap-3 h-full justify-between">
+            <div className="flex-1 flex flex-col gap-1.5 h-full justify-between overflow-hidden">
               
-              {/* Row 1 (Opponent Football Pitch Slots - Red Neon Grid) */}
-              <div className="border-2 border-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.45)] bg-[#040804]/90 rounded-2xl p-2.5 flex flex-col gap-2 relative">
+              {/* Row 1 (Opponent Football Pitch Slots - Compact Red Border) */}
+              <div className="border border-rose-500/60 shadow-[0_0_6px_rgba(244,63,94,0.25)] bg-[#040804]/90 rounded-xl p-1.5 flex flex-col gap-1 relative flex-1 min-h-[100px] justify-between">
                 
                 {/* Header text */}
-                <div className="flex items-center justify-between text-rose-400 font-black text-[9.5px] px-1 uppercase tracking-wider">
+                <div className="flex items-center justify-between text-rose-450 font-extrabold text-[8.5px] px-1 uppercase tracking-tight leading-none shrink-0">
                   <span>الذكاء الاصطناعي 🆚 الخصم</span>
                   <span>خط دفاع ومحاور الخصم 🛡️</span>
                 </div>
 
-                <div className="grid grid-cols-5 gap-2 w-full">
+                <div className="grid grid-cols-5 gap-1.5 w-full flex-1 items-center">
                   {aiSlots.map((slot, idx) => {
                     const isSelectable = isSlotSelectable(idx, true);
                     const isChosenToAttack = currentAttackerIdx === idx && phase !== "player_turn";
@@ -2518,9 +2520,9 @@ export default function App() {
                     return (
                       <div 
                         key={`ai-pitch-slot-${idx}`}
-                        className={`relative rounded-xl overflow-hidden aspect-[2/3] transition-all flex flex-col justify-between ${
+                        className={`relative rounded-lg overflow-hidden aspect-[2/3] max-h-[15.5vh] w-full mx-auto transition-all flex flex-col justify-between ${
                           isSelectable 
-                            ? "ring-2 ring-rose-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-105" 
+                            ? "ring-2 ring-rose-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103" 
                             : ""
                         }`}
                       >
@@ -2536,21 +2538,21 @@ export default function App() {
                             /* Covered card back representing mockup style exactly */
                             <div 
                               onClick={() => isSelectable && handleSelectPitchSlot(idx)}
-                              className="w-full h-full rounded-xl border-2 border-red-500/90 bg-gradient-to-b from-[#141514] to-black p-2 flex flex-col justify-between shadow-[0_0_8px_rgba(239,68,68,0.55)] cursor-pointer hover:scale-103 transition-transform select-none"
+                              className="w-full h-full rounded-lg border border-red-500/80 bg-gradient-to-b from-[#141514] to-black p-1 flex flex-col justify-between shadow-[0_0_4px_rgba(239,68,68,0.45)] cursor-pointer hover:scale-102 transition-transform select-none"
                             >
-                              <div className="w-full flex justify-between items-center opacity-40 text-[7px] text-white/50 font-black font-sans leading-none">
+                              <div className="w-full flex justify-between items-center opacity-30 text-[6.5px] text-white/50 leading-none">
                                 <span>MORTADA</span>
                                 <span>مرتدة</span>
                               </div>
 
-                              <div className="flex flex-col items-center gap-1">
-                                <div className="w-7 h-7 rounded-full bg-[#121412] border border-white/5 flex items-center justify-center shadow-lg">
-                                  <span className="text-xs">⚽</span>
+                              <div className="flex flex-col items-center gap-0.5">
+                                <div className="w-5 h-5 rounded-full bg-[#121412] border border-white/5 flex items-center justify-center shadow-md">
+                                  <span className="text-[9px]">⚽</span>
                                 </div>
                               </div>
 
                               <div className="w-full flex justify-center text-center">
-                                <span className="text-[8px] text-emerald-400 font-black tracking-widest uppercase">
+                                <span className="text-[7.5px] text-emerald-400 font-extrabold pb-0.5 uppercase tracking-wider">
                                   تكتيك
                                 </span>
                               </div>
@@ -2560,15 +2562,15 @@ export default function App() {
                           /* Empty Opponent Slot placeholder */
                           <div 
                             onClick={() => isSelectable && handleSelectPitchSlot(idx)}
-                            className="w-full h-full rounded-xl border border-dashed border-rose-950/40 bg-black/40 flex items-center justify-center p-1 cursor-pointer"
+                            className="w-full h-full rounded-lg border border-dashed border-rose-950/30 bg-black/40 flex items-center justify-center p-0.5 cursor-pointer"
                           >
-                            <span className="text-rose-900/60 font-sans text-[9px] font-black">شاغر 🕳️</span>
+                            <span className="text-rose-900/50 font-sans text-[8.5px] font-bold">شاغر 🕳️</span>
                           </div>
                         )}
 
                         {/* Chosen Attacker Marker glow */}
                         {isChosenToAttack && (
-                          <div className="absolute inset-0 bg-rose-900/25 border-2 border-rose-500 animate-ping pointer-events-none rounded-xl" />
+                          <div className="absolute inset-0 bg-rose-900/25 border-2 border-rose-500 animate-ping pointer-events-none rounded-lg" />
                         )}
                       </div>
                     );
@@ -2577,23 +2579,23 @@ export default function App() {
               </div>
 
 
-              {/* Row 2 (Beautiful Scoreboard and Clock Indicator - Cyan Neon Glow) */}
-              <div className="border-2 border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.5)] bg-[#030604]/95 rounded-2xl px-4 py-2 flex items-center justify-between gap-4 w-full h-[52px]">
+              {/* Row 2 (Beautiful Scoreboard and Clock Indicator - Cyan Neon Glow - Sleek) */}
+              <div className="border border-cyan-400/80 shadow-[0_0_8px_rgba(34,211,238,0.35)] bg-[#030604]/95 rounded-xl px-3 py-1 flex items-center justify-between gap-3 w-full h-[40px] shrink-0 select-none">
                 
                 {/* Scoreboard Left Team (User) */}
-                <div className="flex items-center gap-2.5 text-right flex-1">
-                  <span className="text-lg">🇦🇷</span>
+                <div className="flex items-center gap-1.5 text-right flex-1 select-none">
+                  <span className="text-base leading-none">🇦🇷</span>
                   <div className="flex flex-col text-right">
-                    <span className="text-white text-xs font-black leading-none">{coachName || "المدرب المحترف"}</span>
-                    <span className="text-[9px] text-[#e0e0e0]/40 leading-none mt-1">راقصو التانغو</span>
+                    <span className="text-white text-[10px] font-black leading-none">{coachName || "المدرب المحترف"}</span>
+                    <span className="text-[8px] text-[#e0e0e0]/40 leading-none mt-0.5">راقصو التانغو</span>
                   </div>
-                  <div className="bg-[#052311] border border-[#00ff66]/45 text-[#00ff66] px-3.5 py-1 rounded-full font-mono font-black text-sm shadow-[inset_0_0_6px_rgba(0,255,102,0.15)] min-w-[34px] text-center ml-1">
+                  <div className="bg-[#052311] border border-[#00ff66]/45 text-[#00ff66] px-2 py-0.5 rounded-full font-mono font-black text-xs shadow-[inset_0_0_4px_rgba(0,255,102,0.15)] min-w-[28px] text-center ml-1">
                     {playerScore}
                   </div>
                 </div>
 
                 {/* Clock Stopwatch in the middle */}
-                <div className="flex items-center justify-center gap-1.5 text-emerald-400 font-mono font-black text-xs bg-black/60 px-3 py-1 rounded-xl shadow-inner border border-white/5 whitespace-nowrap shrink-0">
+                <div className="flex items-center justify-center gap-1 text-emerald-400 font-mono font-black text-[10px] bg-black/60 px-2 py-0.5 rounded-lg shadow-inner border border-white/5 whitespace-nowrap shrink-0">
                   <span>⏱️</span>
                   <span className="tracking-widest">
                     {(() => {
@@ -2605,26 +2607,25 @@ export default function App() {
                 </div>
 
                 {/* Scoreboard Right Team (Opponent) */}
-                <div className="flex items-center gap-2.5 text-left flex-1 justify-end">
-                  <div className="bg-[#24060b] border border-rose-500/45 text-rose-400 px-3.5 py-1 rounded-full font-mono font-black text-sm shadow-[inset_0_0_6px_rgba(244,63,94,0.15)] min-w-[34px] text-center mr-1">
+                <div className="flex items-center gap-1.5 text-left flex-1 justify-end select-none">
+                  <div className="bg-[#24060b] border border-rose-500/45 text-rose-400 px-2 py-0.5 rounded-full font-mono font-black text-xs shadow-[inset_0_0_4px_rgba(244,63,94,0.15)] min-w-[28px] text-center mr-1">
                     {aiScore}
                   </div>
                   <div className="flex flex-col text-right">
-                    <span className="text-white text-xs font-black leading-none">{aiCoachName || "الخصم الآلي"}</span>
-                    <span className="text-[9px] text-[#e0e0e0]/45 leading-none mt-1">كتائب الروبوت الذكية</span>
+                    <span className="text-white text-[10px] font-black leading-none">{aiCoachName || "الخصم الآلي"}</span>
+                    <span className="text-[8px] text-[#e0e0e0]/45 leading-none mt-0.5">كتائب الروبوت</span>
                   </div>
-                  <span className="text-base">🤖</span>
-                  <span className="text-xs font-black">⚽</span>
+                  <span className="text-sm">🤖</span>
                 </div>
 
               </div>
 
 
-              {/* Row 3 (Golden Dashboard controller toolbar - Amber Neon Glow) */}
-              <div className="border-2 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.4)] bg-[#030604]/95 rounded-2xl px-4 py-2 flex items-center justify-between gap-4 w-full h-[52px]">
+              {/* Row 3 (Golden Dashboard controller toolbar - Amber Neon Glow - Compact) */}
+              <div className="border border-amber-400/80 shadow-[0_0_8px_rgba(245,158,11,0.3)] bg-[#030604]/95 rounded-xl px-3 py-1 flex items-center justify-between gap-3 w-full h-[40px] shrink-0 select-none">
                 
                 {/* State Tag badge */}
-                <div className="bg-gradient-to-r from-emerald-600/15 to-teal-600/15 text-emerald-400 border border-emerald-500/25 px-2.5 py-1 rounded-lg font-black text-[10px] shadow-sm whitespace-nowrap shrink-0">
+                <div className="bg-gradient-to-r from-emerald-600/15 to-teal-600/15 text-emerald-400 border border-emerald-500/25 px-2 py-0.5 rounded-lg font-black text-[9px] shadow-sm whitespace-nowrap shrink-0 leading-none">
                   {phase === "warmup" && "مرحلة التسخين ⚽"}
                   {phase === "player_turn" && "دورك التكتيكي 🧠"}
                   {phase === "ai_turn" && "دفاع الخصم مستعد 🤖"}
@@ -2635,17 +2636,17 @@ export default function App() {
                 </div>
 
                 {/* Status Counters pills */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <div className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded-md text-[9px] font-black font-sans leading-none">
+                <div className="flex items-center gap-1 shrink-0 scale-95">
+                  <div className="bg-amber-500/10 text-amber-300 border border-amber-500/25 px-1.5 py-0.5 rounded text-[8px] font-black font-sans leading-none">
                     حركة {playerMovesLeft} / 3
                   </div>
-                  <div className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md text-[9px] font-black font-sans leading-none">
+                  <div className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-1.5 py-0.5 rounded text-[8px] font-black font-sans leading-none">
                     سحب {cardsDrawnThisTurn} / 2
                   </div>
                 </div>
 
                 {/* Actionable Buttons depending on phase */}
-                <div className="flex items-center gap-2 justify-end">
+                <div className="flex items-center gap-1.5 justify-end">
                   
                   {phase === "player_turn" && (
                     <>
@@ -2653,7 +2654,7 @@ export default function App() {
                         type="button"
                         onClick={handleDeclareAttack}
                         disabled={playerMovesLeft < 2 && selectedPitchSlotIdx === null}
-                        className="bg-[#881337] hover:bg-[#9f1239] disabled:opacity-40 text-white font-extrabold py-1 px-3 rounded-lg text-[10.5px] flex items-center gap-1 cursor-pointer transition-colors"
+                        className="bg-[#881337] hover:bg-[#9f1239] disabled:opacity-40 text-white font-extrabold py-0.5 px-2 rounded-md text-[9.5px] flex items-center gap-0.5 cursor-pointer transition-colors leading-normal"
                       >
                         <span>هجوم مباشر</span>
                         <span>⚔️</span>
@@ -2661,10 +2662,9 @@ export default function App() {
                       <button
                         type="button"
                         onClick={handleEndPlayerTurn}
-                        className="bg-[#2d3748] hover:bg-[#3d4a5f] text-slate-300 font-extrabold py-1 px-2.5 rounded-lg text-[10.5px] border border-white/5 cursor-pointer transition-colors"
+                        className="bg-[#2d3748] hover:bg-[#3d4a5f] text-slate-305 font-extrabold py-0.5 px-2 rounded-md text-[10px] border border-white/5 cursor-pointer transition-colors leading-normal"
                       >
-                        <span>إنهاء الدور</span>
-                        <span>⏳</span>
+                        <span>إنهاء الدور ⏳</span>
                       </button>
                     </>
                   )}
@@ -2673,7 +2673,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleConfirmLineup}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-1 px-4.5 rounded-lg text-[10.5px] cursor-pointer transition-colors"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-0.5 px-3 rounded-md text-[10px] cursor-pointer transition-colors leading-normal"
                     >
                       بدء اللقاء 🏁
                     </button>
@@ -2684,7 +2684,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={handleResolveAttack}
-                        className="bg-rose-600 hover:bg-rose-500 text-white font-black py-1 px-4 rounded-lg text-[10.5px] cursor-pointer transition-colors"
+                        className="bg-rose-600 hover:bg-rose-500 text-white font-black py-0.5 px-3 rounded-md text-[10px] cursor-pointer transition-colors leading-normal"
                       >
                         تسديدة حاسمة ⚽
                       </button>
@@ -2692,9 +2692,9 @@ export default function App() {
                         <button
                           type="button"
                           onClick={handleForceEndAttack}
-                          className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-1 px-3 rounded-lg text-[10px] cursor-pointer"
+                          className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-0.5 px-2 rounded-md text-[9px] cursor-pointer"
                         >
-                          إنهاء الهجمة 🛑
+                          إنهاء 🛑
                         </button>
                       )}
                     </>
@@ -2704,7 +2704,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleConfirmDefense}
-                      className="bg-blue-600 hover:bg-blue-500 text-white font-black py-1 px-4 rounded-lg text-[10.5px] cursor-pointer transition-colors"
+                      className="bg-blue-600 hover:bg-blue-500 text-white font-black py-0.5 px-3 rounded-md text-[10px] cursor-pointer transition-colors leading-normal"
                     >
                       تأكيد الدفاع 🛡️
                     </button>
@@ -2714,7 +2714,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleResetGame}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-1 px-4 rounded-lg text-[10.5px] cursor-pointer"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-0.5 px-3 rounded-md text-[10px] cursor-pointer"
                     >
                       مباراة جديدة 🔁
                     </button>
@@ -2725,16 +2725,16 @@ export default function App() {
               </div>
 
 
-              {/* Row 4 (Player Pitch Slots - Neon Green Grid) */}
-              <div className="border-2 border-emerald-500 shadow-[0_0_12px_rgba(34,197,94,0.45)] bg-[#040804]/90 rounded-2xl p-2.5 flex flex-col gap-2 relative">
+              {/* Row 4 (Player Pitch Slots - Compact Green Border) */}
+              <div className="border border-emerald-500/60 shadow-[0_0_6px_rgba(34,197,94,0.25)] bg-[#040804]/90 rounded-xl p-1.5 flex flex-col gap-1 relative flex-1 min-h-[100px] justify-between">
                 
                 {/* Header text */}
-                <div className="flex items-center justify-between text-emerald-400 font-black text-[9.5px] px-1 uppercase tracking-wider">
+                <div className="flex items-center justify-between text-emerald-450 font-extrabold text-[8.5px] px-1 uppercase tracking-tight leading-none shrink-0 border-b border-emerald-900/10 pb-0.5">
                   <span>منتخب التانغو الخاص بك 👑</span>
                   <span>خط دفاع ومراكز لاعبيك بالملعب ⚔️</span>
                 </div>
 
-                <div className="grid grid-cols-5 gap-2 w-full">
+                <div className="grid grid-cols-5 gap-1.5 w-full flex-1 items-center">
                   {playerSlots.map((slot, idx) => {
                     const isSelectable = isSlotSelectable(idx, false);
                     const isSelected = selectedPitchSlotIdx === idx;
@@ -2743,9 +2743,9 @@ export default function App() {
                     return (
                       <div 
                         key={`player-pitch-slot-${idx}`}
-                        className={`relative rounded-xl overflow-hidden aspect-[2/3] transition-all flex flex-col justify-between ${
+                        className={`relative rounded-lg overflow-hidden aspect-[2/3] max-h-[15.5vh] w-full mx-auto transition-all flex flex-col justify-between ${
                           isSelectable 
-                            ? "ring-2 ring-emerald-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-105 animate-pulse" 
+                            ? "ring-2 ring-emerald-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103 animate-pulse" 
                             : ""
                         } ${isSelected ? "ring-2 ring-amber-400 ring-offset-1 ring-offset-black scale-102" : ""}`}
                       >
@@ -2757,8 +2757,8 @@ export default function App() {
                               size="pitch"
                             />
                             {isSpent && (
-                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl pointer-events-none">
-                                <span className="text-[10px] text-yellow-500 font-extrabold uppercase bg-black/80 px-1 py-0.5 rounded border border-yellow-500/20">منتهي</span>
+                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg pointer-events-none">
+                                <span className="text-[8px] text-yellow-500 font-extrabold uppercase bg-black/85 px-1 py-0.2 rounded border border-yellow-500/20">منتهي</span>
                               </div>
                             )}
                           </div>
@@ -2766,10 +2766,10 @@ export default function App() {
                           /* Empty Player Slot matching mockup exactly */
                           <div 
                             onClick={() => handleSelectPitchSlot(idx)}
-                            className="w-full h-full rounded-xl border-2 border-dashed border-emerald-500/20 bg-black/60 flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-emerald-500/40 hover:bg-emerald-950/20 transition-all p-1"
+                            className="w-full h-full rounded-lg border border-dashed border-emerald-500/30 bg-black/60 flex flex-col items-center justify-center gap-0.5 cursor-pointer hover:border-emerald-500/40 hover:bg-emerald-950/20 transition-all p-1"
                           >
-                            <span className="text-emerald-400 font-black text-xl leading-none">+</span>
-                            <span className="text-emerald-500/60 font-sans text-[9px] font-bold">تنزيل لاعب</span>
+                            <span className="text-emerald-400 font-extrabold text-sm leading-none">+</span>
+                            <span className="text-emerald-500/50 font-sans text-[8px] font-bold">تنزيل لاعب</span>
                           </div>
                         )}
                       </div>
