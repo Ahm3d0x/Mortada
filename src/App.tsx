@@ -27,6 +27,7 @@ import ActionDashboard from "./components/ActionDashboard";
 import DrawDecksDashboard from "./components/DrawDecksDashboard";
 import TopScoreHeader from "./components/TopScoreHeader";
 import CardInspectorModal from "./components/CardInspectorModal";
+import InstallPromptModal from "./components/InstallPromptModal";
 
 // Helper to format timestamps 
 const getFormattedTime = () => {
@@ -126,6 +127,11 @@ export default function App() {
   // Ripple waves for action click triggers
   const [btnRipples, setBtnRipples] = useState<{ id: number; x: number; y: number }[]>([]);
 
+  // Mobile optimization and PWA states
+  const [activeMobileTab, setActiveMobileTab] = useState<"pitch" | "sidebar">("pitch");
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
   const isReceivingUpdate = React.useRef(false);
   const customLogContainerRef = React.useRef<HTMLDivElement>(null);
 
@@ -144,6 +150,32 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [celebrationMessage]);
+
+  // Intercept standard PWA installation triggers
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+  }, []);
+
+  const handleTriggerInstall = async () => {
+    if (deferredPrompt) {
+      try {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`User accepted PWA installation option: ${outcome}`);
+        setDeferredPrompt(null);
+      } catch (err) {
+        console.warn("Failed to prompt PWA installation:", err);
+        setIsInstallModalOpen(true);
+      }
+    } else {
+      setIsInstallModalOpen(true);
+    }
+  };
 
   // Sync current local state to Supabase
   const syncToSupabaseInstance = async (
@@ -2245,6 +2277,15 @@ export default function App() {
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
+
+              <button
+                onClick={handleTriggerInstall}
+                className="px-3 py-1.5 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 text-[#10b981] border border-emerald-500/30 rounded font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                title="تثبيت اللعبة كبرنامج للموبايل"
+              >
+                <span>📱</span>
+                <span className="hidden xs:inline">تثبيت اللعبة</span>
+              </button>
               
               {/* Turn-based logging display toggle - Requirement 3 */}
               {phase !== "menu" && (
@@ -2320,13 +2361,13 @@ export default function App() {
         {/* CONDITION-BASED ROUTING VIEWS */}
         {phase === "menu" ? (
           <div className="flex flex-col justify-center items-center flex-1 py-4 md:py-6" id="welcome_menu_wrapper">
-            <WelcomeMenu onStartGame={handleStartGame} />
+            <WelcomeMenu onStartGame={handleStartGame} onInstallClick={handleTriggerInstall} />
           </div>
         ) : (
-          <div className="flex flex-row gap-2 w-full h-full select-none text-right overflow-hidden">
+          <div className="flex flex-col lg:flex-row gap-1.5 lg:gap-2.5 w-full h-full select-none text-right overflow-hidden">
             
             {/* LEFT SIDEBAR PANEL (Tactics block + Commentary log + Draw blocks) */}
-            <div className="w-[28%] md:w-[26%] min-w-[210px] max-w-[270px] flex flex-col gap-1.5 h-full justify-between overflow-hidden shrink-0">
+            <div className={`${activeMobileTab === "sidebar" ? "flex" : "hidden"} lg:flex w-full lg:w-[26%] lg:max-w-[270px] flex-col gap-1.5 h-full justify-between overflow-hidden shrink-0`}>
               
               {/* Box 1 (Tactics Panel) - ultra compact layout matching the image identically */}
               <div id="tactics_dashboard_sidebar" className="bg-[#0b100d] border border-white/5 rounded-xl p-1 flex flex-col gap-1 shadow-md select-none">
@@ -2797,6 +2838,32 @@ export default function App() {
 
             </div>
 
+            {/* Mobile Bottom Navigation Bar (ONLY shown during matches on small viewports) */}
+            <div className="lg:hidden flex items-center justify-between gap-1.5 w-full bg-[#0c0d0c]/95 border border-white/10 rounded-xl p-1.5 shrink-0 select-none z-10 shadow-lg mt-0.5">
+              <button
+                type="button"
+                onClick={() => setActiveMobileTab("pitch")}
+                className={`flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border-none ${
+                  activeMobileTab === "pitch"
+                    ? "bg-gradient-to-r from-emerald-600 to-emerald-500 text-black shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+                    : "bg-transparent text-slate-400 hover:text-white"
+                }`}
+              >
+                <span>⚽ الملعب التكتيكي واللعب</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveMobileTab("sidebar")}
+                className={`flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border-none ${
+                  activeMobileTab === "sidebar"
+                    ? "bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/30 shadow-[0_0_10px_rgba(168,85,247,0.1)]"
+                    : "bg-transparent text-slate-400 hover:text-white"
+                }`}
+              >
+                <span>🎙️ سحب الكروت والتعليق</span>
+              </button>
+            </div>
+
           </div>
         )}
 
@@ -2959,6 +3026,14 @@ export default function App() {
       <CardInspectorModal
         card={inspectedCard}
         onClose={() => setInspectedCard(null)}
+      />
+
+      {/* PWA mobile helper installation instructions prompt */}
+      <InstallPromptModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+        onInstall={handleTriggerInstall}
+        isInstallSupported={!!deferredPrompt}
       />
 
     </div>

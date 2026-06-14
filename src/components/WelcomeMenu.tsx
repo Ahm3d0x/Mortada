@@ -16,6 +16,7 @@ interface WelcomeMenuProps {
     matchDuration: number,
     legendPercentage: number
   ) => void;
+  onInstallClick?: () => void;
 }
 
 const TEAM_VIBES = [
@@ -27,7 +28,7 @@ const TEAM_VIBES = [
   { name: "الملكي", color: "from-indigo-600 to-violet-800", desc: "شخصية البطل العريقة", emoji: "👑" }
 ];
 
-export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
+export default function WelcomeMenu({ onStartGame, onInstallClick }: WelcomeMenuProps) {
   const [step, setStep] = useState<"cover" | "coach" | "match" | "opponent">("cover");
   const [coachName, setCoachName] = useState("");
   const [selectedVibe, setSelectedVibe] = useState(TEAM_VIBES[0]);
@@ -118,6 +119,17 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
               >
                 <span>بدء اللعبة وتجهيز الفريق ⚽</span>
                 <ArrowLeft className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  SoundEffects.playCardDraw();
+                  onInstallClick?.();
+                }}
+                className="w-full py-2 bg-[#121613] hover:bg-emerald-950/20 text-emerald-400 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-emerald-500/25 active:scale-[0.99] transition-all cursor-pointer shadow-md"
+              >
+                <span>📱 تثبيت اللعبة كبرنامج للموبايل</span>
               </button>
               
               <p className="text-[9px] text-[#e0e0e0]/30">
