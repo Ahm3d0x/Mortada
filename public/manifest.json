@@ -1,0 +1,16 @@
+{
+  "short_name": "مرتدة",
+  "name": "مرتدة - لعبة تكتيك كرة القدم",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#050605",
+  "theme_color": "#10b981",
+  "display": "fullscreen",
+  "orientation": "portrait"
+}

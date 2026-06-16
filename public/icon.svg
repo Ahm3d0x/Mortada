@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b100d" />
+      <stop offset="100%" stop-color="#050605" />
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)" stroke="#10b981" stroke-width="8" stroke-opacity="0.2"/>
+  <!-- Glowing circular aura -->
+  <circle cx="256" cy="256" r="160" fill="none" stroke="url(#glowGrad)" stroke-width="4" stroke-opacity="0.3" />
+  <!-- Soccer Ball / Tactical Theme -->
+  <circle cx="256" cy="256" r="120" fill="none" stroke="url(#glowGrad)" stroke-width="8" />
+  <path d="M 256 136 L 256 376 M 136 256 L 376 256" stroke="url(#glowGrad)" stroke-width="6" stroke-dasharray="10 6" />
+  <!-- Curved tactical arrows or star -->
+  <path d="M 200 200 L 256 170 L 312 200 L 290 256 L 312 312 L 256 282 L 200 312 L 222 256 Z" fill="url(#glowGrad)" />
+</svg>

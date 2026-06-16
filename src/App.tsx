@@ -11,8 +11,10 @@ import {
   Card, PlayerCard, SpecialCard, PontoCard, GamePhase, ActionLog, Coach, GameState 
 } from "./types";
 import { 
-  generatePlayerDeck, generateSpecialDeck, generatePontoDeck, INITIAL_PONTO_CARDS 
+  generatePlayerDeck, generateSpecialDeck, generatePontoDeck, INITIAL_PONTO_CARDS,
+  generateDeckFromPool, generateSpecialDeckFromPool, INITIAL_SPECIAL_CARDS
 } from "./cardsData";
+import { getCardsForGame, getSpecialCardsForGame } from "./admin/adminStore";
 import { SoundEffects } from "./utils/sounds";
 
 import WelcomeMenu from "./components/WelcomeMenu";
@@ -121,6 +123,10 @@ export default function App() {
 
   // Lifted state to control hand bag openness
   const [isHandExpanded, setIsHandExpanded] = useState<boolean>(false);
+
+  // Package Loading States
+  const [isGameLoading, setIsGameLoading] = useState<boolean>(false);
+  const [gameLoadError, setGameLoadError] = useState<string | null>(null);
 
   // Zooms and inspects selected card detailed stats
   const [inspectedCard, setInspectedCard] = useState<Card | null>(null);
@@ -577,12 +583,17 @@ export default function App() {
   };
 
   // KICK START GAME FROM MENU
-  const handleStartGame = (
+  const handleStartGame = async (
     name: string,
     vibe: string,
     diff: "normal" | "tactical" | "legend",
     matchDuration: number = 180,
-    customLegendPercentage: number = 30
+    customLegendPercentage: number = 30,
+    maxDraws: number = 2,
+    maxMoves: number = 3,
+    initialCards: number = 5,
+    selectedPlayerPkgs: string[] = [],
+    selectedSpecialPkgs: string[] = []
   ) => {
     setCoachName(name);
     setTeamVibe(vibe);
@@ -591,63 +602,94 @@ export default function App() {
     setInitialMatchTime(matchDuration);
     setLegendPercentage(customLegendPercentage);
     setIsHandExpanded(false);
+    setGameLoadError(null);
+    setIsGameLoading(true);
 
-    // Initial decks setup
-    const pDeck = generatePlayerDeck(customLegendPercentage);
-    const aDeckInit = generatePlayerDeck(customLegendPercentage);
-    const sDeck = generateSpecialDeck();
-    const poDeck = generatePontoDeck();
+    try {
+      // Fetch dynamic database cards
+      const loadedPlayerCards = await getCardsForGame(selectedPlayerPkgs);
+      const loadedSpecialCards = await getSpecialCardsForGame(selectedSpecialPkgs);
 
-    // 1. "يسحب كل مدرب 5 كروت لاعبين ويضعهم أمامه في الملعب مقلوبين"
-    // "إذا كان من ضمن هؤلاء الخمسة كارت أسطورة، يجب أن يتم إرجاعه للمجموعة وسحب كارت بديل مكانه"
-    const prepareInitialPitchSlots = (deck: PlayerCard[]) => {
-      const slots: PlayerCard[] = [];
-      let remDeck = [...deck];
-      
-      for (let i = 0; i < 5; i++) {
-        // Draw first non-legend player
-        const nonLegendIdx = remDeck.findIndex((c) => !c.isLegend);
-        if (nonLegendIdx !== -1) {
-          slots.push(remDeck[nonLegendIdx]);
-          remDeck.splice(nonLegendIdx, 1);
-        }
+      if (loadedPlayerCards.length === 0) {
+        throw new Error(
+          "لم يتم العثور على أي كروت لاعبين في قاعدة البيانات أو الباقات المحددة. يرجى الدخول إلى لوحة التحكم وإنشاء باقة وإضافة كروت لاعبين إليها أولاً لتتمكن من اللعب!"
+        );
       }
-      return { slots, remainingDeck: remDeck };
-    };
 
-    const aiPitchInit = prepareInitialPitchSlots(aDeckInit);
+      // Initial decks setup from pool
+      const pDeck = generateDeckFromPool(loadedPlayerCards, customLegendPercentage);
+      const aDeckInit = generateDeckFromPool(loadedPlayerCards, customLegendPercentage);
+      
+      // If we loaded special cards from DB, use them; otherwise, fall back to hardcoded tactical cards
+      const sDeck = generateSpecialDeckFromPool(
+        loadedSpecialCards.length > 0 ? loadedSpecialCards : (INITIAL_SPECIAL_CARDS as SpecialCard[])
+      );
+      const poDeck = generatePontoDeck();
 
-    // Player slots start empty, requiring manual drawing of 5 covered cards
-    setPlayerSlots([
-      { card: null, isRevealed: false },
-      { card: null, isRevealed: false },
-      { card: null, isRevealed: false },
-      { card: null, isRevealed: false },
-      { card: null, isRevealed: false }
-    ]);
-    setAiSlots(aiPitchInit.slots.map((card) => ({ card, isRevealed: false })));
+      // 1. "يسحب كل مدرب 5 كروت لاعبين ويضعهم أمامه في الملعب مقلوبين"
+      // "إذا كان من ضمن هؤلاء الخمسة كارت أسطورة، يجب أن يتم إرجاعه للمجموعة وسحب كارت بديل مكانه"
+      const prepareInitialPitchSlots = (deck: PlayerCard[]) => {
+        const slots: PlayerCard[] = [];
+        let remDeck = [...deck];
+        
+        for (let i = 0; i < 5; i++) {
+          // Draw first non-legend player
+          const nonLegendIdx = remDeck.findIndex((c) => !c.isLegend);
+          if (nonLegendIdx !== -1) {
+            slots.push(remDeck[nonLegendIdx]);
+            remDeck.splice(nonLegendIdx, 1);
+          }
+        }
+        return { slots, remainingDeck: remDeck };
+      };
 
-    setPlayerHand([]);
-    setAiHand([]);
+      const aiPitchInit = prepareInitialPitchSlots(aDeckInit);
 
-    setPlayerDeck(pDeck);
-    setAiDeck(aiPitchInit.remainingDeck);
-    setSpecialDeck(sDeck);
-    setPontoDeck(poDeck);
+      // Player slots start empty, requiring manual drawing of 5 covered cards
+      setPlayerSlots([
+        { card: null, isRevealed: false },
+        { card: null, isRevealed: false },
+        { card: null, isRevealed: false },
+        { card: null, isRevealed: false },
+        { card: null, isRevealed: false }
+      ]);
+      setAiSlots(aiPitchInit.slots.map((card) => ({ card, isRevealed: false })));
 
-    // Statistics & Scores reset
-    setPlayerScore(0);
-    setAiScore(0);
-    setTurnCount(1);
-    setCardsDrawnThisTurn(0);
-    setPlayerMovesLeft(3);
+      setPlayerHand([]);
+      setAiHand([]);
 
-    // Switch to Warmup
-    setPhase("warmup");
-    setLogs([]);
-    addLog(`صافرة البداية! دخل المدرب ${name} بهوية ${vibe} لملاقاة خصمه ذو الصعوبة [${diff === "normal" ? "ناشئ" : diff === "tactical" ? "محترف" : "أسطوري"}].`, "success");
-    addLog("مرحلة التسخين نشطة! الملعب فارغ حالياً، قم بسحب 5 لاعبين لتوزيع مراكزهم بالضغط على زر 'سحب لاعب' (سيكون للاعبون مقلوبون تكتيكياً)، ثم اضغط على زر 'بدء اللقاء' لتنطلق صافرة الحكم.", "info");
-    addLog("حقيبة الكروت بيدك فارغة حالياً. بمجرد تأكيد الخطة وبدء اللقاء، يمكنك سحب كروت تكتيكية جديدة في أدوارك ليدك لدعم مهارات وهجوم فريقك.", "neutral");
+      setPlayerDeck(pDeck);
+      setAiDeck(aiPitchInit.remainingDeck);
+      setSpecialDeck(sDeck);
+      setPontoDeck(poDeck);
+
+      // Statistics & Scores reset
+      setPlayerScore(0);
+      setAiScore(0);
+      setTurnCount(1);
+      setCardsDrawnThisTurn(0);
+      setPlayerMovesLeft(3);
+
+      // Switch to Warmup
+      setPhase("warmup");
+      setLogs([]);
+      addLog(`صافرة البداية! دخل المدرب ${name} بهوية ${vibe} لملاقاة خصمه ذو الصعوبة [${diff === "normal" ? "ناشئ" : diff === "tactical" ? "محترف" : "أسطوري"}].`, "success");
+      addLog("مرحلة التسخين نشطة! الملعب فارغ حالياً، قم بسحب 5 لاعبين لتوزيع مراكزهم بالضغط على زر 'سحب لاعب' (سيكون للاعبون مقلوبون تكتيكياً)، ثم اضغط على زر 'بدء اللقاء' لتنطلق صافرة الحكم.", "info");
+      addLog("حقيبة الكروت بيدك فارغة حالياً. بمجرد تأكيد الخطة وبدء اللقاء، يمكنك سحب كروت تكتيكية جديدة في أدوارك ليدك لدعم مهارات وهجوم فريقك.", "neutral");
+
+      // Request Fullscreen for immersive play
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch((err) => {
+          console.warn("Fullscreen request was blocked or failed:", err);
+        });
+      }
+
+    } catch (err: any) {
+      console.error("Failed to load cards for game:", err);
+      setGameLoadError(err.message || "فشل تحميل باقة الكروت من الداتابيس. يرجى التحقق من اتصال الإنترنت.");
+    } finally {
+      setIsGameLoading(false);
+    }
   };
 
   // REARRANGE / SWAP CARDS FREE IN WARMUP
@@ -2320,7 +2362,38 @@ export default function App() {
         </header>
 
         {/* CONDITION-BASED ROUTING VIEWS */}
-        {phase === "menu" ? (
+        {isGameLoading ? (
+          <div className="flex flex-col justify-center items-center flex-1 py-12 px-6 bg-[#0c0d0c]/85 border border-white/5 rounded-2xl backdrop-blur-md text-center max-w-md mx-auto my-12 space-y-4 shadow-2xl select-none" id="game_loader_overlay">
+            <div className="relative">
+              <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
+              <div className="absolute inset-0 flex items-center justify-center text-xl">⚽</div>
+            </div>
+            <h3 className="text-lg font-black text-emerald-400">جاري تحميل تشكيلة المباراة</h3>
+            <p className="text-xs text-slate-400">نقوم بسحب الكروت التكتيكية وتشكيلة اللاعبين من الباقات المحددة بالداتابيس...</p>
+          </div>
+        ) : gameLoadError ? (
+          <div className="flex flex-col justify-center items-center flex-1 py-8 px-6 bg-[#0f0a0a]/95 border border-red-500/20 rounded-2xl backdrop-blur-md text-center max-w-md mx-auto my-12 space-y-5 shadow-2xl select-none" id="game_error_overlay">
+            <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 text-2xl">
+              ⚠️
+            </div>
+            <h3 className="text-lg font-black text-red-400">فشل في بدء المباراة</h3>
+            <p className="text-xs text-slate-350 leading-relaxed max-w-sm">{gameLoadError}</p>
+            <div className="flex items-center gap-3 w-full">
+              <a
+                href="#/admin"
+                className="flex-1 px-4 py-2 bg-slate-900 border border-white/10 hover:bg-slate-800 text-slate-350 hover:text-white rounded-xl font-bold text-xs cursor-pointer transition-colors block text-center"
+              >
+                لوحة التحكم ⚙️
+              </a>
+              <button
+                onClick={() => setGameLoadError(null)}
+                className="flex-1 px-4 py-2 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white rounded-xl font-black text-xs shadow-md cursor-pointer transition-all border-none"
+              >
+                العودة 🔁
+              </button>
+            </div>
+          </div>
+        ) : phase === "menu" ? (
           <div className="flex flex-col justify-center items-center flex-1 py-4 md:py-6" id="welcome_menu_wrapper">
             <WelcomeMenu onStartGame={handleStartGame} />
           </div>
