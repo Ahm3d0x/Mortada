@@ -22,6 +22,8 @@ interface ActionDashboardProps {
   aiScore: number;
   isAttackBlocked?: boolean;
   onForceEndAttack?: () => void;
+  maxMovesPerTurn?: number;
+  maxDrawsPerTurn?: number;
 
   onConfirmLineup: () => void;
   onDeclareAttack: () => void;
@@ -50,7 +52,9 @@ export default function ActionDashboard({
   onEndTurn,
   onResolveAttack,
   onConfirmDefense,
-  onResetGame
+  onResetGame,
+  maxMovesPerTurn = 3,
+  maxDrawsPerTurn = 2
 }: ActionDashboardProps) {
 
   // Return background & badge styling based on target phase
@@ -123,11 +127,11 @@ export default function ActionDashboard({
         {phase === "player_turn" && (
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg font-mono font-black">
-              <span className="font-extrabold">{3 - movesLeft} / 3</span>
+              <span className="font-extrabold">{maxMovesPerTurn - movesLeft} / {maxMovesPerTurn}</span>
               <span className="font-sans font-medium text-[9px]">حركة</span>
             </div>
             <div className="flex items-center gap-1.5 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-lg font-mono font-black">
-              <span>{cardsDrawnThisTurn} / 2</span>
+              <span>{cardsDrawnThisTurn} / {maxDrawsPerTurn}</span>
               <span className="font-sans font-medium text-[9px]">سحب</span>
             </div>
           </div>

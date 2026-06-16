@@ -19,6 +19,7 @@ export interface PlayerCard {
   description: string;
   team: string; // e.g. "مصر", "البرتغال", "الأرجنتين"
   avatar: string; // Emoji representing the player
+  imageUrl?: string;
 }
 
 export type SpecialEffect =

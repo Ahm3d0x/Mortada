@@ -7,6 +7,8 @@ import React from "react";
 import { motion } from "motion/react";
 import { Shield, Swords, Sparkles, Ban, Sparkle } from "lucide-react";
 import { Card, PlayerCard, SpecialCard } from "../types";
+// @ts-ignore
+import coverImg from "../../card/cover.png";
 
 interface GameCardProps {
   card: Card;
@@ -42,6 +44,8 @@ export default function GameCard({
   onInspect
 }: GameCardProps) {
   const isPlayer = card.type === "player";
+  const cardImageUrl = (card as any).imageUrl || (card as any).image_url || (card as any).image;
+  const hasImage = !!cardImageUrl;
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -143,48 +147,13 @@ export default function GameCard({
             height: "100%",
             transform: "rotateY(180deg)"
           }}
-          className={`rounded-2xl overflow-hidden select-none border-2 flex flex-col justify-between ${getPaddingClasses()} ${
+          className={`rounded-2xl overflow-hidden select-none w-full h-full shadow-lg transition-all ${
             isSelected
-              ? "border-amber-400 bg-gradient-to-b from-[#1b1c1b] to-black ring-4 ring-amber-400/40 shadow-[0_0_20px_rgba(245,158,11,0.25)]"
-              : "border-white/10 bg-gradient-to-b from-[#141514] to-black hover:border-white/20"
-          } ${disabled ? "opacity-70 cursor-not-allowed" : ""} shadow-xl transition-colors`}
+              ? "ring-4 ring-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)]"
+              : ""
+          } ${disabled ? "opacity-70 cursor-not-allowed" : ""}`}
         >
-          {/* Subtle diagonal grid pattern */}
-          <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(255,255,255,0.015)_10px,rgba(255,255,255,0.015)_20px)] pointer-events-none" />
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-white/5 pointer-events-none" />
-          <div className="absolute w-16 h-16 rounded-full border border-white/5 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
-          
-          {/* Top Header details */}
-          <div className="w-full flex justify-between items-center opacity-40 text-[9px] text-white/50 font-black font-mono">
-            <span>{size === "pitch" ? "MORTADA" : "COUNTER"}</span>
-            <span>مرتدة</span>
-          </div>
-
-          {/* Core soccer design */}
-          <div className="flex flex-col items-center gap-1.5 z-10">
-            <motion.div 
-              animate={{ 
-                rotate: [0, 360],
-                scale: [0.95, 1.05, 0.95]
-              }}
-              transition={{ 
-                duration: 6, 
-                repeat: Infinity, 
-                ease: "linear" 
-              }}
-              className={`${size === "pitch" ? "w-8 h-8" : "w-10 h-10"} rounded-full bg-[#121412] border border-white/10 flex items-center justify-center shadow-lg`}
-            >
-              <span className={`${size === "pitch" ? "text-sm" : "text-xl"} opacity-85`}>⚽</span>
-            </motion.div>
-            <span className={`${size === "pitch" ? "text-[8px]" : "text-[10px]"} text-[#10b981] font-black tracking-widest uppercase`}>
-              تكتيك مخفي
-            </span>
-          </div>
-
-          {/* Card back footer */}
-          <div className="w-full flex items-center justify-center opacity-25 text-[8px] font-mono text-white/50 font-bold">
-            <span>{size === "pitch" ? "TACTIC" : "COACH HAND CARD"}</span>
-          </div>
+          <img src={coverImg} className="w-full h-full object-cover" alt="Card Cover" />
         </div>
 
 
@@ -199,15 +168,17 @@ export default function GameCard({
             height: "100%",
             transform: "rotateY(0deg)"
           }}
-          className={`rounded-2xl overflow-hidden select-none border flex flex-col justify-between ${getPaddingClasses()} ${
-            isLegend
-              ? "border-amber-400 bg-gradient-to-br from-[#241d11] via-[#0f0e0b] to-black shadow-[0_5px_15px_rgba(245,158,11,0.18)]"
+          className={`rounded-2xl overflow-hidden select-none flex flex-col justify-between ${getPaddingClasses()} ${
+            hasImage
+              ? "border-none bg-transparent shadow-none"
+              : isLegend
+              ? "border border-amber-500/35 bg-gradient-to-br from-[#241d11] via-[#0f0e0b] to-black text-[#e0e0e0] shadow-[0_5px_15px_rgba(245,158,11,0.18)]"
               : isSpecial
-              ? "border-teal-400/40 bg-gradient-to-br from-[#0b1b19] via-[#090e0c] to-black shadow-[0_5px_15px_rgba(20,184,166,0.18)]"
-              : "border-white/10 bg-gradient-to-b from-[#131413] to-black text-[#e0e0e0] shadow-xl"
+              ? "border border-teal-500/20 bg-gradient-to-br from-[#0b1b19] via-[#090e0c] to-black text-teal-100 shadow-[0_5px_15px_rgba(20,184,166,0.18)]"
+              : "border border-white/5 bg-gradient-to-b from-[#131413] to-black text-[#e0e0e0] shadow-xl"
           } ${
             isSelected
-              ? "border-amber-400 ring-4 ring-amber-400/25 bg-[#1a1c1a]"
+              ? "ring-4 ring-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)]"
               : ""
           } ${
             isBurning
@@ -215,208 +186,240 @@ export default function GameCard({
               : ""
           } ${disabled ? "opacity-35 cursor-not-allowed" : ""}`}
         >
-          {/* Shimmer Sweep Animation Overlay (for Legends and Specials) */}
-          {(isLegend || isSpecial) && (
-            <motion.div 
-              className={`absolute top-0 -left-[140%] w-[100%] h-full transform skew-x-30 pointer-events-none z-0 ${
-                isLegend 
-                  ? "bg-gradient-to-r from-transparent via-amber-400/10 to-transparent" 
-                  : "bg-gradient-to-r from-transparent via-teal-400/10 to-transparent"
-              }`}
-              animate={{ left: ["-140%", "140%"] }}
-              transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}
-            />
-          )}
-
-          {/* Golden starry particles for legends */}
-          {isLegend && (
-            <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-              <Sparkles className="absolute top-2 right-2 w-3 h-3 text-amber-400/30 animate-pulse" />
-              <Sparkles className="absolute bottom-3 left-2.5 w-2 h-2 text-amber-400/25 animate-bounce" />
+          {/* If there's a card image URL, render the full-size image as the card's front face */}
+          {hasImage ? (
+            <div className="absolute inset-0 w-full h-full z-0">
+              <img
+                src={cardImageUrl}
+                alt={card.name}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                  // Add fallback emoji text if the image fails to load
+                  const parent = (e.target as HTMLElement).parentElement;
+                  if (parent) {
+                    const fallback = document.createElement("div");
+                    fallback.className = "absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white p-2 text-center";
+                    fallback.innerHTML = `<span style="font-size:24px;">⚠️</span><span style="font-size:10px;margin-top:4px;">${card.name}</span>`;
+                    parent.appendChild(fallback);
+                  }
+                }}
+              />
+              {/* Overlay stats subtly at the bottom so players know the values during gameplay */}
+              {isPlayer && (
+                <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center justify-around bg-black/85 py-0.5 px-2 rounded-full border border-white/10 gap-1.5 z-10 whitespace-nowrap">
+                  <span className="text-rose-450 font-mono text-[9px] font-black flex items-center gap-0.5">⚔️ {(card as PlayerCard).attack}</span>
+                  <span className="text-white/20 text-[8px]">|</span>
+                  <span className="text-emerald-450 font-mono text-[9px] font-black flex items-center gap-0.5">🛡️ {(card as PlayerCard).defense}</span>
+                </div>
+              )}
             </div>
-          )}
-
-          {/* Legend Gold Accent Banner */}
-          {isPlayer && (card as PlayerCard).isLegend && (
-            <div className="absolute top-1.5 left-1.5 text-amber-500 text-[8px] font-black px-1.5 py-0.5 border border-amber-500/35 rounded bg-amber-950/25 z-10 flex items-center gap-0.5">
-              <span>★</span>
-              {size !== "pitch" && <span>أسطورة</span>}
-            </div>
-          )}
-
-          {/* 1. Header Row (Role/Spec indicator) */}
-          {isPlayer ? (
-            (() => {
-              const player = card as PlayerCard;
-              const roleColors = {
-                attacker: "bg-rose-500/10 text-rose-400 border-rose-500/25",
-                defender: "bg-blue-500/10 text-blue-400 border-blue-500/25",
-                midfielder: "bg-amber-500/10 text-amber-400 border-amber-500/25",
-                goalkeeper: "bg-teal-500/10 text-teal-400 border-teal-500/25"
-              };
-              
-              return (
-                <div className={`flex items-center justify-between z-10 w-full ${size === "pitch" ? "mb-0.5" : "mb-1"}`}>
-                  {size !== "pitch" && (
-                    <span className="text-[9px] text-[#e0e0e0]/45 font-black whitespace-nowrap overflow-hidden text-ellipsis max-w-[55%]">
-                      {player.team}
-                    </span>
-                  )}
-                  <span className={`px-1 rounded text-[8px] font-black border tracking-tight ${roleColors[player.role] || ""} ${size === "pitch" ? "mx-auto text-[8px] px-1 py-0.5" : ""}`}>
-                    {size === "pitch" ? getShortRole(player.role) : player.roleArabic}
-                  </span>
-                </div>
-              );
-            })()
           ) : (
-            (() => {
-              const special = card as SpecialCard;
-              return (
-                <div className={`flex items-center justify-between z-10 w-full ${size === "pitch" ? "mb-0.5" : "mb-1"}`}>
-                  {size !== "pitch" ? (
-                    <span className="text-[8.5px] text-teal-400/80 font-black flex items-center gap-0.5 max-w-[65%] whitespace-nowrap overflow-hidden text-ellipsis">
-                      <Sparkle className="w-2.5 h-2.5 animate-spin text-teal-400" />
-                      <span>{special.effectArabic}</span>
-                    </span>
-                  ) : (
-                    <span className="mx-auto text-[8px] text-teal-300 font-extrabold">⚡ تكتيك</span>
-                  )}
-                  {size !== "pitch" && (
-                    <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-teal-500/10 border border-teal-400/20 text-teal-300">
-                      تأثير
-                    </span>
-                  )}
-                </div>
-              );
-            })()
-          )}
+            <>
+              {/* Shimmer Sweep Animation Overlay (for Legends and Specials) */}
+              {(isLegend || isSpecial) && (
+                <motion.div 
+                  className={`absolute top-0 -left-[140%] w-[100%] h-full transform skew-x-30 pointer-events-none z-0 ${
+                    isLegend 
+                      ? "bg-gradient-to-r from-transparent via-amber-400/10 to-transparent" 
+                      : "bg-gradient-to-r from-transparent via-teal-400/10 to-transparent"
+                  }`}
+                  animate={{ left: ["-140%", "140%"] }}
+                  transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}
+                />
+              )}
 
-          {/* 2. Visual Centerpiece Portrait / Icon Container */}
-          {isPlayer ? (
-            (() => {
-              const player = card as PlayerCard;
-              return (
-                <div className={`flex flex-col items-center justify-center z-10 w-full ${size === "pitch" ? "my-0" : "my-0.5"}`}>
-                  <motion.div 
-                    whileHover={{ scale: 1.12, rotate: 5 }}
-                    className={`relative flex items-center justify-center ${
-                      size === "lg" 
-                        ? "w-16 h-16 text-3xl" 
-                        : size === "pitch" 
-                        ? "w-6 h-6 text-xs xs:w-8 xs:h-8 xs:text-sm sm:w-9 sm:h-9 sm:text-base md:w-10 md:h-10 md:text-lg" 
-                        : "w-11 h-11 text-2xl"
-                    } rounded-full bg-[#1a1c1a]/80 border border-white/5 shadow-inner`}
-                  >
-                    <span>{player.avatar}</span>
-                  </motion.div>
-                  <span className={`font-serif font-black text-center text-white whitespace-nowrap overflow-hidden text-ellipsis w-full ${
-                    size === "lg" ? "text-base mt-1" : size === "pitch" ? "text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-sans tracking-tight leading-none mt-0.5" : "text-xs mt-1"
-                  }`}>
-                    {player.name}
-                  </span>
+              {/* Golden starry particles for legends */}
+              {isLegend && (
+                <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+                  <Sparkles className="absolute top-2 right-2 w-3 h-3 text-amber-400/30 animate-pulse" />
+                  <Sparkles className="absolute bottom-3 left-2.5 w-2 h-2 text-amber-400/25 animate-bounce" />
                 </div>
-              );
-            })()
-          ) : (
-            (() => {
-              const special = card as SpecialCard;
-              return (
-                <div className="flex flex-col items-center justify-center my-0.5 z-10 text-center">
-                  <motion.div 
-                    whileHover={{ scale: 1.15, rotate: -5 }}
-                    className={`flex items-center justify-center ${
-                      size === "lg" 
-                        ? "w-14 h-14 text-3xl" 
-                        : size === "pitch" 
-                        ? "w-6 h-6 text-xs xs:w-7 h-7 xs:text-sm sm:w-8 h-8 sm:text-base md:w-9 md:h-9" 
-                        : "w-10 h-10 text-xl"
-                    } rounded-full bg-black/40 border border-white/5`}
-                  >
-                    <span>{special.icon}</span>
-                  </motion.div>
-                  <span className={`font-serif font-black text-center text-teal-200 overflow-hidden text-ellipsis w-full ${
-                    size === "lg" ? "text-sm mt-1" : size === "pitch" ? "text-[7.5px] xs:text-[8.5px] leading-none mt-0.5" : "text-[11px] mt-1"
-                  }`}>
-                    {special.name}
-                  </span>
-                </div>
-              );
-            })()
-          )}
+              )}
 
-          {/* 3. Footer Stats Grid or Card Descriptions */}
-          {isPlayer ? (
-            (() => {
-              const player = card as PlayerCard;
-              if (size === "pitch") {
-                return (
-                  <div className="flex items-center justify-around bg-black/60 py-0.5 px-0.5 rounded border border-white/5 z-10 w-full mt-auto">
-                    <div className="flex items-center gap-0.2 md:gap-0.5 text-rose-400">
-                      <span className="font-mono text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-black">{player.attack}</span>
-                      <span className="text-[8px] xs:text-[10px]">⚔️</span>
-                    </div>
-                    <div className="w-[1px] h-2 bg-white/10" />
-                    <div className="flex items-center gap-0.2 md:gap-0.5 text-emerald-400">
-                      <span className="font-mono text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-black">{player.defense}</span>
-                      <span className="text-[8px] xs:text-[10px]">🛡️</span>
-                    </div>
-                  </div>
-                );
-              }
-              return (
-                <div className="grid grid-cols-2 gap-1 bg-[#090b0a]/90 p-1.5 rounded-lg border border-white/5 z-10 mt-0.5">
-                  <div className="flex flex-col items-center justify-center border-l border-white/5">
-                    <div className="flex items-center gap-0.5 text-rose-400 font-bold">
-                      <span className="font-mono text-xs font-black">
-                        {player.attack}
+              {/* Legend Gold Accent Banner */}
+              {isPlayer && (card as PlayerCard).isLegend && (
+                <div className="absolute top-1.5 left-1.5 text-amber-500 text-[8px] font-black px-1.5 py-0.5 border border-amber-500/35 rounded bg-amber-950/25 z-10 flex items-center gap-0.5">
+                  <span>★</span>
+                  {size !== "pitch" && <span>أسطورة</span>}
+                </div>
+              )}
+
+              {/* 1. Header Row (Role/Spec indicator) */}
+              {isPlayer ? (
+                (() => {
+                  const player = card as PlayerCard;
+                  const roleColors = {
+                    attacker: "bg-rose-500/10 text-rose-400 border-rose-500/25",
+                    defender: "bg-blue-500/10 text-blue-400 border-blue-500/25",
+                    midfielder: "bg-amber-500/10 text-amber-400 border-amber-500/25",
+                    goalkeeper: "bg-teal-500/10 text-teal-400 border-teal-500/25"
+                  };
+                  
+                  return (
+                    <div className={`flex items-center justify-between z-10 w-full ${size === "pitch" ? "mb-0.5" : "mb-1"}`}>
+                      {size !== "pitch" && (
+                        <span className="text-[9px] text-[#e0e0e0]/45 font-black whitespace-nowrap overflow-hidden text-ellipsis max-w-[55%]">
+                          {player.team}
+                        </span>
+                      )}
+                      <span className={`px-1 rounded text-[8px] font-black border tracking-tight ${roleColors[player.role] || ""} ${size === "pitch" ? "mx-auto text-[8px] px-1 py-0.5" : ""}`}>
+                        {size === "pitch" ? getShortRole(player.role) : player.roleArabic}
                       </span>
-                      <Swords className="w-3 h-3 text-rose-500" />
                     </div>
-                    <span className="text-[7.5px] text-[#e0e0e0]/40 mt-0.5 scale-90 font-bold">هجوم</span>
-                  </div>
+                  );
+                })()
+              ) : (
+                (() => {
+                  const special = card as SpecialCard;
+                  return (
+                    <div className={`flex items-center justify-between z-10 w-full ${size === "pitch" ? "mb-0.5" : "mb-1"}`}>
+                      {size !== "pitch" ? (
+                        <span className="text-[8.5px] text-teal-400/80 font-black flex items-center gap-0.5 max-w-[65%] whitespace-nowrap overflow-hidden text-ellipsis">
+                          <Sparkle className="w-2.5 h-2.5 animate-spin text-teal-400" />
+                          <span>{special.effectArabic}</span>
+                        </span>
+                      ) : (
+                        <span className="mx-auto text-[8px] text-teal-300 font-extrabold">⚡ تكتيك</span>
+                      )}
+                      {size !== "pitch" && (
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-teal-500/10 border border-teal-400/20 text-teal-300">
+                          تأثير
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()
+              )}
 
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="flex items-center gap-0.5 text-emerald-400 font-bold">
-                      <span className="font-mono text-xs font-black">
-                        {player.defense}
+              {/* 2. Visual Centerpiece Portrait / Icon Container */}
+              {isPlayer ? (
+                (() => {
+                  const player = card as PlayerCard;
+                  return (
+                    <div className={`flex flex-col items-center justify-center z-10 w-full ${size === "pitch" ? "my-0" : "my-0.5"}`}>
+                      <motion.div 
+                        whileHover={{ scale: 1.12, rotate: 5 }}
+                        className={`relative flex items-center justify-center ${
+                          size === "lg" 
+                            ? "w-16 h-16 text-3xl" 
+                            : size === "pitch" 
+                            ? "w-6 h-6 text-xs xs:w-8 xs:h-8 xs:text-sm sm:w-9 sm:h-9 sm:text-base md:w-10 md:h-10 md:text-lg" 
+                            : "w-11 h-11 text-2xl"
+                        } rounded-full bg-[#1a1c1a]/80 border border-white/5 shadow-inner`}
+                      >
+                        <span>{player.avatar}</span>
+                      </motion.div>
+                      <span className={`font-serif font-black text-center text-white whitespace-nowrap overflow-hidden text-ellipsis w-full ${
+                        size === "lg" ? "text-base mt-1" : size === "pitch" ? "text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-sans tracking-tight leading-none mt-0.5" : "text-xs mt-1"
+                      }`}>
+                        {player.name}
                       </span>
-                      <Shield className="w-3 h-3 text-emerald-500" />
                     </div>
-                    <span className="text-[7.5px] text-[#e0e0e0]/40 mt-0.5 scale-90 font-bold font-sans">دفاع</span>
-                  </div>
-                </div>
-              );
-            })()
-          ) : (
-            (() => {
-              const special = card as SpecialCard;
-              if (size === "pitch") {
-                return (
-                  <div className="bg-teal-950/20 py-0.5 px-1 border border-teal-500/25 rounded z-10 text-center w-full">
-                    <span className="text-[8px] text-teal-300 font-extrabold font-serif">⚡ مهارة</span>
-                  </div>
-                );
-              }
-              return (
-                <div className="bg-[#1a1c1a]/95 p-1 rounded-md border border-white/5 z-10 text-right mt-1 flex-1 flex flex-col justify-center">
-                  <p className="text-[8.5px] text-[#e0e0e0]/55 leading-tight line-clamp-3">
-                    {special.description}
-                  </p>
-                </div>
-              );
-            })()
-          )}
+                  );
+                })()
+              ) : (
+                (() => {
+                  const special = card as SpecialCard;
+                  return (
+                    <div className="flex flex-col items-center justify-center my-0.5 z-10 text-center">
+                      <motion.div 
+                        whileHover={{ scale: 1.15, rotate: -5 }}
+                        className={`flex items-center justify-center ${
+                          size === "lg" 
+                            ? "w-14 h-14 text-3xl" 
+                            : size === "pitch" 
+                            ? "w-6 h-6 text-xs xs:w-7 h-7 xs:text-sm sm:w-8 h-8 sm:text-base md:w-9 md:h-9" 
+                            : "w-10 h-10 text-xl"
+                        } rounded-full bg-black/40 border border-white/5`}
+                      >
+                        <span>{special.icon}</span>
+                      </motion.div>
+                      <span className={`font-serif font-black text-center text-teal-200 overflow-hidden text-ellipsis w-full ${
+                        size === "lg" ? "text-sm mt-1" : size === "pitch" ? "text-[7.5px] xs:text-[8.5px] leading-none mt-0.5" : "text-[11px] mt-1"
+                      }`}>
+                        {special.name}
+                      </span>
+                    </div>
+                  );
+                })()
+              )}
 
-          {/* Extra info text for large scale layout */}
-          {size === "lg" && isPlayer && (
-            <p className="text-[9.5px] text-[#e0e0e0]/55 mt-1.5 leading-normal text-right line-clamp-2 z-10 font-sans">
-              {(card as PlayerCard).description}
-            </p>
+              {/* 3. Footer Stats Grid or Card Descriptions */}
+              {isPlayer ? (
+                (() => {
+                  const player = card as PlayerCard;
+                  if (size === "pitch") {
+                    return (
+                      <div className="flex items-center justify-around bg-black/60 py-0.5 px-0.5 rounded border border-white/5 z-10 w-full mt-auto">
+                        <div className="flex items-center gap-0.2 md:gap-0.5 text-rose-400">
+                          <span className="font-mono text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-black">{player.attack}</span>
+                          <span className="text-[8px] xs:text-[10px]">⚔️</span>
+                        </div>
+                        <div className="w-[1px] h-2 bg-white/10" />
+                        <div className="flex items-center gap-0.2 md:gap-0.5 text-emerald-400">
+                          <span className="font-mono text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-black">{player.defense}</span>
+                          <span className="text-[8px] xs:text-[10px]">🛡️</span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="grid grid-cols-2 gap-1 bg-[#090b0a]/90 p-1.5 rounded-lg border border-white/5 z-10 mt-0.5">
+                      <div className="flex flex-col items-center justify-center border-l border-white/5">
+                        <div className="flex items-center gap-0.5 text-rose-400 font-bold">
+                          <span className="font-mono text-xs font-black">
+                            {player.attack}
+                          </span>
+                          <Swords className="w-3 h-3 text-rose-500" />
+                        </div>
+                        <span className="text-[7.5px] text-[#e0e0e0]/40 mt-0.5 scale-90 font-bold">هجوم</span>
+                      </div>
+
+                      <div className="flex flex-col items-center justify-center">
+                        <div className="flex items-center gap-0.5 text-emerald-400 font-bold">
+                          <span className="font-mono text-xs font-black">
+                            {player.defense}
+                          </span>
+                          <Shield className="w-3 h-3 text-emerald-500" />
+                        </div>
+                        <span className="text-[7.5px] text-[#e0e0e0]/40 mt-0.5 scale-90 font-bold font-sans">دفاع</span>
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : (
+                (() => {
+                  const special = card as SpecialCard;
+                  if (size === "pitch") {
+                    return (
+                      <div className="bg-teal-950/20 py-0.5 px-1 border border-teal-500/25 rounded z-10 text-center w-full">
+                        <span className="text-[8px] text-teal-300 font-extrabold font-serif">⚡ مهارة</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="bg-[#1a1c1a]/95 p-1 rounded-md border border-white/5 z-10 text-right mt-1 flex-1 flex flex-col justify-center">
+                      <p className="text-[8.5px] text-[#e0e0e0]/55 leading-tight line-clamp-3">
+                        {special.description}
+                      </p>
+                    </div>
+                  );
+                })()
+              )}
+
+              {/* Extra info text for large scale layout */}
+              {size === "lg" && isPlayer && (
+                <p className="text-[9.5px] text-[#e0e0e0]/55 mt-1.5 leading-normal text-right line-clamp-2 z-10 font-sans">
+                  {(card as PlayerCard).description}
+                </p>
+              )}
+            </>
           )}
 
           {/* Burn Overlay Action Marker */}
           {isBurning && (
-            <div className="absolute inset-0 bg-red-950/45 flex flex-col items-center justify-center text-red-400 font-black z-20 rounded-2xl">
+            <div className="absolute inset-0 bg-red-950/45 flex flex-col items-center justify-center text-red-400 font-black z-20 rounded-2xl font-sans">
               <Ban className="w-6 h-6 stroke-3 animate-spin" />
               <span className="text-[9px] mt-1 text-center font-bold tracking-wide">تضحية لحرق لاعب</span>
             </div>

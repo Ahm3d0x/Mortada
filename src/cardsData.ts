@@ -607,7 +607,80 @@ export const INITIAL_PONTO_CARDS: Omit<PontoCard, "id">[] = [
 ];
 
 // Helper to fully initialize and shuffle standard player decks with custom legend appearance percentage (from 0 to 100)
+// Now checks for admin-created packages first, falls back to hardcoded cards if none exist.
 export function generatePlayerDeck(legendRatio: number = 30): PlayerCard[] {
+  // Try to load admin-created cards first
+  try {
+    const raw = localStorage.getItem("mortada_admin_cards");
+    if (raw) {
+      const adminCardsRaw = JSON.parse(raw);
+      if (Array.isArray(adminCardsRaw) && adminCardsRaw.length > 0) {
+        // Convert admin cards to PlayerCard format
+        const ROLE_LABELS_MAP: Record<string, string> = {
+          attacker: "رأس حربة", midfielder: "خط وسط",
+          defender: "مدافع", goalkeeper: "حارس مرمى",
+        };
+        const LEGEND_ROLE_MAP: Record<string, string> = {
+          attacker: "أسطورة هجوم", midfielder: "أسطورة خط وسط",
+          defender: "أسطورة دفاع", goalkeeper: "أسطورة حراسة مرمى",
+        };
+        const adminCards: PlayerCard[] = adminCardsRaw.map((c: any, idx: number) => ({
+          id: `admin_${c.id || idx}_${Math.random().toString(36).substr(2, 6)}`,
+          name: c.name,
+          type: "player" as const,
+          isLegend: !!c.isLegend,
+          attack: c.attack ?? 5,
+          defense: c.defense ?? 5,
+          role: c.role || "midfielder",
+          roleArabic: c.isLegend ? (LEGEND_ROLE_MAP[c.role] || "أسطورة") : (ROLE_LABELS_MAP[c.role] || "لاعب"),
+          description: c.description || "",
+          team: c.team || "",
+          avatar: c.avatar || "⚽",
+        }));
+        return generateDeckFromPool(adminCards, legendRatio);
+      }
+    }
+  } catch {
+    // localStorage not available or parse error, use hardcoded fallback
+  }
+  
+  // Fallback to hardcoded cards
+  return generateDeckFromHardcoded(legendRatio);
+}
+
+// Build deck from a pool of PlayerCard objects (used for admin cards)
+function generateDeckFromPool(pool: PlayerCard[], legendRatio: number): PlayerCard[] {
+  const normalCards = pool.filter(c => !c.isLegend);
+  const legendCards = pool.filter(c => c.isLegend);
+  
+  const totalDeckSize = Math.max(35, pool.length);
+  const numLegends = Math.min(legendCards.length, Math.max(0, Math.round((legendRatio / 100) * totalDeckSize)));
+  const numNormals = Math.max(0, totalDeckSize - numLegends);
+  
+  const shuffledLegends = [...legendCards].sort(() => Math.random() - 0.5);
+  const shuffledNormals = [...normalCards].sort(() => Math.random() - 0.5);
+  
+  const selected: PlayerCard[] = [];
+  
+  for (let i = 0; i < numLegends; i++) {
+    if (shuffledLegends.length > 0) {
+      const card = shuffledLegends[i % shuffledLegends.length];
+      selected.push({ ...card, id: `adm_${i}_${Math.random().toString(36).substr(2, 9)}` });
+    }
+  }
+  
+  for (let i = 0; i < numNormals; i++) {
+    if (shuffledNormals.length > 0) {
+      const card = shuffledNormals[i % shuffledNormals.length];
+      selected.push({ ...card, id: `adm_n${i}_${Math.random().toString(36).substr(2, 9)}` });
+    }
+  }
+  
+  return selected.sort(() => Math.random() - 0.5);
+}
+
+// Original hardcoded deck generation
+function generateDeckFromHardcoded(legendRatio: number): PlayerCard[] {
   const normalCards = INITIAL_PLAYER_CARDS.filter(c => !c.isLegend);
   const legendCards = INITIAL_PLAYER_CARDS.filter(c => c.isLegend);
   

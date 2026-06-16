@@ -6,7 +6,7 @@
 import React from "react";
 import { Sparkles, Trash2, ArrowUpCircle, Flame, Layers } from "lucide-react";
 import GameCard from "./GameCard";
-import { Card, PlayerCard, SpecialCard } from "../types";
+import { Card, PlayerCard, SpecialCard, GamePhase } from "../types";
 import { SoundEffects } from "../utils/sounds";
 
 interface CoachHandProps {
@@ -14,10 +14,12 @@ interface CoachHandProps {
   selectedCardId: string | null;
   burningCardIds: string[];
   movesLeft: number;
-  phase: string;
+  phase: GamePhase;
   playerDeckCount: number;
   specialDeckCount: number;
-  cardsDrawnThisTurn: number; // Max 2 can be drawn per turn
+  cardsDrawnThisTurn: number;
+  maxDrawsPerTurn: number;
+  initialCardsCount: number;
   isPlayerTurn: boolean;
   isHandExpanded: boolean;
   setIsHandExpanded: (val: boolean) => void;
@@ -39,6 +41,8 @@ export default function CoachHand({
   playerDeckCount,
   specialDeckCount,
   cardsDrawnThisTurn,
+  maxDrawsPerTurn,
+  initialCardsCount,
   isPlayerTurn,
   isHandExpanded,
   setIsHandExpanded,
@@ -51,7 +55,15 @@ export default function CoachHand({
 }: CoachHandProps) {
 
   // Determine if drawing phase is active
-  const isDrawPhase = isPlayerTurn && (phase === "player_turn" || phase === "warmup") && cardsDrawnThisTurn < 2;
+  const slotsDrawn = playerSlots.filter((s) => s.card !== null).length;
+  const handPlayersDrawn = hand.filter((c) => c.type === "player").length;
+  const totalDrawnInWarmup = slotsDrawn + handPlayersDrawn;
+
+  const isDrawPhase = isPlayerTurn && (
+    phase === "warmup"
+      ? totalDrawnInWarmup < initialCardsCount
+      : (phase === "player_turn" && cardsDrawnThisTurn < maxDrawsPerTurn)
+  );
 
   const selectedCard = hand.find((c) => c.id === selectedCardId);
   const isLegendSelected = selectedCard?.type === "player" && (selectedCard as PlayerCard).isLegend;
@@ -140,7 +152,7 @@ export default function CoachHand({
                   <button
                     type="button"
                     onClick={() => onDrawCard("special")}
-                    disabled={specialDeckCount === 0 || cardsDrawnThisTurn >= 2}
+                    disabled={specialDeckCount === 0 || cardsDrawnThisTurn >= maxDrawsPerTurn}
                     className="px-1.5 py-0.5 bg-teal-950/40 hover:bg-teal-900/50 text-teal-300 border border-teal-500/30 rounded text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                   >
                     <span>تكتيك</span>
@@ -150,7 +162,10 @@ export default function CoachHand({
                 <button
                   type="button"
                   onClick={() => onDrawCard("player")}
-                  disabled={playerDeckCount === 0 || (phase === "warmup" && playerSlots.filter(s => s.card !== null).length >= 5) || (phase !== "warmup" && cardsDrawnThisTurn >= 2)}
+                  disabled={
+                    playerDeckCount === 0 || 
+                    (phase === "warmup" ? totalDrawnInWarmup >= initialCardsCount : cardsDrawnThisTurn >= maxDrawsPerTurn)
+                  }
                   className="px-1.5 py-0.5 bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/30 rounded text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                 >
                   <span>لاعب</span>

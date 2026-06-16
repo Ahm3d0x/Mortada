@@ -38,6 +38,8 @@ export default function App() {
   // Static AI properties
   const aiCoachName = "المدرب الغريم (تكتيك روبوت)";
   const aiTeam = "كتائب الروبوت الذكية 🤖";
+  const maxDrawsPerTurn = 2;
+  const initialCardsCount = 5;
 
   // Lobby section tab
   const [menuTab, setMenuTab] = useState<"solo" | "multi">("solo");
@@ -2462,10 +2464,29 @@ export default function App() {
 
 
             {/* RIGHT FIELD MAIN PANEL (Opponent Slots, Scoreboard, Actions Bar, Player Slots) */}
-            <div className="flex-1 flex flex-col gap-1.5 h-full justify-between overflow-hidden">
+            <div 
+              className="flex-1 flex flex-col gap-2.5 h-full justify-between overflow-hidden relative rounded-2xl p-4 md:p-6"
+              style={{
+                background: 'radial-gradient(circle at center, rgba(255, 255, 255, 0.08) 0%, transparent 80%), linear-gradient(to bottom, #0d381e 0%, #14532d 50%, #0d381e 100%)',
+              }}
+            >
+              {/* Pitch White Lines Markings (Premium tactical aesthetics) */}
+              <div className="absolute inset-0 border-2 border-white/10 mx-4 my-4 pointer-events-none rounded-xl" />
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] bg-white/10 pointer-events-none" />
+              <div className="absolute w-28 md:w-44 h-28 md:h-44 rounded-full border-2 border-white/10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+              <div className="absolute w-2.5 h-2.5 rounded-full bg-white/40 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-pulse" />
+
+              {/* Top Penalty Areas (Box 18 & Box 6) */}
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 w-56 md:w-80 h-16 md:h-24 border-2 border-white/10 border-t-0 pointer-events-none rounded-b-md" />
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 w-28 md:w-40 h-6 md:h-8 border-2 border-white/10 border-t-0 pointer-events-none" />
+              
+              {/* Bottom Penalty Areas (Box 18 & Box 6) */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-56 md:w-80 h-16 md:h-24 border-2 border-white/10 border-b-0 pointer-events-none rounded-t-md" />
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-28 md:w-40 h-6 md:h-8 border-2 border-white/10 border-b-0 pointer-events-none" />
               
               {/* Row 1 (Opponent Football Pitch Slots - Compact Red Border) */}
-              <div className="border border-rose-500/60 shadow-[0_0_6px_rgba(244,63,94,0.25)] bg-[#040804]/90 rounded-xl p-1.5 flex flex-col gap-1 relative flex-1 min-h-[100px] justify-between">
+              {/* Row 1 (Opponent Football Pitch Slots - Borderless Field Overlay) */}
+              <div className="relative flex-1 min-h-[100px] w-full flex flex-col justify-center items-center z-10">
                 
                 {isHandExpanded && (
                   <div className="absolute inset-0 z-40 bg-[#080d09]/fa backdrop-blur-md rounded-xl p-1.5 flex flex-col justify-between shadow-2xl animate-scaleUp border border-[#10b981]/50">
@@ -2478,6 +2499,8 @@ export default function App() {
                       playerDeckCount={playerDeck.length}
                       specialDeckCount={specialDeck.length}
                       cardsDrawnThisTurn={cardsDrawnThisTurn}
+                      maxDrawsPerTurn={maxDrawsPerTurn}
+                      initialCardsCount={initialCardsCount}
                       isPlayerTurn={phase === "player_turn" || phase === "warmup"}
                       isHandExpanded={isHandExpanded}
                       setIsHandExpanded={setIsHandExpanded}
@@ -2508,61 +2531,60 @@ export default function App() {
                   {aiSlots.map((slot, idx) => {
                     const isSelectable = isSlotSelectable(idx, true);
                     const isChosenToAttack = currentAttackerIdx === idx && phase !== "player_turn";
+                    const isSpent = slot.spent;
+                    const isActiveInAttack = slot.card && slot.revealedInAttack;
                     
                     return (
                       <div 
                         key={`ai-pitch-slot-${idx}`}
-                        className={`relative rounded-lg overflow-hidden aspect-[2/3] max-h-[22.5vh] md:max-h-[24vh] w-full mx-auto transition-all flex flex-col justify-between ${
+                        className={`relative rounded-2xl overflow-hidden aspect-[2/3] max-h-[22.5vh] md:max-h-[24vh] w-full mx-auto transition-all flex flex-col justify-between ${
                           isSelectable 
                             ? "ring-2 ring-rose-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103" 
+                            : ""
+                        } ${
+                          isActiveInAttack 
+                            ? "ring-4 ring-rose-500 ring-offset-1 ring-offset-black shadow-[0_0_15px_rgba(244,63,94,0.65)] scale-[1.02] border-rose-400 z-10" 
                             : ""
                         }`}
                       >
                         {slot.card ? (
-                          slot.isRevealed || slot.revealedInAttack ? (
+                          <div 
+                            className="relative w-full h-full cursor-pointer"
+                            onClick={() => isSelectable && handleSelectPitchSlot(idx)}
+                          >
                             <GameCard
                               card={slot.card}
-                              isRevealed={true}
+                              isRevealed={!!(slot.isRevealed || slot.revealedInAttack)}
                               size="pitch"
                               onInspect={() => setInspectedCard(slot.card)}
                             />
-                          ) : (
-                            /* Covered card back representing mockup style exactly */
-                            <div 
-                              onClick={() => isSelectable && handleSelectPitchSlot(idx)}
-                              className="w-full h-full rounded-lg border border-red-500/80 bg-gradient-to-b from-[#141514] to-black p-1 flex flex-col justify-between shadow-[0_0_4px_rgba(239,68,68,0.45)] cursor-pointer hover:scale-102 transition-transform select-none"
-                            >
-                              <div className="w-full flex justify-between items-center opacity-30 text-[6.5px] text-white/50 leading-none">
-                                <span>MORTADA</span>
-                                <span>مرتدة</span>
+                            {isSpent && (
+                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-2xl pointer-events-none z-20">
+                                <span className="text-[8px] text-yellow-500 font-extrabold uppercase bg-black/85 px-1 py-0.2 rounded border border-yellow-500/20">منتهي</span>
                               </div>
-
-                              <div className="flex flex-col items-center gap-0.5">
-                                <div className="w-5 h-5 rounded-full bg-[#121412] border border-white/5 flex items-center justify-center shadow-md">
-                                  <span className="text-[9px]">⚽</span>
-                                </div>
-                              </div>
-
-                              <div className="w-full flex justify-center text-center">
-                                <span className="text-[7.5px] text-emerald-400 font-extrabold pb-0.5 uppercase tracking-wider">
-                                  تكتيك
+                            )}
+                            {(slot.isRevealed || slot.revealedInAttack) && !isSpent && isActiveInAttack && (
+                              <div className="absolute top-1 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex items-center justify-center">
+                                <span className="bg-gradient-to-r from-rose-500 to-red-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full border border-rose-400 shadow-md animate-pulse whitespace-nowrap">
+                                  ساري ⚡
                                 </span>
                               </div>
-                            </div>
-                          )
+                            )}
+                          </div>
                         ) : (
-                          /* Empty Opponent Slot placeholder */
+                          /* Dotted silhouette placeholder for empty opponent slot */
                           <div 
                             onClick={() => isSelectable && handleSelectPitchSlot(idx)}
-                            className="w-full h-full rounded-lg border border-dashed border-rose-950/30 bg-black/40 flex items-center justify-center p-0.5 cursor-pointer"
+                            className="w-full h-full aspect-[2/3] rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:bg-white/5"
                           >
-                            <span className="text-rose-900/50 font-sans text-[8.5px] font-bold">شاغر 🕳️</span>
+                            <span className="text-xl opacity-10 select-none">👤</span>
+                            <span className="text-[7px] font-bold text-white/15 tracking-wider">شاغر</span>
                           </div>
                         )}
 
                         {/* Chosen Attacker Marker glow */}
                         {isChosenToAttack && (
-                          <div className="absolute inset-0 bg-rose-900/25 border-2 border-rose-500 animate-ping pointer-events-none rounded-lg" />
+                          <div className="absolute inset-0 bg-rose-900/25 border-2 border-rose-500 animate-ping pointer-events-none rounded-2xl" />
                         )}
                       </div>
                     );
@@ -2571,8 +2593,8 @@ export default function App() {
               </div>
 
 
-              {/* Row 2 (Beautiful Scoreboard and Clock Indicator - Cyan Neon Glow - Sleek) */}
-              <div className={`border border-cyan-400/80 shadow-[0_0_8px_rgba(34,211,238,0.35)] bg-[#030604]/95 rounded-xl px-3 py-1 items-center justify-between gap-3 w-full h-[40px] shrink-0 select-none ${isHandExpanded ? "hidden" : "flex"}`}>
+              {/* Row 2 (Beautiful Scoreboard and Clock Indicator - Floating Backdrop Blur Pitch-Center design) */}
+              <div className={`backdrop-blur-md bg-black/25 rounded-full px-5 py-1.5 w-[75%] mx-auto border border-white/5 shadow-lg items-center justify-between gap-3 h-[40px] shrink-0 select-none ${isHandExpanded ? "hidden" : "flex"}`}>
                 
                 {/* Scoreboard Left Team (User) */}
                 <div className="flex items-center gap-1.5 text-right flex-1 select-none">
@@ -2583,25 +2605,25 @@ export default function App() {
 
                   {/* Dynamic player Attack/Defense badge - requested by user */}
                   {showPlayerAttack && (
-                    <div className="mr-auto ml-1.5 bg-amber-500/10 border border-amber-500/30 text-yellow-300 px-1.5 py-0.5 rounded-md text-[9px] font-black flex items-center gap-1 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.2)]">
-                      <span>🔥⚽</span>
+                    <div className="mr-auto ml-1.5 bg-amber-50/10 text-yellow-300 px-1.5 py-0.5 rounded text-[9px] font-black flex items-center gap-0.5 animate-pulse">
+                      <span>🔥</span>
                       <span>{activeOffenseVal}</span>
                     </div>
                   )}
                   {showPlayerDefense && (
-                    <div className="mr-auto ml-1.5 bg-sky-500/10 border border-sky-500/30 text-sky-300 px-1.5 py-0.5 rounded-md text-[9px] font-black flex items-center gap-1 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.2)]">
+                    <div className="mr-auto ml-1.5 bg-sky-500/10 text-sky-300 px-1.5 py-0.5 rounded text-[9px] font-black flex items-center gap-0.5 animate-pulse">
                       <span>🛡️</span>
                       <span>{activeDefenseVal}</span>
                     </div>
                   )}
 
-                  <div className="bg-[#052311] border border-[#00ff66]/45 text-[#00ff66] px-2 py-0.5 rounded-full font-mono font-black text-xs shadow-[inset_0_0_4px_rgba(0,255,102,0.15)] min-w-[28px] text-center ml-1">
+                  <div className="text-[#00ff66] font-mono font-black text-lg min-w-[20px] text-center ml-1">
                     {playerScore}
                   </div>
                 </div>
 
                 {/* Clock Stopwatch in the middle */}
-                <div className="flex items-center justify-center gap-1 text-emerald-400 font-mono font-black text-[10px] bg-black/60 px-2 py-0.5 rounded-lg shadow-inner border border-white/5 whitespace-nowrap shrink-0">
+                <div className="flex items-center justify-center gap-1.5 text-emerald-400 font-mono font-black text-xs px-2.5 py-0.5 whitespace-nowrap shrink-0">
                   <span>⏱️</span>
                   <span className="tracking-widest">
                     {(() => {
@@ -2614,20 +2636,20 @@ export default function App() {
 
                 {/* Scoreboard Right Team (Opponent) */}
                 <div className="flex items-center gap-1.5 text-left flex-1 justify-end select-none">
-                  <div className="bg-[#24060b] border border-rose-500/45 text-rose-400 px-2 py-0.5 rounded-full font-mono font-black text-xs shadow-[inset_0_0_4px_rgba(244,63,94,0.15)] min-w-[28px] text-center mr-1">
+                  <div className="text-rose-450 font-mono font-black text-lg min-w-[20px] text-center mr-1">
                     {aiScore}
                   </div>
 
                   {/* Dynamic AI Attack/Defense badge - requested by user */}
                   {showAiDefense && (
-                    <div className="ml-auto mr-1.5 bg-sky-500/10 border border-sky-500/30 text-sky-300 px-1.5 py-0.5 rounded-md text-[9px] font-black flex items-center gap-1 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.25)]">
+                    <div className="ml-auto mr-1.5 bg-sky-500/10 text-sky-300 px-1.5 py-0.5 rounded text-[9px] font-black flex items-center gap-0.5 animate-pulse">
                       <span>🛡️</span>
                       <span>{activeDefenseVal}</span>
                     </div>
                   )}
                   {showAiAttack && (
-                    <div className="ml-auto mr-1.5 bg-amber-500/10 border border-amber-500/30 text-yellow-300 px-1.5 py-0.5 rounded-md text-[9px] font-black flex items-center gap-1 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.25)]">
-                      <span>🔥⚽</span>
+                    <div className="ml-auto mr-1.5 bg-amber-500/10 text-yellow-300 px-1.5 py-0.5 rounded text-[9px] font-black flex items-center gap-0.5 animate-pulse">
+                      <span>🔥</span>
                       <span>{activeOffenseVal}</span>
                     </div>
                   )}
@@ -2641,8 +2663,8 @@ export default function App() {
               </div>
 
 
-              {/* Row 3 (Golden Dashboard controller toolbar - Amber Neon Glow - Compact) */}
-              <div className={`border border-amber-400/80 shadow-[0_0_8px_rgba(245,158,11,0.3)] bg-[#030604]/95 rounded-xl px-3 py-1 items-center justify-between gap-3 w-full h-[40px] shrink-0 select-none ${isHandExpanded ? "hidden" : "flex"}`}>
+              {/* Row 3 (Sleek Round Controller Toolbar - Floating Pill Backdrop Blur) */}
+              <div className={`backdrop-blur-md bg-black/30 rounded-full px-4 py-1 w-[90%] mx-auto border border-white/5 shadow-md items-center justify-between gap-3 h-[40px] shrink-0 select-none ${isHandExpanded ? "hidden" : "flex"}`}>
                 
                 {/* State Tag badge */}
                 <div className="bg-gradient-to-r from-emerald-600/15 to-teal-600/15 text-emerald-400 border border-emerald-500/25 px-2 py-0.5 rounded-lg font-black text-[9px] shadow-sm whitespace-nowrap shrink-0 leading-none">
@@ -2682,7 +2704,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={handleEndPlayerTurn}
-                        className="bg-[#2d3748] hover:bg-[#3d4a5f] text-slate-305 font-extrabold py-0.5 px-2 rounded-md text-[10px] border border-white/5 cursor-pointer transition-colors leading-normal"
+                        className="bg-[#2d3748] hover:bg-[#3d4a5f] text-slate-300 font-extrabold py-0.5 px-2 rounded-md text-[10px] border border-white/5 cursor-pointer transition-colors leading-normal"
                       >
                         <span>إنهاء الدور ⏳</span>
                       </button>
@@ -2745,8 +2767,8 @@ export default function App() {
               </div>
 
 
-              {/* Row 4 (Player Pitch Slots - Compact Green Border) */}
-              <div className="border border-emerald-500/60 shadow-[0_0_6px_rgba(34,197,94,0.25)] bg-[#040804]/90 rounded-xl p-1.5 flex flex-col gap-1 relative flex-1 min-h-[100px] justify-between">
+              {/* Row 4 (Player Pitch Slots - Borderless Field Overlay) */}
+              <div className="relative flex-1 min-h-[100px] w-full flex flex-col justify-center items-center z-10">
 
                 <div className="grid grid-cols-5 gap-1.5 w-full flex-1 items-center">
                   {playerSlots.map((slot, idx) => {
@@ -2757,14 +2779,14 @@ export default function App() {
                     return (
                       <div 
                         key={`player-pitch-slot-${idx}`}
-                        className={`relative rounded-lg overflow-hidden aspect-[2/3] max-h-[22.5vh] md:max-h-[24vh] w-full mx-auto transition-all flex flex-col justify-between ${
+                        className={`relative rounded-2xl overflow-hidden aspect-[2/3] max-h-[22.5vh] md:max-h-[24vh] w-full mx-auto transition-all flex flex-col justify-between ${
                           isSelectable 
                             ? "ring-2 ring-emerald-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103 animate-pulse" 
                             : ""
                         } ${isSelected ? "ring-2 ring-amber-400 ring-offset-1 ring-offset-black scale-102" : ""}`}
                       >
                         {slot.card ? (
-                          <div className="relative w-full h-full" onClick={() => handleSelectPitchSlot(idx)}>
+                          <div className="relative w-full h-full cursor-pointer" onClick={() => handleSelectPitchSlot(idx)}>
                             <GameCard
                               card={slot.card}
                               isRevealed={true}
@@ -2772,19 +2794,19 @@ export default function App() {
                               onInspect={() => setInspectedCard(slot.card)}
                             />
                             {isSpent && (
-                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg pointer-events-none">
+                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-2xl pointer-events-none">
                                 <span className="text-[8px] text-yellow-500 font-extrabold uppercase bg-black/85 px-1 py-0.2 rounded border border-yellow-500/20">منتهي</span>
                               </div>
                             )}
                           </div>
                         ) : (
-                          /* Empty Player Slot matching mockup exactly */
+                          /* Empty Player Slot with faint player silhouette directly on turf */
                           <div 
                             onClick={() => handleSelectPitchSlot(idx)}
-                            className="w-full h-full rounded-lg border border-dashed border-emerald-500/30 bg-black/60 flex flex-col items-center justify-center gap-0.5 cursor-pointer hover:border-emerald-500/40 hover:bg-emerald-950/20 transition-all p-1"
+                            className="w-full h-full aspect-[2/3] rounded-2xl border border-dashed border-emerald-400/20 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:bg-emerald-500/10"
                           >
-                            <span className="text-emerald-400 font-extrabold text-sm leading-none">+</span>
-                            <span className="text-emerald-500/50 font-sans text-[8px] font-bold">تنزيل لاعب</span>
+                            <span className="text-xl text-emerald-400 opacity-20 select-none">👤</span>
+                            <span className="text-[7.5px] font-bold text-emerald-400/20 tracking-wider">تنزيل لاعب</span>
                           </div>
                         )}
                       </div>

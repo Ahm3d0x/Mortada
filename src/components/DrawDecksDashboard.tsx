@@ -16,6 +16,7 @@ interface DrawDecksDashboardProps {
   selectedPitchSlotIdx: number | null;
   burningCardCount: number;
   currentPonto: PontoCard | null;
+  maxDrawsPerTurn?: number;
 
   onDrawCard: (deckType: "player" | "special") => void;
 }
@@ -30,11 +31,12 @@ export default function DrawDecksDashboard({
   selectedPitchSlotIdx,
   burningCardCount,
   currentPonto,
-  onDrawCard
+  onDrawCard,
+  maxDrawsPerTurn = 2
 }: DrawDecksDashboardProps) {
 
   const isPlayerTurn = phase === "player_turn" || phase === "warmup";
-  const isDrawPhase = isPlayerTurn && phase === "player_turn" && cardsDrawnThisTurn < 2;
+  const isDrawPhase = isPlayerTurn && phase === "player_turn" && cardsDrawnThisTurn < maxDrawsPerTurn;
 
   return (
     <div className="flex flex-col gap-2" id="decks_dashboard_main_container">
