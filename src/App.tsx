@@ -43,6 +43,67 @@ export default function App() {
   const maxDrawsPerTurn = 2;
   const initialCardsCount = 5;
 
+  // Mobile & Orientation state
+  const [isMobile, setIsMobile] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(false);
+
+  useEffect(() => {
+    const checkLayout = () => {
+      const touchCapable = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+      const isSmall = window.innerWidth < 768 || window.innerHeight < 768;
+      setIsMobile(touchCapable || isSmall);
+      setIsPortrait(window.innerHeight > window.innerWidth);
+    };
+
+    checkLayout();
+    window.addEventListener("resize", checkLayout);
+    return () => window.removeEventListener("resize", checkLayout);
+  }, []);
+
+  const isMobileLandscape = isMobile && (isPortrait || window.innerHeight < 520);
+
+  // Request fullscreen on any click/touch anywhere from the beginning
+  useEffect(() => {
+    const handleFirstInteraction = () => {
+      const docEl = document.documentElement;
+      if (docEl.requestFullscreen) {
+        docEl.requestFullscreen().catch((err) => {
+          console.warn("Fullscreen request on first interaction failed:", err);
+        });
+      }
+      // Clean up after first interaction
+      window.removeEventListener("click", handleFirstInteraction);
+      window.removeEventListener("touchstart", handleFirstInteraction);
+    };
+
+    window.addEventListener("click", handleFirstInteraction);
+    window.addEventListener("touchstart", handleFirstInteraction);
+
+    return () => {
+      window.removeEventListener("click", handleFirstInteraction);
+      window.removeEventListener("touchstart", handleFirstInteraction);
+    };
+  }, []);
+
+  // Lock html/body overflow to prevent double scrollbars / elastic bounce
+  useEffect(() => {
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.margin = "0";
+    document.body.style.padding = "0";
+    document.body.style.width = "100%";
+    document.body.style.height = "100%";
+
+    return () => {
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+      document.body.style.margin = "";
+      document.body.style.padding = "";
+      document.body.style.width = "";
+      document.body.style.height = "";
+    };
+  }, []);
+
   // Lobby section tab
   const [menuTab, setMenuTab] = useState<"solo" | "multi">("solo");
 
@@ -2255,8 +2316,29 @@ export default function App() {
   const activeOffenseVal = isAttackDefActive ? calculateTotalAttack(isPlayerAttacker, currentAttackerIdx!, currentPonto, isPlayerAttacker ? playerActiveSpecial : aiActiveSpecial) : 0;
   const activeDefenseVal = isAttackDefActive ? calculateTotalDefense(!isPlayerAttacker, !isPlayerAttacker ? playerActiveSpecial : aiActiveSpecial) : 0;
 
+  const mainDivClass = `bg-[#050605] text-[#e0e0e0] font-sans relative select-none ${
+    isMobile && isPortrait
+      ? "w-full h-full overflow-hidden p-1.5"
+      : phase === "menu"
+        ? isMobileLandscape
+          ? "min-h-screen overflow-hidden p-1.5"
+          : "min-h-screen overflow-y-auto p-4 md:p-6"
+        : "p-1.5 h-screen max-h-screen overflow-hidden md:p-2.5"
+  }`;
+
+  const rotatedStyle: React.CSSProperties = isMobile && isPortrait ? {
+    position: "fixed",
+    top: "50%",
+    left: "50%",
+    width: "100vh",
+    height: "100vw",
+    transform: "translate(-50%, -50%) rotate(90deg)",
+    transformOrigin: "center",
+    overflow: "hidden",
+  } : {};
+
   return (
-    <div className={`min-h-screen bg-[#050605] text-[#e0e0e0] font-sans relative ${phase === "menu" ? "p-4 md:p-6 overflow-y-auto" : "p-1.5 h-screen max-h-screen overflow-hidden md:p-2.5"} select-none`}>
+    <div style={rotatedStyle} className={mainDivClass}>
       
       {/* Background glow effects */}
       <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none" />
@@ -2394,8 +2476,8 @@ export default function App() {
             </div>
           </div>
         ) : phase === "menu" ? (
-          <div className="flex flex-col justify-center items-center flex-1 py-4 md:py-6" id="welcome_menu_wrapper">
-            <WelcomeMenu onStartGame={handleStartGame} />
+          <div className={`flex flex-col justify-center items-center flex-1 ${isMobileLandscape ? 'py-1' : 'py-4 md:py-6'}`} id="welcome_menu_wrapper">
+            <WelcomeMenu onStartGame={handleStartGame} isMobileLandscape={isMobileLandscape} />
           </div>
         ) : (
           <div className="flex flex-row gap-2 w-full h-full select-none text-right overflow-hidden">

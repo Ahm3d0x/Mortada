@@ -23,6 +23,7 @@ interface WelcomeMenuProps {
     selectedPlayerPkgs: string[],
     selectedSpecialPkgs: string[]
   ) => void;
+  isMobileLandscape?: boolean;
 }
 
 const TEAM_VIBES = [
@@ -34,7 +35,7 @@ const TEAM_VIBES = [
   { name: "الملكي", color: "from-indigo-600 to-violet-850", desc: "شخصية البطل العريقة", emoji: "👑" }
 ];
 
-export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
+export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: WelcomeMenuProps) {
   const [step, setStep] = useState<"cover" | "coach" | "packages" | "match" | "opponent">("cover");
   const [coachName, setCoachName] = useState("");
   const [selectedVibe, setSelectedVibe] = useState(TEAM_VIBES[0]);
@@ -95,7 +96,11 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.3 }}
-      className="max-w-xl mx-auto my-3 p-4 md:p-6 bg-[#0b0e0c]/95 border border-emerald-500/15 rounded-2xl shadow-2xl text-[#e0e0e0] backdrop-blur-md relative overflow-hidden flex flex-col justify-between min-h-[360px] xs:min-h-[385px] md:min-h-[410px] select-none"
+      className={`max-w-xl mx-auto ${
+        isMobileLandscape 
+          ? "my-1 p-2.5 min-h-[260px] max-h-[96vh] text-[10px]" 
+          : "my-3 p-4 md:p-6 min-h-[360px] xs:min-h-[385px] md:min-h-[410px]"
+      } bg-[#0b0e0c]/95 border border-emerald-500/15 rounded-2xl shadow-2xl text-[#e0e0e0] backdrop-blur-md relative overflow-hidden flex flex-col justify-between select-none`}
       id="welcome_menu_container"
     >
       {/* Visual top corner grids */}
@@ -138,45 +143,52 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="flex-1 flex flex-col justify-around text-center py-4 relative"
+            className={`flex-1 flex flex-col justify-around text-center ${isMobileLandscape ? 'py-1' : 'py-4'} relative`}
           >
             {/* Centered Golden Trophy */}
-            <div className="relative flex justify-center mb-1">
+            <div className={`relative flex justify-center ${isMobileLandscape ? 'mb-0.5' : 'mb-1'}`}>
               <div className="absolute -inset-1 rounded-full bg-emerald-500/10 blur-xl animate-pulse" />
-              <div className="w-16 h-16 bg-[#121613] border border-emerald-500/25 rounded-full flex items-center justify-center relative shadow-lg">
-                <Trophy className="w-8 h-8 text-amber-400" />
-                <Sparkles className="w-4 h-4 text-emerald-400 absolute -top-1 -right-1 animate-ping" />
+              <div className={`${isMobileLandscape ? 'w-10 h-10' : 'w-16 h-16'} bg-[#121613] border border-emerald-500/25 rounded-full flex items-center justify-center relative shadow-lg`}>
+                <Trophy className={`${isMobileLandscape ? 'w-5 h-5' : 'w-8 h-8'} text-amber-400`} />
+                <Sparkles className={`${isMobileLandscape ? 'w-2.5 h-2.5' : 'w-4 h-4'} text-emerald-400 absolute -top-1 -right-1 animate-ping`} />
               </div>
             </div>
 
-            <div className="mb-4">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-black uppercase tracking-wider mb-2">
+            <div className={`${isMobileLandscape ? 'mb-1.5' : 'mb-4'}`}>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-black uppercase tracking-wider ${isMobileLandscape ? 'mb-0.5 text-[8.5px]' : 'mb-2'}`}>
                 تحدي تكتيك كروت اللقاء الكروي 🏆
               </span>
-              <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 via-teal-300 to-green-400">
+              <h1 className={`font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 via-teal-300 to-green-400 ${isMobileLandscape ? 'text-xl' : 'text-3xl md:text-4xl'}`}>
                 مـرتـدة
               </h1>
-              <p className="text-[11px] text-[#e0e0e0]/55 font-semibold mt-1">
+              <p className={`text-[#e0e0e0]/55 font-semibold ${isMobileLandscape ? 'text-[9.5px] mt-0.5' : 'text-[11px] mt-1'}`}>
                 لعبة التخطيط الكروي وتحدي الذكاء التكتيكي الذكي
               </p>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1">
               <button
                 type="button"
                 onClick={() => {
                   SoundEffects.playCardDraw();
                   setStep("coach");
+                  if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch((err) => {
+                      console.warn("Fullscreen request on button click failed:", err);
+                    });
+                  }
                 }}
-                className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-xs md:text-sm rounded-xl flex items-center justify-center gap-1.5 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 border-b-4 border-emerald-700 shadow-lg cursor-pointer"
+                className={`w-full ${isMobileLandscape ? 'py-1.5 text-[10px] border-b-2 rounded-lg' : 'py-2.5 text-xs md:text-sm border-b-4 rounded-xl'} bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black flex items-center justify-center gap-1.5 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 border-emerald-700 shadow-lg cursor-pointer`}
               >
                 <span>بدء اللعبة وتجهيز الفريق ⚽</span>
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className={`${isMobileLandscape ? 'w-3 h-3' : 'w-4 h-4'}`} />
               </button>
               
-              <p className="text-[9px] text-[#e0e0e0]/30">
-                نسخة التحديث التكتيكي الشاملة
-              </p>
+              {!isMobileLandscape && (
+                <p className="text-[9px] text-[#e0e0e0]/30">
+                  نسخة التحديث التكتيكي الشاملة
+                </p>
+              )}
             </div>
           </motion.div>
         )}
@@ -189,14 +201,14 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
             className="flex-1 flex flex-col justify-between py-1"
           >
             <div>
-              <div className="text-right border-b border-white/5 pb-2 mb-2">
+              <div className={`text-right border-b border-white/5 ${isMobileLandscape ? 'pb-1 mb-1.5' : 'pb-2 mb-2'}`}>
                 <span className="text-[10px] font-black uppercase text-emerald-500 tracking-wider">مرحلة 1: هوية ومسمى القائد</span>
-                <h2 className="text-sm font-black text-white mt-0.5">من هو قائد كتيبتك؟</h2>
+                <h2 className={`font-black text-white ${isMobileLandscape ? 'text-[11px]' : 'text-sm'} mt-0.5`}>من هو قائد كتيبتك؟</h2>
               </div>
 
               {/* Name Input */}
-              <div className="mb-3">
-                <label className="block text-[#e0e0e0]/60 font-black mb-1.5 text-right text-[10px]">
+              <div className={`${isMobileLandscape ? 'mb-1.5' : 'mb-3'}`}>
+                <label className="block text-[#e0e0e0]/60 font-black mb-1 text-right text-[10px]">
                   اسم المدرب:
                 </label>
                 <input
@@ -206,17 +218,17 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
                   maxLength={20}
                   value={coachName}
                   onChange={(e) => setCoachName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-black/55 border border-white/10 focus:outline-none focus:border-emerald-500 text-white text-right placeholder:text-[#e0e0e0]/25 transition-all font-bold text-xs"
+                  className={`w-full ${isMobileLandscape ? 'px-2 py-1 text-[10px] rounded-md' : 'px-3 py-2 text-xs rounded-lg'} bg-black/55 border border-white/10 focus:outline-none focus:border-emerald-500 text-white text-right placeholder:text-[#e0e0e0]/25 transition-all font-bold`}
                 />
               </div>
 
               {/* Team Vibe Selection Grid */}
               <div>
-                <label className="block text-[#e0e0e0]/60 font-black mb-1.5 text-right text-[10px]">
+                <label className="block text-[#e0e0e0]/60 font-black mb-1 text-right text-[10px]">
                   اختر هوية الفريق:
                 </label>
                 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+                <div className={`grid grid-cols-2 ${isMobileLandscape ? 'grid-cols-3 gap-1' : 'md:grid-cols-3 gap-1.5'}`}>
                   {TEAM_VIBES.map((vibe) => (
                     <button
                       key={vibe.name}
@@ -226,17 +238,19 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
                         SoundEffects.playCardDraw();
                         setSelectedVibe(vibe);
                       }}
-                      className={`flex items-center gap-1.5 justify-start p-1.5 px-2.5 rounded-lg border transition-all cursor-pointer relative overflow-hidden text-right min-h-[38px] ${
+                      className={`flex items-center gap-1.5 justify-start ${isMobileLandscape ? 'p-1 rounded-md min-h-[30px]' : 'p-1.5 px-2.5 rounded-lg min-h-[38px]'} border transition-all cursor-pointer relative overflow-hidden text-right min-w-0 flex-1 ${
                         selectedVibe.name === vibe.name
                           ? "border-emerald-500 bg-emerald-950/20 text-white shadow-[0_0_8px_rgba(16,185,129,0.1)]"
                           : "border-white/5 bg-transparent hover:border-white/10 text-slate-400"
                       }`}
                     >
                       {/* Flag Indicator */}
-                      <span className="text-sm">{vibe.emoji}</span>
+                      <span className={`${isMobileLandscape ? 'text-xs' : 'text-sm'}`}>{vibe.emoji}</span>
                       <div className="flex flex-col min-w-0 flex-1">
-                        <span className="font-extrabold text-[9.5px] truncate leading-tight">{vibe.name}</span>
-                        <span className="text-[7.5px] text-slate-500 truncate leading-none mt-0.5">{vibe.desc}</span>
+                        <span className={`font-extrabold ${isMobileLandscape ? 'text-[8.5px]' : 'text-[9.5px]'} truncate leading-tight`}>{vibe.name}</span>
+                        {!isMobileLandscape && (
+                          <span className="text-[7.5px] text-slate-500 truncate leading-none mt-0.5">{vibe.desc}</span>
+                        )}
                       </div>
                     </button>
                   ))}
@@ -245,14 +259,14 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
             </div>
 
             {/* Bottom Actions Row */}
-            <div className="flex items-center justify-between border-t border-white/5 pt-2.5 mt-2 gap-2">
+            <div className={`flex items-center justify-between border-t border-white/5 ${isMobileLandscape ? 'pt-1.5 mt-1.5 gap-1.5' : 'pt-2.5 mt-2 gap-2'}`}>
               <button
                 type="button"
                 onClick={() => {
                   SoundEffects.playCardDraw();
                   setStep("cover");
                 }}
-                className="px-4 py-1.5 bg-white/5 hover:bg-white/10 text-white font-extrabold text-[10px] rounded-lg transition-colors cursor-pointer"
+                className={`px-4 ${isMobileLandscape ? 'py-1 text-[9px] rounded-md' : 'py-1.5 text-[10px] rounded-lg'} bg-white/5 hover:bg-white/10 text-white font-extrabold transition-colors cursor-pointer`}
               >
                 رجوع
               </button>
@@ -263,7 +277,7 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
                   SoundEffects.playCardDraw();
                   setStep("packages");
                 }}
-                className="px-5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[10px] rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                className={`px-5 ${isMobileLandscape ? 'py-1 text-[9px] rounded-md' : 'py-1.5 text-[10px] rounded-lg'} bg-emerald-500 hover:bg-emerald-400 text-black font-black flex items-center gap-1 transition-colors cursor-pointer`}
               >
                 <span>التالي: باقات اللعب</span>
                 <ArrowLeft className="w-3 h-3" />
@@ -280,12 +294,12 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
             className="flex-1 flex flex-col justify-between py-1"
           >
             <div>
-              <div className="text-right border-b border-white/5 pb-2 mb-2">
+              <div className={`text-right border-b border-white/5 ${isMobileLandscape ? 'pb-1 mb-1.5' : 'pb-2 mb-2'}`}>
                 <span className="text-[10px] font-black uppercase text-emerald-500 tracking-wider">مرحلة 2: باقات اللعب المستخدمة</span>
-                <h2 className="text-sm font-black text-white mt-0.5">اختر باقات اللعيبة والكرات التكتيكية للماتش</h2>
+                <h2 className={`font-black text-white ${isMobileLandscape ? 'text-[11px]' : 'text-sm'} mt-0.5`}>اختر باقات اللعيبة والكرات التكتيكية للماتش</h2>
               </div>
 
-              <div className="max-h-[200px] xs:max-h-[240px] md:max-h-[270px] overflow-y-auto pr-1.5 space-y-3 select-none scrollbar-thin scrollbar-thumb-emerald-500/20 scrollbar-track-transparent">
+              <div className={`${isMobileLandscape ? 'max-h-[105px]' : 'max-h-[200px] xs:max-h-[240px] md:max-h-[270px]'} overflow-y-auto pr-1.5 space-y-2 select-none scrollbar-thin scrollbar-thumb-emerald-500/20 scrollbar-track-transparent`}>
                 
                 {!isSupabaseConfigured ? (
                   <div className="p-3 bg-amber-950/20 border border-amber-500/30 rounded-xl text-right">
@@ -481,13 +495,13 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
             className="flex-1 flex flex-col justify-between py-1"
           >
             <div className="flex-1 flex flex-col justify-start">
-              <div className="text-right border-b border-white/5 pb-2 mb-3">
+              <div className={`text-right border-b border-white/5 ${isMobileLandscape ? 'pb-1 mb-1.5' : 'pb-2 mb-3'}`}>
                 <span className="text-[10px] font-black uppercase text-emerald-500 tracking-wider">مرحلة 3: ضوابط ومعاملات اللقاء</span>
-                <h2 className="text-sm font-black text-white mt-0.5">تحديد زمن اللعب وفرص الأساطير والإعدادات</h2>
+                <h2 className={`font-black text-white ${isMobileLandscape ? 'text-[11px]' : 'text-sm'} mt-0.5`}>تحديد زمن اللعب وفرص الأساطير والإعدادات</h2>
               </div>
 
               {/* Scrollable container for settings options */}
-              <div className="max-h-[220px] xs:max-h-[260px] md:max-h-[290px] overflow-y-auto pr-1.5 space-y-3.5 select-none scrollbar-thin scrollbar-thumb-emerald-500/20 scrollbar-track-transparent">
+              <div className={`${isMobileLandscape ? 'max-h-[115px] space-y-2' : 'max-h-[220px] xs:max-h-[260px] md:max-h-[290px] space-y-3.5'} overflow-y-auto pr-1.5 select-none scrollbar-thin scrollbar-thumb-emerald-500/20 scrollbar-track-transparent`}>
                 
                 {/* Match Duration Panel */}
                 <div className="bg-black/25 border border-white/5 rounded-xl p-2.5 relative">
@@ -794,13 +808,13 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
             className="flex-1 flex flex-col justify-between py-1"
           >
             <div>
-              <div className="text-right border-b border-white/5 pb-2 mb-3">
+              <div className={`text-right border-b border-white/5 ${isMobileLandscape ? 'pb-1 mb-1.5' : 'pb-2 mb-3'}`}>
                 <span className="text-[10px] font-black uppercase text-emerald-500 tracking-wider">مرحلة 4: المدرب المقابل</span>
-                <h2 className="text-sm font-black text-white mt-0.5">من ستواجه على الخط الفني؟</h2>
+                <h2 className={`font-black text-white ${isMobileLandscape ? 'text-[11px]' : 'text-sm'} mt-0.5`}>من ستواجه على الخط الفني؟</h2>
               </div>
 
               {/* Tactical Difficulty Selector */}
-              <div className="space-y-1.5">
+              <div className={`${isMobileLandscape ? 'space-y-1' : 'space-y-1.5'}`}>
                 {[
                   { id: "normal", label: "مدرب ناشئ", icon: Users, desc: "تكتيك أساسي - مثالي للمبتدئين لاستكشاف الأوراق", color: "border-emerald-500 text-emerald-400 bg-emerald-950/10 hover:bg-emerald-950/20" },
                   { id: "tactical", label: "مدرب محترف", icon: Shield, desc: "تكتيك متقدم - يرد بالتبديلات والصد الدفاعي المنظم", color: "border-amber-500 text-amber-400 bg-amber-950/10 hover:bg-amber-950/20" },
@@ -817,19 +831,19 @@ export default function WelcomeMenu({ onStartGame }: WelcomeMenuProps) {
                         SoundEffects.playCardDraw();
                         setDifficulty(lvl.id as any);
                       }}
-                      className={`w-full p-2.5 rounded-xl border flex items-start gap-3 transition-all text-right cursor-pointer ${
+                      className={`w-full ${isMobileLandscape ? 'p-1.5 rounded-lg gap-2' : 'p-2.5 rounded-xl gap-3'} border flex items-start transition-all text-right cursor-pointer ${
                         isSelected
                           ? `${lvl.color} border-l-4 shadow-md`
                           : "border-white/5 text-[#e0e0e0]/45 bg-transparent hover:border-white/10 hover:text-white"
                       }`}
                     >
                       <div className="p-1 rounded-lg bg-black/40 mt-0.5 shrink-0">
-                        <IconComp className="w-4 h-4" />
+                        <IconComp className={`${isMobileLandscape ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />
                       </div>
                       
                       <div className="flex-1 min-w-0">
-                        <span className="font-extrabold text-xs block">{lvl.label}</span>
-                        <p className="text-[9.5px] opacity-70 leading-normal mt-0.5">{lvl.desc}</p>
+                        <span className={`font-extrabold ${isMobileLandscape ? 'text-[10px]' : 'text-xs'} block`}>{lvl.label}</span>
+                        <p className={`${isMobileLandscape ? 'text-[8.5px]' : 'text-[9.5px]'} opacity-70 leading-normal mt-0.5`}>{lvl.desc}</p>
                       </div>
                     </button>
                   );
