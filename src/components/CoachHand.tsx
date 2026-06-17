@@ -30,6 +30,7 @@ interface CoachHandProps {
   onPlaySpecialCard: (id: string) => void;
   onCancelSelection: () => void;
   onInspectCard?: (card: Card) => void;
+  legendBurnLimit: number;
 }
 
 export default function CoachHand({
@@ -51,7 +52,8 @@ export default function CoachHand({
   onDrawCard,
   onPlaySpecialCard,
   onCancelSelection,
-  onInspectCard
+  onInspectCard,
+  legendBurnLimit
 }: CoachHandProps) {
 
   // Determine if drawing phase is active
@@ -75,13 +77,15 @@ export default function CoachHand({
     if (selectedCard.type === "player") {
       const p = selectedCard as PlayerCard;
       if (p.isLegend) {
-        const remainingBurn = 2 - burningCardIds.length;
+        const remainingBurn = legendBurnLimit - burningCardIds.length;
         return (
           <div className="bg-amber-950/40 border border-amber-500/30 rounded-lg py-0.5 px-2 text-right text-[10px] text-amber-300 flex items-center justify-between gap-2 animate-fadeIn shrink-0">
             <div className="flex items-center gap-1">
               <Flame className="w-3 h-3 text-amber-500" />
               <span className="font-extrabold text-[10px]">تنزيل الأسطورة {p.name}!</span>
-              <span className="opacity-70">({remainingBurn > 0 ? `حدد ${remainingBurn} أوراق أخرى لحرقها` : "اختر مركز بالملعب للتنزيل"})</span>
+              <span className="opacity-70">
+                ({legendBurnLimit <= 0 || remainingBurn <= 0 ? "اختر مركز بالملعب للتنزيل" : `حدد ${remainingBurn} أوراق أخرى لحرقها`})
+              </span>
             </div>
             <button
               onClick={onCancelSelection}

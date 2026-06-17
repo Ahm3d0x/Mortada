@@ -86,6 +86,9 @@ export default function TacticalPitch({
 
   const isPeekMode = true;
 
+  const playerGridCols = playerSlots.length === 3 ? "grid-cols-3" : playerSlots.length === 4 ? "grid-cols-4" : "grid-cols-5";
+  const aiGridCols = aiSlots.length === 3 ? "grid-cols-3" : aiSlots.length === 4 ? "grid-cols-4" : "grid-cols-5";
+
   // Helper to render AI Slots
   const renderAiSlot = (idx: number, isMobile: boolean = false) => {
     const slot = aiSlots[idx];
@@ -270,7 +273,7 @@ export default function TacticalPitch({
           </div>
 
           {/* AI Pitch Slots */}
-          <div className="grid grid-cols-5 gap-1 md:gap-3 justify-items-center bg-black/35 p-2 md:p-3 rounded-xl border border-rose-500/15 shadow-inner overflow-hidden mb-3">
+          <div className={`grid ${aiGridCols} gap-1 md:gap-3 justify-items-center bg-black/35 p-2 md:p-3 rounded-xl border border-rose-500/15 shadow-inner overflow-hidden mb-3`}>
             {aiSlots.map((_, idx) => renderAiSlot(idx, true))}
           </div>
 
@@ -427,7 +430,7 @@ export default function TacticalPitch({
           </div>
 
           {/* Player Pitch Slots - Horizontal Side-by-Side row alignment (Requirement 1) */}
-          <div className="grid grid-cols-5 gap-1 md:gap-3 justify-items-center bg-emerald-950/10 p-2 md:p-3 rounded-xl border border-emerald-500/10 shadow-inner overflow-hidden">
+          <div className={`grid ${playerGridCols} gap-1 md:gap-3 justify-items-center bg-emerald-950/10 p-2 md:p-3 rounded-xl border border-emerald-500/10 shadow-inner overflow-hidden`}>
             {playerSlots.map((_, idx) => renderPlayerSlot(idx, true))}
           </div>
         </div>

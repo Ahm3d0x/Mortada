@@ -282,7 +282,7 @@ export default function AdminApp() {
 
           <div style={{ flex: 1, overflowY: "auto", minHeight: 150, padding: "8px 0" }}>
             {/* Player packages Grid */}
-            <div className="sidebar-section-title">باقات اللاعبين (Player)</div>
+            <div className="sidebar-section-title">باقات اللاعبين (كروت لاعبين)</div>
             {playerPackages.map((p) => {
               const count = cardCounts[p.id] || 0;
               return (
@@ -304,7 +304,7 @@ export default function AdminApp() {
             })}
 
             {/* Special packages Grid */}
-            <div className="sidebar-section-title" style={{ marginTop: "16px" }}>الباقات التكتيكية (Tactical)</div>
+            <div className="sidebar-section-title" style={{ marginTop: "16px" }}>الباقات التكتيكية (تكتيكية خاصة)</div>
             {specialPackages.map((p) => {
               const count = cardCounts[p.id] || 0;
               return (
@@ -471,8 +471,8 @@ export default function AdminApp() {
                     value={pkgType}
                     onChange={(e) => setPkgType(e.target.value as any)}
                   >
-                    <option value="player">🏃 باقة لاعبين (Player Cards)</option>
-                    <option value="special">🃏 باقة كروت تكتيكية (Tactical Cards)</option>
+                    <option value="player">🏃 باقة لاعبين (كروت لاعبين)</option>
+                    <option value="special">🃏 باقة كروت تكتيكية (تكتيكات خاصة)</option>
                   </select>
                 </div>
               )}

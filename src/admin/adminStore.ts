@@ -661,3 +661,50 @@ export async function importPackage(data: PackageExport): Promise<{
 
   return { package: newPkg, cardsImported: count };
 }
+
+export function saveCardLocally(card: any): void {
+  try {
+    const raw = localStorage.getItem("mortada_admin_cards");
+    const cards = raw ? JSON.parse(raw) : [];
+    const newCard = {
+      id: `local_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      name: card.name,
+      attack: Number(card.attack ?? 5),
+      defense: Number(card.defense ?? 5),
+      role: card.role || "midfielder",
+      role_arabic: card.role_arabic || card.roleArabic || "لاعب",
+      is_legend: !!(card.is_legend || card.isLegend),
+      description: card.description || "",
+      team: card.team || "",
+      avatar: card.avatar || "⚽",
+      image_url: card.image_url || card.imageUrl || "",
+      tags: card.tags || [],
+      ability: card.ability,
+    };
+    cards.push(newCard);
+    localStorage.setItem("mortada_admin_cards", JSON.stringify(cards));
+  } catch (e) {
+    console.error("Failed to save card locally:", e);
+  }
+}
+
+export function saveSpecialCardLocally(card: any): void {
+  try {
+    const raw = localStorage.getItem("mortada_admin_special_cards");
+    const cards = raw ? JSON.parse(raw) : [];
+    const newCard = {
+      id: `local_spec_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      name: card.name,
+      effect: card.effect || "custom",
+      effect_arabic: card.effect_arabic || card.effectArabic || "",
+      description: card.description || "",
+      icon: card.icon || "🃏",
+      image_url: card.image_url || card.imageUrl || "",
+      ability: card.ability,
+    };
+    cards.push(newCard);
+    localStorage.setItem("mortada_admin_special_cards", JSON.stringify(cards));
+  } catch (e) {
+    console.error("Failed to save special card locally:", e);
+  }
+}

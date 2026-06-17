@@ -16,6 +16,7 @@ import {
 } from "./cardsData";
 import { getCardsForGame, getSpecialCardsForGame } from "./admin/adminStore";
 import { SoundEffects } from "./utils/sounds";
+import Confetti from "./components/Confetti";
 
 import WelcomeMenu from "./components/WelcomeMenu";
 import Multilobby from "./components/Multilobby";
@@ -41,8 +42,11 @@ export default function App() {
   // Static AI properties
   const aiCoachName = "المدرب الغريم (تكتيك روبوت)";
   const aiTeam = "كتائب الروبوت الذكية 🤖";
-  const maxDrawsPerTurn = 2;
-  const initialCardsCount = 5;
+  const [maxDrawsPerTurn, setMaxDrawsPerTurn] = useState<number>(2);
+  const [maxMovesPerTurn, setMaxMovesPerTurn] = useState<number>(3);
+  const [defenseDrawsLimit, setDefenseDrawsLimit] = useState<number>(3);
+  const [legendBurnLimit, setLegendBurnLimit] = useState<number>(2);
+  const [initialCardsCount, setInitialCardsCount] = useState<number>(5);
 
   // Mobile & Orientation state
   const [isMobile, setIsMobile] = useState(false);
@@ -206,6 +210,16 @@ export default function App() {
   // Goal explosion cinematic state
   const [celebrationMessage, setCelebrationMessage] = useState<{ title: string; subtitle: string; isGoal: boolean } | null>(null);
   const [activeTargetingCard, setActiveTargetingCard] = useState<SpecialCard | null>(null);
+  const [screenShaken, setScreenShaken] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  const triggerScreenShake = () => {
+    setScreenShaken(true);
+    setTimeout(() => {
+      setScreenShaken(false);
+    }, 450);
+  };
+
   const [matchRounds, setMatchRounds] = useState<any[]>([]);
   const [cinematicEvent, setCinematicEvent] = useState<{
     type: "tactical" | "ability" | "flip" | "goal" | "block";
@@ -606,7 +620,7 @@ export default function App() {
       setAiScore(0);
       setTurnCount(1);
       setCardsDrawnThisTurn(0);
-      setPlayerMovesLeft(3);
+      setPlayerMovesLeft(maxMovesPerTurn);
 
       setPhase("warmup");
       
@@ -721,7 +735,9 @@ export default function App() {
     maxMoves: number = 3,
     initialCards: number = 5,
     selectedPlayerPkgs: string[] = [],
-    selectedSpecialPkgs: string[] = []
+    selectedSpecialPkgs: string[] = [],
+    defenseDraws: number = 3,
+    legendBurn: number = 2
   ) => {
     setCoachName(name);
     setTeamVibe(vibe);
@@ -729,6 +745,11 @@ export default function App() {
     setMatchTime(matchDuration);
     setInitialMatchTime(matchDuration);
     setLegendPercentage(customLegendPercentage);
+    setMaxDrawsPerTurn(maxDraws);
+    setMaxMovesPerTurn(maxMoves);
+    setDefenseDrawsLimit(defenseDraws);
+    setLegendBurnLimit(legendBurn);
+    setInitialCardsCount(initialCards);
     setIsHandExpanded(false);
     setGameLoadError(null);
     setIsGameLoading(true);
@@ -754,13 +775,13 @@ export default function App() {
       );
       const poDeck = generatePontoDeck();
 
-      // 1. "يسحب كل مدرب 5 كروت لاعبين ويضعهم أمامه في الملعب مقلوبين"
-      // "إذا كان من ضمن هؤلاء الخمسة كارت أسطورة، يجب أن يتم إرجاعه للمجموعة وسحب كارت بديل مكانه"
+      // 1. "يسحب كل مدرب كروت لاعبين ويضعهم أمامه في الملعب مقلوبين"
+      // "إذا كان من ضمن هؤلاء كارت أسطورة، يجب أن يتم إرجاعه للمجموعة وسحب كارت بديل مكانه"
       const prepareInitialPitchSlots = (deck: PlayerCard[]) => {
         const slots: PlayerCard[] = [];
         let remDeck = [...deck];
         
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < initialCards; i++) {
           // Draw first non-legend player
           const nonLegendIdx = remDeck.findIndex((c) => !c.isLegend);
           if (nonLegendIdx !== -1) {
@@ -773,14 +794,12 @@ export default function App() {
 
       const aiPitchInit = prepareInitialPitchSlots(aDeckInit);
 
-      // Player slots start empty, requiring manual drawing of 5 covered cards
-      setPlayerSlots([
-        { card: null, isRevealed: false },
-        { card: null, isRevealed: false },
-        { card: null, isRevealed: false },
-        { card: null, isRevealed: false },
-        { card: null, isRevealed: false }
-      ]);
+      // Player slots start empty, requiring manual drawing of covered cards
+      const initialPlayerSlots = Array.from({ length: initialCards }, () => ({
+        card: null,
+        isRevealed: false
+      }));
+      setPlayerSlots(initialPlayerSlots);
       setAiSlots(aiPitchInit.slots.map((card) => ({ card, isRevealed: false })));
 
       setPlayerHand([]);
@@ -796,14 +815,14 @@ export default function App() {
       setAiScore(0);
       setTurnCount(1);
       setCardsDrawnThisTurn(0);
-      setPlayerMovesLeft(3);
+      setPlayerMovesLeft(maxMoves);
       setMatchRounds([]);
 
       // Switch to Warmup
       setPhase("warmup");
       setLogs([]);
       addLog(`صافرة البداية! دخل المدرب ${name} بهوية ${vibe} لملاقاة خصمه ذو الصعوبة [${diff === "normal" ? "ناشئ" : diff === "tactical" ? "محترف" : "أسطوري"}].`, "success");
-      addLog("مرحلة التسخين نشطة! الملعب فارغ حالياً، قم بسحب 5 لاعبين لتوزيع مراكزهم بالضغط على زر 'سحب لاعب' (سيكون للاعبون مقلوبون تكتيكياً)، ثم اضغط على زر 'بدء اللقاء' لتنطلق صافرة الحكم.", "info");
+      addLog(`مرحلة التسخين نشطة! الملعب فارغ حالياً، قم بسحب ${initialCards} لاعبين لتوزيع مراكزهم بالضغط على زر 'سحب لاعب' (سيكون اللاعبون مقلوبين تكتيكياً)، ثم اضغط على زر 'بدء اللقاء' لتنطلق صافرة الحكم.`, "info");
       addLog("حقيبة الكروت بيدك فارغة حالياً. بمجرد تأكيد الخطة وبدء اللقاء، يمكنك سحب كروت تكتيكية جديدة في أدوارك ليدك لدعم مهارات وهجوم فريقك.", "neutral");
 
       // Request Fullscreen for immersive play
@@ -851,10 +870,10 @@ export default function App() {
 
   // CONFIRM WARMUP LINEUP
   const handleConfirmLineup = () => {
-    // Audit check: must have all 5 pitch slots filled to begin the match!
+    // Audit check: must have all pitch slots filled to begin the match!
     const emptySlots = playerSlots.some((s) => s.card === null);
     if (emptySlots) {
-      addLog("تحذير تكتيكي: يجب عليك تعبئة المراكز الخمسة بالملعب أولاً لبدء المباراة!", "danger");
+      addLog(`تحذير تكتيكي: يجب عليك تعبئة المراكز الـ ${initialCardsCount} بالملعب أولاً لبدء المباراة!`, "danger");
       return;
     }
 
@@ -919,7 +938,7 @@ export default function App() {
       setPlayerSlots((prev) => prev.map((s) => ({ ...s, isRevealed: false })));
       setPhase("player_turn");
       setCardsDrawnThisTurn(0);
-      setPlayerMovesLeft(3);
+      setPlayerMovesLeft(maxMovesPerTurn);
       setHasScoredThisTurn(false);
       setIsHandExpanded(true);
       addLog("صافرة ركلة البداية! تم إنهاء مرحلة التسخين واللوحة جاهزة. دورك الآن كمدرب مهاجم.", "success");
@@ -934,7 +953,7 @@ export default function App() {
         // Find first empty slot
         const emptyIdx = playerSlots.findIndex((s) => s.card === null);
         if (emptyIdx === -1) {
-          addLog("مرحلة التسخين: لقد قمت بسحب وتجهيز 5 كروت لاعبين بالفعل في الملعب! يمكنك الضغط على تأكيد الخطة والبدء بالعب.", "warning");
+          addLog(`مرحلة التسخين: لقد قمت بسحب وتجهيز ${initialCardsCount} كروت لاعبين بالفعل في الملعب! يمكنك الضغط على تأكيد الخطة والبدء باللعب.`, "warning");
           return;
         }
 
@@ -961,16 +980,17 @@ export default function App() {
         setPlayerDeck(updatedDeck);
 
         const drawnCount = updatedSlots.filter((s) => s.card !== null).length;
-        addLog(`[التسخين] لقد سحبت اللاعب مقلوباً ووضعته بيدك بمركز الملعب [ ${emptyIdx + 1} ]. (سحبت ${drawnCount}/5)`, "success");
+        addLog(`[التسخين] لقد سحبت اللاعب مقلوباً ووضعته بيدك بمركز الملعب [ ${emptyIdx + 1} ]. (سحبت ${drawnCount}/${initialCardsCount})`, "success");
         SoundEffects.playCardDraw();
         syncMultiplayerIfActive();
       } else {
-        addLog("مرحلة التسخين: اسحب كروت اللاعبين فقط (5 كروت) لتشكيل خطتك مقلوبة بالمركز المناسب!", "warning");
+        addLog(`مرحلة التسخين: اسحب كروت اللاعبين فقط (${initialCardsCount} كروت) لتشكيل خطتك مقلوبة بالمركز المناسب!`, "warning");
       }
       return;
     }
 
-    if (cardsDrawnThisTurn >= 2) return;
+    const currentDrawLimit = phase === "ai_attacking" ? defenseDrawsLimit : maxDrawsPerTurn;
+    if (cardsDrawnThisTurn >= currentDrawLimit) return;
 
     if (deckType === "player") {
       if (playerDeck.length === 0) {
@@ -996,8 +1016,8 @@ export default function App() {
     setCardsDrawnThisTurn(nextDrawnCount);
     SoundEffects.playCardDraw();
 
-    if (nextDrawnCount === 2) {
-      addLog("اكتمل سحب كارتي البداية! لديك الآن 3 حركات جاهزة للتنفيذ في هذا الدور.", "success");
+    if (nextDrawnCount === currentDrawLimit) {
+      addLog(`اكتمل سحب الكروت المتاحة (${currentDrawLimit} كروت)! لديك حركات جاهزة للتنفيذ.`, "success");
     }
     syncMultiplayerIfActive();
   };
@@ -1032,12 +1052,18 @@ export default function App() {
 
   // MULTIPLE DESTINATIONS FOR BURNING CARD SELECTION (LEGEND EXCLUSIVES)
   const toggleBurningCard = (cardId: string) => {
+    if (legendBurnLimit <= 0) return;
     if (burningCardIds.includes(cardId)) {
       setBurningCardIds((prev) => prev.filter((id) => id !== cardId));
     } else {
-      if (burningCardIds.length >= 2) {
-        // Shift oldest
-        setBurningCardIds((prev) => [prev[1], cardId]);
+      if (burningCardIds.length >= legendBurnLimit) {
+        setBurningCardIds((prev) => {
+          const next = [...prev];
+          if (next.length >= legendBurnLimit) {
+            next.shift();
+          }
+          return [...next, cardId];
+        });
       } else {
         setBurningCardIds((prev) => [...prev, cardId]);
       }
@@ -1325,6 +1351,22 @@ export default function App() {
     const card = playerHand.find((c) => c.id === id) as SpecialCard;
     if (!card) return;
 
+    // Toggle off if clicking the already active targeting card
+    if (activeTargetingCard?.id === id) {
+      handleCancelSelection();
+      addLog("الغاء التحديد: تم إلغاء تفعيل كارت التكتيك.", "neutral");
+      return;
+    }
+
+    // INTERCEPT TARGETING CARDS
+    const requiresTargeting = card.ability?.actions?.some(act => act.target === 'SelectedEnemy' || act.target === 'SelectedCard') || card.effect === 'red_card';
+    if (requiresTargeting) {
+      setActiveTargetingCard(card);
+      setSelectedHandCardId(card.id);
+      addLog(`🎯 تم تحديد التكتيك [ ${card.name} ]: انقر على كارت لاعب مستهدف بالملعب لتنفيذ المفعول.`, "info");
+      return;
+    }
+
     // Deduct move
     if (phase === "player_turn" || phase === "attacking") {
       setPlayerMovesLeft((prev) => prev - 1);
@@ -1384,8 +1426,130 @@ export default function App() {
     syncMultiplayerIfActive();
   };
 
+  // HELPER TO VALIDATE IF SLOT IS VALID TARGET FOR ACTIVE SPECIAL CARD
+  const isValidTargetForCard = (card: SpecialCard, idx: number, isAi: boolean): boolean => {
+    const slot = isAi ? aiSlots[idx] : playerSlots[idx];
+    if (!slot || !slot.card) return false;
+
+    if (!card.ability?.actions) {
+      if (card.effect === "red_card") {
+        return isAi; // red card targets enemy player cards
+      }
+      return false;
+    }
+
+    const hasSelectedEnemy = card.ability.actions.some(act => act.target === "SelectedEnemy");
+    const hasSelectedCard = card.ability.actions.some(act => act.target === "SelectedCard");
+
+    if (hasSelectedEnemy) {
+      return isAi;
+    }
+    if (hasSelectedCard) {
+      return true; // targets any card on pitch (ally or enemy)
+    }
+
+    return false;
+  };
+
   // CO-ORDINATE CLICK ON PITCH SLOT
-  const handleSelectPitchSlot = (idx: number) => {
+  const handleSelectPitchSlot = (idx: number, isAi: boolean = false) => {
+    // 0. Handle active targeting card plays
+    if (activeTargetingCard) {
+      if (!isValidTargetForCard(activeTargetingCard, idx, isAi)) {
+        addLog("خطأ تكتيكي: هذا الكارت المستهدف غير صالح لهذا التكتيك الخاص!", "danger");
+        return;
+      }
+
+      const targetSlots = isAi ? aiSlots : playerSlots;
+      const setTargetSlots = isAi ? setAiSlots : setPlayerSlots;
+      const targetSlot = targetSlots[idx];
+      if (!targetSlot.card) return;
+
+      const targetCard = { ...targetSlot.card };
+      const actions = activeTargetingCard.ability?.actions || [];
+      const durationTurns = actions[0]?.durationTurns || 2;
+      const actType = actions[0]?.type || (activeTargetingCard.effect === "red_card" ? "DestroyCard" : "DestroyCard");
+
+      setTargetSlots((prev) => {
+        const next = [...prev];
+        if (actType === "DestroyCard") {
+          next[idx] = { card: null, isRevealed: false };
+        } else if (actType === "ReturnToHand") {
+          next[idx] = { card: null, isRevealed: false };
+          if (isAi) {
+            setAiHand((p) => [...p, targetCard]);
+          } else {
+            setPlayerHand((p) => [...p, targetCard]);
+          }
+        } else if (actType === "FreezeCard") {
+          targetCard.frozen = true;
+          targetCard.frozenTurnsLeft = durationTurns;
+          next[idx] = { ...prev[idx], card: targetCard };
+        } else if (actType === "SilenceCard") {
+          targetCard.silenced = true;
+          targetCard.silencedTurnsLeft = durationTurns;
+          next[idx] = { ...prev[idx], card: targetCard };
+        } else if (actType === "StunCard") {
+          targetCard.stunned = true;
+          targetCard.stunnedTurnsLeft = durationTurns;
+          next[idx] = { ...prev[idx], card: targetCard };
+        } else if (actType === "RevealCard") {
+          next[idx] = { ...prev[idx], isRevealed: true, revealedInTurn: turnCount };
+        } else if (actType === "HideCard") {
+          next[idx] = { ...prev[idx], isRevealed: false };
+        }
+        return next;
+      });
+
+      // Deduct move
+      if (phase === "player_turn" || phase === "attacking") {
+        setPlayerMovesLeft((prev) => Math.max(0, prev - 1));
+      } else if (phase === "ai_attacking") {
+        setDefenseMovesLeft((prev) => Math.max(0, prev - 1));
+      }
+
+      // Remove from hand
+      setPlayerHand((prev) => prev.filter((c) => c.id !== activeTargetingCard.id));
+
+      // Logger
+      let actMsg = "";
+      const sideName = isAi ? "للخصم" : "الخاص بك";
+      if (actType === "DestroyCard") {
+        actMsg = `🟥 كارت أحمر: قمت بطرد واستبعاد اللاعب [ ${targetCard.name} ] ${sideName} خارج الملعب تماماً!`;
+        triggerScreenShake();
+        SoundEffects.playWhistle();
+      } else if (actType === "FreezeCard") {
+        actMsg = `❄️ تجميد: قمت بتجميد لاعب [ ${targetCard.name} ] ${sideName} لمدة ${durationTurns} أدوار!`;
+        SoundEffects.playTackleBlock();
+      } else if (actType === "SilenceCard") {
+        actMsg = `🔇 كتم القدرة: قمت بإلغاء قدرة لاعب [ ${targetCard.name} ] ${sideName} لمدة ${durationTurns} أدوار!`;
+        SoundEffects.playTackleBlock();
+      } else if (actType === "StunCard") {
+        actMsg = `💫 صدمة تكتيكية: قمت بصدم وتعطيل لاعب [ ${targetCard.name} ] ${sideName} لمدة ${durationTurns} أدوار!`;
+        SoundEffects.playTackleBlock();
+      } else if (actType === "ReturnToHand") {
+        actMsg = `🔄 سحب لليد: قمت بإرجاع [ ${targetCard.name} ] ${sideName} إلى يد المدرب.`;
+        SoundEffects.playCardDraw();
+      } else if (actType === "RevealCard") {
+        actMsg = `👁️ كشف: قمت بقلب لاعب [ ${targetCard.name} ] ${sideName} ليصبح مكشوفاً بالملعب.`;
+        SoundEffects.playCardDraw();
+      } else if (actType === "HideCard") {
+        actMsg = `🎭 إخفاء: قمت بقلب لاعب [ ${targetCard.name} ] ${sideName} ليصبح مقلوباً ومخفياً.`;
+        SoundEffects.playCardDraw();
+      } else {
+        actMsg = `⚡ تم تطبيق تأثير [ ${activeTargetingCard.name} ] على اللاعب [ ${targetCard.name} ] ${sideName}.`;
+        SoundEffects.playCardDraw();
+      }
+
+      addLog(actMsg, "success");
+      
+      // Clear targeting state
+      setActiveTargetingCard(null);
+      setSelectedHandCardId(null);
+      
+      syncMultiplayerIfActive();
+      return;
+    }
     // 1. Handling WARMUP phase (zero cost swaps)
     if (phase === "warmup") {
       if (selectedHandCardId) {
@@ -1440,14 +1604,18 @@ export default function App() {
 
         // Check if Legend card
         if (playerCard.isLegend) {
-          if (burningCardIds.length < 2) {
-            addLog("هذا اللاعب أسطورة أسطورية! يرجى تحديد كارتين من يدك لحرقهما (النقر فوقهما أولاً) لتتمكن من تنزيله.", "warning");
+          if (burningCardIds.length < legendBurnLimit) {
+            addLog(`هذا اللاعب أسطورة أسطورية! يرجى تحديد ${legendBurnLimit} كروت من يدك لحرقها (النقر فوقها أولاً) لتتمكن من تنزيله.`, "warning");
             return;
           }
 
           // Execute Legend placement
-          // 1. Remove the 2 burnt cards
-          setPlayerHand((prev) => prev.filter((c) => !burningCardIds.includes(c.id) && c.id !== selectedHandCardId));
+          // 1. Remove the burnt cards (if any) and the played card itself
+          if (legendBurnLimit > 0) {
+            setPlayerHand((prev) => prev.filter((c) => !burningCardIds.includes(c.id) && c.id !== selectedHandCardId));
+          } else {
+            setPlayerHand((prev) => prev.filter((c) => c.id !== selectedHandCardId));
+          }
 
           // 2. Place Legend, resolving swap rules on replaced player
           const targetSlot = playerSlots[idx];
@@ -1455,13 +1623,14 @@ export default function App() {
           newSlots[idx] = { card: playerCard, isRevealed: false };
           setPlayerSlots(newSlots);
 
+          const burnLogText = legendBurnLimit > 0 ? `تم حرق ${legendBurnLimit} كروت و` : "تم ";
           if (targetSlot.card) {
             if (targetSlot.isRevealed) {
-              addLog(`🔥 التضحية الفائقة: تم حرق ورقتين وعزل الأسطورة المكشوف ${targetSlot.card.name} خارج الماتش، ليدخل مكانه الأسطورة الجديد [ ${playerCard.name} ] مقلوباً.`, "success");
+              addLog(`🔥 التضحية الفائقة: ${burnLogText}عزل الأسطورة المكشوف ${targetSlot.card.name} خارج الماتش، ليدخل مكانه الأسطورة الجديد [ ${playerCard.name} ] مقلوباً.`, "success");
             } else {
               // Face down, returns to hand
               setPlayerHand((prev) => [...prev, targetSlot.card!]);
-              addLog(`🔥 التضحية الفائقة: تم حرق ورقتين واحتفاظ بـ ${targetSlot.card.name} في يدك، ليدخل مكانه الأسطورة الجديد [ ${playerCard.name} ] مقلوباً.`, "success");
+              addLog(`🔥 التضحية الفائقة: ${burnLogText}احتفاظ بـ ${targetSlot.card.name} في يدك، ليدخل مكانه الأسطورة الجديد [ ${playerCard.name} ] مقلوباً.`, "success");
             }
           } else {
             addLog(`🔥 تم إنزال الأسطورة الذهبي [ ${playerCard.name} ] في هذا المركز مقلوباً بنجاح!`, "success");
@@ -1523,7 +1692,7 @@ export default function App() {
           const newSlots = [...playerSlots];
           newSlots[idx] = { ...clickedSlot, isRevealed: false, revealedInAttack: false };
           setPlayerSlots(newSlots);
-          setDefenseMovesLeft((prev) => Math.min(3, prev + 1));
+          setDefenseMovesLeft((prev) => Math.min(maxMovesPerTurn, prev + 1));
           addLog(`🔄 تراجع دفاعي: قمت بإعادة قلب اللاعب [ ${clickedSlot.card.name} ] مقلوباً واستعدت حركة دفاعية واحدة.`, "neutral");
           SoundEffects.playCardDraw();
         }
@@ -1602,7 +1771,7 @@ export default function App() {
             });
             setAiSlots(revertedAiSlots);
 
-            setPlayerMovesLeft((prev) => Math.min(3, prev + refundMoves));
+            setPlayerMovesLeft((prev) => Math.min(maxMovesPerTurn, prev + refundMoves));
             addLog(`🔄 إلغاء الهجوم: قمت بإلغاء المحاولة الهجومية وإعادة قلب اللاعبين مقلوبين مع استعادة حركاتك التكتيكية.`, "info");
             SoundEffects.playCardDraw();
           } else {
@@ -1610,7 +1779,7 @@ export default function App() {
             const newSlots = [...playerSlots];
             newSlots[idx] = { ...clickedSlot, isRevealed: false, revealedInAttack: false };
             setPlayerSlots(newSlots);
-            setPlayerMovesLeft((prev) => Math.min(3, prev + 1));
+            setPlayerMovesLeft((prev) => Math.min(maxMovesPerTurn, prev + 1));
 
             // Revert one reactive AI slot that was revealed during this attack
             const aiToRevertIdx = aiSlots.findIndex((s) => s.isRevealed && s.revealedInAttack);
@@ -1665,6 +1834,10 @@ export default function App() {
 
   // CHECK PITCH SLOT SELECTABILITY STATE
   const isSlotSelectable = (idx: number, isAi: boolean): boolean => {
+    if (activeTargetingCard) {
+      return isValidTargetForCard(activeTargetingCard, idx, isAi);
+    }
+
     if (phase === "warmup") {
       // In Warmup only player slots are swappable if card selected
       return !isAi && selectedHandCardId !== null;
@@ -2042,6 +2215,8 @@ export default function App() {
         const newScore = playerScore + 1;
         setPlayerScore(newScore);
         setHasScoredThisTurn(true);
+        setShowConfetti(true);
+        triggerScreenShake();
         SoundEffects.playGoalCelebration();
         setCelebrationMessage({
           title: "جــوووووول! هجمة مرتدة قاتلة! ⚽🔥",
@@ -2129,6 +2304,8 @@ export default function App() {
           const newScore = playerScore + 1;
           setPlayerScore(newScore);
           setHasScoredThisTurn(true);
+          setShowConfetti(true);
+          triggerScreenShake();
           SoundEffects.playGoalCelebration();
           setCelebrationMessage({
             title: "جــوووووول! هجمة مرتدة قاتلة! ⚽🔥",
@@ -2245,6 +2422,7 @@ export default function App() {
     setSelectedPitchSlotIdx(null);
     setCurrentAttackerIdx(null);
     setCurrentPonto(null);
+    setShowConfetti(false);
 
     // Helper to decrement slot durations
     const decrementSlotDurations = (slots: typeof playerSlots) => {
@@ -2322,6 +2500,7 @@ export default function App() {
     if (playerScore >= 5) {
       setPhase("game_over");
       addLog(`صافرة النهاية للماتش اللذيذ! الكابتن ${coachName} يحرز اللقب القاري بخمسة أهداف كاملة! تهانينا ومبارك! 🏆🎉`, "success");
+      setShowConfetti(true);
       return;
     }
     if (aiScore >= 5) {
@@ -2379,7 +2558,7 @@ export default function App() {
           nextAiSpecials,
           nextDrawn,
           nextTurnCount,
-          3, // Cleans defense_moves_left
+          maxMovesPerTurn, // Cleans defense_moves_left
           undefined,
           undefined,
           undefined,
@@ -2393,7 +2572,7 @@ export default function App() {
     // Switch turn
     if (phase === "resolution") {
       setIsAttackBlocked(false);
-      setDefenseMovesLeft(3);
+      setDefenseMovesLeft(maxMovesPerTurn);
       if (isPlayerAttacker) {
         if (playerMovesLeft > 0) {
           setPhase("player_turn");
@@ -2403,7 +2582,7 @@ export default function App() {
         }
       } else {
         setPhase("player_turn");
-        setPlayerMovesLeft(3);
+        setPlayerMovesLeft(maxMovesPerTurn);
         setHasScoredThisTurn(false);
         setCardsDrawnThisTurn(0);
         setIsHandExpanded(true);
@@ -2424,7 +2603,7 @@ export default function App() {
       setPhase(nextPhase as any);
       setCardsDrawnThisTurn(0);
       setPlayerMovesLeft(0);
-      setAiMovesLeft(3);
+      setAiMovesLeft(maxMovesPerTurn);
 
       const nextLogs = [
         ...logs,
@@ -2725,7 +2904,7 @@ export default function App() {
 
           aiMoves -= 1;
           setPhase("ai_attacking");
-          setDefenseMovesLeft(3); // Player gets 3 defense moves!
+          setDefenseMovesLeft(maxMovesPerTurn); // Player gets 3 defense moves!
 
           addLog(`⚠️ هجوم عدواني باغت! الخصم يكشف مهاجمه الأساسي [ ${aiAttacker.name} ] بقوة هجوم: ${aiAttacker.attack}.`, "danger");
           addLog(`⚠️ الخصم سحب كارت معزز المرتدة عشوائي [ ${drawnPonto.text} ] بقوة +${drawnPonto.value}!`, "warning");
@@ -2742,7 +2921,7 @@ export default function App() {
 
         setPhase("player_turn");
         setCardsDrawnThisTurn(0);
-        setPlayerMovesLeft(3);
+        setPlayerMovesLeft(maxMovesPerTurn);
         setHasScoredThisTurn(false);
         setIsHandExpanded(true);
         setTurnCount((prev) => prev + 1);
@@ -2866,6 +3045,8 @@ export default function App() {
     setSelectedHandCardId(null);
     setBurningCardIds([]);
     setSelectedPitchSlotIdx(null);
+    setActiveTargetingCard(null);
+    setShowConfetti(false);
     setLogs([]);
     setMatchRounds([]);
   };
@@ -2901,6 +3082,7 @@ export default function App() {
 
   return (
     <div style={rotatedStyle} className={mainDivClass}>
+      {showConfetti && <Confetti />}
       {phase === "menu" && !isGameLoading && !gameLoadError ? (
         <WelcomeMenu onStartGame={handleStartGame} isMobileLandscape={isMobileLandscape} />
       ) : phase === "game_over" ? (
@@ -2921,7 +3103,7 @@ export default function App() {
           <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none" />
           <div className="absolute bottom-10 left-1/4 w-[400px] h-[400px] bg-teal-500/5 rounded-full blur-[100px] pointer-events-none" />
           {/* Main Container */}
-          <div className="max-w-7xl mx-auto h-full flex flex-col space-y-1.5 lg:space-y-2 justify-between">
+          <div className={`max-w-7xl mx-auto h-full flex flex-col space-y-1.5 lg:space-y-2 justify-between ${screenShaken ? "animate-shake" : ""}`}>
             
             {/* TOP STATUS NAVIGATION BAR - Hidden during matches on small viewports to match scribbled layouts */}
             <header className="hidden lg:flex flex-col sm:flex-row items-center justify-between bg-[#0c0d0c] p-3 px-4 rounded-xl border border-white/5 backdrop-blur-md gap-3 select-none">
@@ -3192,7 +3374,7 @@ export default function App() {
 
             {/* RIGHT FIELD MAIN PANEL (Opponent Slots, Scoreboard, Actions Bar, Player Slots) */}
             <div 
-              className="flex-1 flex flex-col gap-2.5 h-full justify-between overflow-hidden relative rounded-2xl p-4 md:p-6"
+              className="flex-1 flex flex-col gap-1 md:gap-2.5 h-full justify-between overflow-hidden relative rounded-2xl p-1.5 md:p-6"
               style={{
                 background: 'radial-gradient(circle at center, rgba(255, 255, 255, 0.08) 0%, transparent 80%), linear-gradient(to bottom, #0d381e 0%, #14532d 50%, #0d381e 100%)',
               }}
@@ -3227,6 +3409,7 @@ export default function App() {
                       specialDeckCount={specialDeck.length}
                       cardsDrawnThisTurn={cardsDrawnThisTurn}
                       maxDrawsPerTurn={maxDrawsPerTurn}
+                      legendBurnLimit={legendBurnLimit}
                       initialCardsCount={initialCardsCount}
                       isPlayerTurn={phase === "player_turn" || phase === "warmup"}
                       isHandExpanded={isHandExpanded}
@@ -3254,7 +3437,7 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-5 gap-1.5 w-full flex-1 items-center">
+                <div className="grid grid-cols-5 gap-1 md:gap-1.5 w-full flex-1 items-center">
                   {aiSlots.map((slot, idx) => {
                     const isSelectable = isSlotSelectable(idx, true);
                     const isChosenToAttack = currentAttackerIdx === idx && phase !== "player_turn";
@@ -3264,7 +3447,7 @@ export default function App() {
                     return (
                       <div 
                         key={`ai-pitch-slot-${idx}`}
-                        className={`relative rounded-2xl overflow-hidden aspect-[2/3] ${isRotated ? 'max-h-[22vw]' : 'max-h-[22.5vh] md:max-h-[24vh]'} w-full mx-auto transition-all flex flex-col justify-between ${
+                        className={`relative rounded-2xl overflow-hidden aspect-[2/3] ${isRotated ? 'max-h-[30vw] max-w-[20vw]' : 'max-h-[28vh] md:max-h-[30vh] max-w-[18.6vh] md:max-w-[20vh]'} w-full mx-auto transition-all flex flex-col justify-between ${
                           isSelectable 
                             ? "ring-2 ring-rose-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103" 
                             : ""
@@ -3277,7 +3460,7 @@ export default function App() {
                         {slot.card ? (
                           <div 
                             className="relative w-full h-full cursor-pointer"
-                            onClick={() => isSelectable && handleSelectPitchSlot(idx)}
+                            onClick={() => isSelectable && handleSelectPitchSlot(idx, true)}
                           >
                             <GameCard
                               card={slot.card}
@@ -3301,7 +3484,7 @@ export default function App() {
                         ) : (
                           /* Dotted silhouette placeholder for empty opponent slot */
                           <div 
-                            onClick={() => isSelectable && handleSelectPitchSlot(idx)}
+                            onClick={() => isSelectable && handleSelectPitchSlot(idx, true)}
                             className="w-full h-full aspect-[2/3] rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:bg-white/5"
                           >
                             <span className="text-xl opacity-10 select-none">👤</span>
@@ -3321,38 +3504,38 @@ export default function App() {
 
 
               {/* Row 2 (Beautiful Scoreboard and Clock Indicator - Floating Backdrop Blur Pitch-Center design) */}
-              <div className={`backdrop-blur-md bg-black/25 rounded-full px-5 py-1.5 w-[75%] mx-auto border border-white/5 shadow-lg items-center justify-between gap-3 h-[40px] shrink-0 select-none ${isHandExpanded ? "hidden" : "flex"}`}>
+              <div className={`backdrop-blur-md bg-black/25 rounded-full px-2.5 py-0 md:px-5 md:py-1.5 w-[92%] md:w-[75%] mx-auto border border-white/5 shadow-lg items-center justify-between gap-1 md:gap-3 h-[24px] md:h-[40px] shrink-0 select-none ${isHandExpanded ? "hidden" : "flex"}`}>
                 
                 {/* Scoreboard Left Team (User) */}
-                <div className="flex items-center gap-1.5 text-right flex-1 select-none">
-                  <span className="text-base leading-none">🇦🇷</span>
+                <div className="flex items-center gap-1 md:gap-1.5 text-right flex-1 select-none">
+                  <span className="text-[10px] md:text-base leading-none">🇦🇷</span>
                   <div className="flex flex-col text-right">
-                    <span className="text-[8px] font-black text-[#e0e0e0]/60 leading-none">راقصو التانغو</span>
+                    <span className="text-[6.5px] md:text-[8px] font-black text-[#e0e0e0]/60 leading-none">راقصو التانغو</span>
                   </div>
 
                   {/* Dynamic player Attack/Defense badge - requested by user */}
                   {showPlayerAttack && (
-                    <div className="mr-auto ml-1.5 bg-amber-50/10 text-yellow-300 px-1.5 py-0.5 rounded text-[9px] font-black flex items-center gap-0.5 animate-pulse">
+                    <div className="mr-auto ml-1 bg-amber-50/10 text-yellow-300 px-0.5 py-0.2 md:px-1.5 md:py-0.5 rounded text-[7px] md:text-[9px] font-black flex items-center gap-0.5 animate-pulse">
                       <span>🔥</span>
                       <span>{activeOffenseVal}</span>
                     </div>
                   )}
                   {showPlayerDefense && (
-                    <div className="mr-auto ml-1.5 bg-sky-500/10 text-sky-300 px-1.5 py-0.5 rounded text-[9px] font-black flex items-center gap-0.5 animate-pulse">
+                    <div className="mr-auto ml-1 bg-sky-500/10 text-sky-300 px-0.5 py-0.2 md:px-1.5 md:py-0.5 rounded text-[7px] md:text-[9px] font-black flex items-center gap-0.5 animate-pulse">
                       <span>🛡️</span>
                       <span>{activeDefenseVal}</span>
                     </div>
                   )}
 
-                  <div className="text-[#00ff66] font-mono font-black text-lg min-w-[20px] text-center ml-1">
+                  <div className="text-[#00ff66] font-mono font-black text-[11px] md:text-lg min-w-[15px] md:min-w-[20px] text-center ml-0.5 md:ml-1">
                     {playerScore}
                   </div>
                 </div>
 
                 {/* Clock Stopwatch in the middle */}
-                <div className="flex items-center justify-center gap-1.5 text-emerald-400 font-mono font-black text-xs px-2.5 py-0.5 whitespace-nowrap shrink-0">
+                <div className="flex items-center justify-center gap-1 text-emerald-400 font-mono font-black text-[8.5px] md:text-xs px-1 md:px-2.5 py-0.2 md:py-0.5 bg-black/30 md:bg-transparent rounded-full whitespace-nowrap shrink-0">
                   <span>⏱️</span>
-                  <span className="tracking-widest">
+                  <span className="tracking-wider md:tracking-widest">
                     {(() => {
                       const m = Math.floor(matchTime / 60).toString().padStart(2, "0");
                       const s = (matchTime % 60).toString().padStart(2, "0");
@@ -3362,60 +3545,95 @@ export default function App() {
                 </div>
 
                 {/* Scoreboard Right Team (Opponent) */}
-                <div className="flex items-center gap-1.5 text-left flex-1 justify-end select-none">
-                  <div className="text-rose-450 font-mono font-black text-lg min-w-[20px] text-center mr-1">
+                <div className="flex items-center gap-1 md:gap-1.5 text-left flex-1 justify-end select-none">
+                  <div className="text-rose-450 font-mono font-black text-[11px] md:text-lg min-w-[15px] md:min-w-[20px] text-center mr-0.5 md:mr-1">
                     {aiScore}
                   </div>
 
                   {/* Dynamic AI Attack/Defense badge - requested by user */}
                   {showAiDefense && (
-                    <div className="ml-auto mr-1.5 bg-sky-500/10 text-sky-300 px-1.5 py-0.5 rounded text-[9px] font-black flex items-center gap-0.5 animate-pulse">
+                    <div className="ml-auto mr-1 bg-sky-500/10 text-sky-300 px-0.5 py-0.2 md:px-1.5 md:py-0.5 rounded text-[7px] md:text-[9px] font-black flex items-center gap-0.5 animate-pulse">
                       <span>🛡️</span>
                       <span>{activeDefenseVal}</span>
                     </div>
                   )}
                   {showAiAttack && (
-                    <div className="ml-auto mr-1.5 bg-amber-500/10 text-yellow-300 px-1.5 py-0.5 rounded text-[9px] font-black flex items-center gap-0.5 animate-pulse">
+                    <div className="ml-auto mr-1 bg-amber-500/10 text-yellow-300 px-0.5 py-0.2 md:px-1.5 md:py-0.5 rounded text-[7px] md:text-[9px] font-black flex items-center gap-0.5 animate-pulse">
                       <span>🔥</span>
                       <span>{activeOffenseVal}</span>
                     </div>
                   )}
 
-                  <div className="flex flex-col text-right ml-1">
-                    <span className="text-[8px] font-black text-[#e0e0e0]/60 leading-none">كتائب الروبوت</span>
+                  <div className="flex flex-col text-right ml-0.5 md:ml-1">
+                    <span className="text-[6.5px] md:text-[8px] font-black text-[#e0e0e0]/60 leading-none">كتائب الروبوت</span>
                   </div>
-                  <span className="text-sm">🤖</span>
+                  <span className="text-[10px] md:text-sm">🤖</span>
                 </div>
 
               </div>
 
 
               {/* Row 3 (Sleek Round Controller Toolbar - Floating Pill Backdrop Blur) */}
-              <div className={`backdrop-blur-md bg-black/30 rounded-full px-4 py-1 w-[90%] mx-auto border border-white/5 shadow-md items-center justify-between gap-3 h-[40px] shrink-0 select-none ${isHandExpanded ? "hidden" : "flex"}`}>
+              <div className={`backdrop-blur-md bg-black/30 rounded-full px-1.5 py-0 md:px-4 md:py-1 w-[96%] md:w-[90%] mx-auto border border-white/5 shadow-md items-center justify-between gap-1 md:gap-3 h-[26px] md:h-[40px] shrink-0 select-none ${isHandExpanded ? "hidden" : "flex"}`}>
                 
                 {/* State Tag badge */}
-                <div className="bg-linear-to-r from-emerald-600/15 to-teal-600/15 text-emerald-400 border border-emerald-500/25 px-2 py-0.5 rounded-lg font-black text-[9px] shadow-sm whitespace-nowrap shrink-0 leading-none">
-                  {phase === "warmup" && "مرحلة التسخين ⚽"}
-                  {phase === "player_turn" && "دورك التكتيكي 🧠"}
-                  {phase === "ai_turn" && "دفاع الخصم مستعد 🤖"}
-                  {phase === "attacking" && "التسديد والهجوم ⚔️"}
-                  {phase === "ai_attacking" && "صد دفاعي شرس 🛡️"}
-                  {phase === "resolution" && "تحليل الهجمة 📊"}
-                  {phase === "game_over" && "انتهت المقابلة 🏁"}
+                <div className="bg-linear-to-r from-emerald-600/15 to-teal-600/15 text-emerald-400 border border-emerald-500/25 px-1 py-0.5 rounded-md font-black text-[7px] md:text-[9px] shadow-sm whitespace-nowrap shrink-0 leading-none">
+                  {phase === "warmup" && (
+                    <>
+                      <span className="hidden md:inline">مرحلة التسخين ⚽</span>
+                      <span className="inline md:hidden">التسخين ⚽</span>
+                    </>
+                  )}
+                  {phase === "player_turn" && (
+                    <>
+                      <span className="hidden md:inline">دورك التكتيكي 🧠</span>
+                      <span className="inline md:hidden">دورك 🧠</span>
+                    </>
+                  )}
+                  {phase === "ai_turn" && (
+                    <>
+                      <span className="hidden md:inline">دفاع الخصم مستعد 🤖</span>
+                      <span className="inline md:hidden">الخصم 🤖</span>
+                    </>
+                  )}
+                  {phase === "attacking" && (
+                    <>
+                      <span className="hidden md:inline">التسديد والهجوم ⚔️</span>
+                      <span className="inline md:hidden">هجوم ⚔️</span>
+                    </>
+                  )}
+                  {phase === "ai_attacking" && (
+                    <>
+                      <span className="hidden md:inline">صد دفاعي شرس 🛡️</span>
+                      <span className="inline md:hidden">دفاع 🛡️</span>
+                    </>
+                  )}
+                  {phase === "resolution" && (
+                    <>
+                      <span className="hidden md:inline">تحليل الهجمة 📊</span>
+                      <span className="inline md:hidden">تحليل 📊</span>
+                    </>
+                  )}
+                  {phase === "game_over" && (
+                    <>
+                      <span className="hidden md:inline">انتهت المقابلة 🏁</span>
+                      <span className="inline md:hidden">انتهت 🏁</span>
+                    </>
+                  )}
                 </div>
 
                 {/* Status Counters pills */}
-                <div className="flex items-center gap-1 shrink-0 scale-95">
-                  <div className="bg-amber-500/10 text-amber-300 border border-amber-500/25 px-1.5 py-0.5 rounded text-[8px] font-black font-sans leading-none">
+                <div className="flex items-center gap-0.5 md:gap-1 shrink-0 scale-[0.82] md:scale-95 origin-center">
+                  <div className="bg-amber-50/10 text-amber-300 border border-amber-500/25 px-0.5 py-0.5 rounded text-[6.5px] md:text-[8px] font-black font-sans leading-none">
                     حركة {playerMovesLeft} / 3
                   </div>
-                  <div className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-1.5 py-0.5 rounded text-[8px] font-black font-sans leading-none">
+                  <div className="bg-[#10b981]/10 text-emerald-400 border border-emerald-500/25 px-0.5 py-0.5 rounded text-[6.5px] md:text-[8px] font-black font-sans leading-none">
                     سحب {cardsDrawnThisTurn} / 2
                   </div>
                 </div>
 
                 {/* Actionable Buttons depending on phase */}
-                <div className="flex items-center gap-1.5 justify-end">
+                <div className="flex items-center gap-1 md:gap-1.5 justify-end">
                   
                   {phase === "player_turn" && (
                     <>
@@ -3423,17 +3641,17 @@ export default function App() {
                         type="button"
                         onClick={handleDeclareAttack}
                         disabled={playerMovesLeft < 2 && selectedPitchSlotIdx === null}
-                        className="bg-[#881337] hover:bg-[#9f1239] disabled:opacity-40 text-white font-extrabold py-0.5 px-2 rounded-md text-[9.5px] flex items-center gap-0.5 cursor-pointer transition-colors leading-normal"
+                        className="bg-[#881337] hover:bg-[#9f1239] disabled:opacity-40 text-white font-extrabold py-0.5 px-1.5 md:px-2 rounded-md text-[7.5px] md:text-[9.5px] flex items-center gap-0.5 cursor-pointer transition-colors leading-none"
                       >
-                        <span>هجوم مباشر</span>
+                        <span>هجوم</span>
                         <span>⚔️</span>
                       </button>
                       <button
                         type="button"
                         onClick={handleEndPlayerTurn}
-                        className="bg-[#2d3748] hover:bg-[#3d4a5f] text-slate-300 font-extrabold py-0.5 px-2 rounded-md text-[10px] border border-white/5 cursor-pointer transition-colors leading-normal"
+                        className="bg-[#2d3748] hover:bg-[#3d4a5f] text-slate-300 font-extrabold py-0.5 px-1 rounded-md text-[7.5px] md:text-[10px] border border-white/5 cursor-pointer transition-colors leading-none"
                       >
-                        <span>إنهاء الدور ⏳</span>
+                        <span>إنهاء ⏳</span>
                       </button>
                     </>
                   )}
@@ -3442,9 +3660,10 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleConfirmLineup}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-0.5 px-3 rounded-md text-[10px] cursor-pointer transition-colors leading-normal"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-0.5 px-1.5 md:px-3 rounded-md text-[7.5px] md:text-[10px] cursor-pointer transition-colors leading-none"
                     >
-                      🏁
+                      <span className="hidden md:inline">تأكيد البدء 🏁</span>
+                      <span className="inline md:hidden">تأكيد 🏁</span>
                     </button>
                   )}
 
@@ -3453,15 +3672,15 @@ export default function App() {
                       <button
                         type="button"
                         onClick={handleResolveAttack}
-                        className="bg-rose-600 hover:bg-rose-500 text-white font-black py-0.5 px-3 rounded-md text-[10px] cursor-pointer transition-colors leading-normal"
+                        className="bg-rose-600 hover:bg-rose-500 text-white font-black py-0.5 px-1.5 md:px-3 rounded-md text-[7.5px] md:text-[10px] cursor-pointer transition-colors leading-none"
                       >
-                        تسديدة حاسمة ⚽
+                        تسديدة ⚽
                       </button>
                       {isAttackBlocked && (
                         <button
                           type="button"
                           onClick={handleForceEndAttack}
-                          className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-0.5 px-2 rounded-md text-[9px] cursor-pointer"
+                          className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-0.5 px-0.8 md:px-2 rounded-md text-[7px] md:text-[9px] cursor-pointer leading-none"
                         >
                           إنهاء 🛑
                         </button>
@@ -3473,9 +3692,9 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleConfirmDefense}
-                      className="bg-blue-600 hover:bg-blue-500 text-white font-black py-0.5 px-3 rounded-md text-[10px] cursor-pointer transition-colors leading-normal"
+                      className="bg-blue-600 hover:bg-blue-500 text-white font-black py-0.5 px-1.5 md:px-3 rounded-md text-[7.5px] md:text-[10px] cursor-pointer transition-colors leading-none"
                     >
-                      تأكيد الدفاع 🛡️
+                      تأكيد 🛡️
                     </button>
                   )}
 
@@ -3483,9 +3702,9 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleResetGame}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-0.5 px-3 rounded-md text-[10px] cursor-pointer"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-0.5 px-1.5 md:px-3 rounded-md text-[7.5px] md:text-[10px] cursor-pointer leading-none"
                     >
-                      مباراة جديدة 🔁
+                      جديدة 🔁
                     </button>
                   )}
 
@@ -3497,7 +3716,7 @@ export default function App() {
               {/* Row 4 (Player Pitch Slots - Borderless Field Overlay) */}
               <div className="relative flex-1 min-h-[100px] w-full flex flex-col justify-center items-center z-10">
 
-                <div className="grid grid-cols-5 gap-1.5 w-full flex-1 items-center">
+                <div className="grid grid-cols-5 gap-1 md:gap-1.5 w-full flex-1 items-center">
                   {playerSlots.map((slot, idx) => {
                     const isSelectable = isSlotSelectable(idx, false);
                     const isSelected = selectedPitchSlotIdx === idx;
@@ -3506,14 +3725,14 @@ export default function App() {
                     return (
                       <div 
                         key={`player-pitch-slot-${idx}`}
-                        className={`relative rounded-2xl overflow-hidden aspect-[2/3] ${isRotated ? 'max-h-[22vw]' : 'max-h-[22.5vh] md:max-h-[24vh]'} w-full mx-auto transition-all flex flex-col justify-between ${
+                        className={`relative rounded-2xl overflow-hidden aspect-[2/3] ${isRotated ? 'max-h-[30vw] max-w-[20vw]' : 'max-h-[28vh] md:max-h-[30vh] max-w-[18.6vh] md:max-w-[20vh]'} w-full mx-auto transition-all flex flex-col justify-between ${
                           isSelectable 
                             ? "ring-2 ring-emerald-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103 animate-pulse" 
                             : ""
                         } ${isSelected ? "ring-2 ring-amber-400 ring-offset-1 ring-offset-black scale-102" : ""}`}
                       >
                         {slot.card ? (
-                          <div className="relative w-full h-full cursor-pointer" onClick={() => handleSelectPitchSlot(idx)}>
+                          <div className="relative w-full h-full cursor-pointer" onClick={() => activeTargetingCard ? (isSelectable && handleSelectPitchSlot(idx, false)) : handleSelectPitchSlot(idx, false)}>
                             <GameCard
                               card={slot.card}
                               isRevealed={true}
@@ -3529,7 +3748,7 @@ export default function App() {
                         ) : (
                           /* Empty Player Slot with faint player silhouette directly on turf */
                           <div 
-                            onClick={() => handleSelectPitchSlot(idx)}
+                            onClick={() => handleSelectPitchSlot(idx, false)}
                             className="w-full h-full aspect-[2/3] rounded-2xl border border-dashed border-emerald-400/20 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:bg-emerald-500/10"
                           >
                             <span className="text-xl text-emerald-400 opacity-20 select-none">👤</span>

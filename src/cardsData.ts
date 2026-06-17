@@ -272,10 +272,34 @@ function generateDeckFromHardcoded(legendRatio: number): PlayerCard[] {
 
 // Helper to fully initialize and shuffle standard special decks
 export function generateSpecialDeck(): SpecialCard[] {
+  let pool = [...INITIAL_SPECIAL_CARDS];
+  try {
+    const raw = localStorage.getItem("mortada_admin_special_cards");
+    if (raw) {
+      const customSpecials = JSON.parse(raw);
+      if (Array.isArray(customSpecials) && customSpecials.length > 0) {
+        const formatted = customSpecials.map((c: any) => ({
+          name: c.name,
+          type: "special" as const,
+          effect: c.effect || "custom",
+          effectArabic: c.effectArabic || c.effect_arabic || "",
+          description: c.description || "",
+          icon: c.icon || "🃏",
+          imageUrl: c.image_url || c.imageUrl || "",
+          ability: c.ability,
+        }));
+        pool = [...formatted, ...pool];
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
   // Multiply counts to make sure we don't run dry easily
   const duplicated: Omit<SpecialCard, "id">[] = [];
-  for (let i = 0; i < 3; i++) {
-    duplicated.push(...INITIAL_SPECIAL_CARDS);
+  const repetitions = pool.length > 5 ? 2 : 3;
+  for (let i = 0; i < repetitions; i++) {
+    duplicated.push(...pool);
   }
   return duplicated.map((card, idx) => ({
     ...card,
@@ -285,11 +309,33 @@ export function generateSpecialDeck(): SpecialCard[] {
 
 // Build special deck from a pool of SpecialCard objects (used for admin packages)
 export function generateSpecialDeckFromPool(pool: SpecialCard[]): SpecialCard[] {
+  let finalPool = [...pool];
+  if (finalPool.length === 0) {
+    try {
+      const raw = localStorage.getItem("mortada_admin_special_cards");
+      if (raw) {
+        const customSpecials = JSON.parse(raw);
+        if (Array.isArray(customSpecials) && customSpecials.length > 0) {
+          finalPool = customSpecials.map((c: any, idx: number) => ({
+            id: `admin_spec_local_${c.id || idx}`,
+            name: c.name,
+            type: "special" as const,
+            effect: c.effect || "custom",
+            effectArabic: c.effectArabic || c.effect_arabic || "",
+            description: c.description || "",
+            icon: c.icon || "🃏",
+            imageUrl: c.image_url || c.imageUrl || "",
+            ability: c.ability,
+          }));
+        }
+      }
+    } catch {}
+  }
   const duplicated: SpecialCard[] = [];
   const targetSize = 25;
-  const repeatCount = pool.length > 0 ? Math.max(1, Math.ceil(targetSize / pool.length)) : 1;
+  const repeatCount = finalPool.length > 0 ? Math.max(1, Math.ceil(targetSize / finalPool.length)) : 1;
   for (let i = 0; i < repeatCount; i++) {
-    duplicated.push(...pool);
+    duplicated.push(...finalPool);
   }
   return duplicated.map((card, idx) => ({
     ...card,

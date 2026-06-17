@@ -511,7 +511,7 @@ export default function CardEditor({
                     onChange={(e) => setHasAbility(e.target.checked)}
                     style={{ width: 16, height: 16 }}
                   />
-                  تفعيل القدرات التكتيكية المخصصة (Rules Engine)
+                  تفعيل القدرات التكتيكية المخصصة (محرك القواعد)
                 </label>
 
                 {hasAbility && (
@@ -532,16 +532,19 @@ export default function CardEditor({
                       const badgeBg = power.level === "strong" ? "#ef4444" : power.level === "weak" ? "#3b82f6" : "#10b981";
                       return (
                         <div style={{
-                          padding: 10,
-                          borderRadius: 8,
-                          background: "rgba(0,0,0,0.3)",
+                          padding: "12px 14px",
+                          borderRadius: 12,
+                          background: "rgba(0,0,0,0.45)",
                           borderLeft: `4px solid ${badgeBg}`,
+                          borderRight: "1px solid rgba(255,255,255,0.05)",
+                          borderTop: "1px solid rgba(255,255,255,0.05)",
+                          borderBottom: "1px solid rgba(255,255,255,0.05)",
                           fontSize: 11,
                           color: "#fff",
                           direction: "rtl",
                           textAlign: "right"
                         }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                             <strong>مقياس اتزان وقوة الكارت:</strong>
                             <span style={{
                               padding: "2px 8px",
@@ -554,7 +557,45 @@ export default function CardEditor({
                               {power.score} نقطة ({power.level === "strong" ? "خارق" : power.level === "weak" ? "ضعيف" : "متوازن"})
                             </span>
                           </div>
-                          <p style={{ color: "#aaa", margin: 0, fontSize: 10 }}>{power.explanation}</p>
+                          <p style={{ color: "#aaa", margin: "0 0 8px 0", fontSize: 10, lineHeight: "1.4" }}>{power.explanation}</p>
+                          
+                          {power.breakdown && (
+                            <div style={{ marginTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                              {power.breakdown.base > 0 && (
+                                <div>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#94a3b8", marginBottom: 2 }}>
+                                    <span>القوة البدنية والأساسية (الهجوم/الدفاع):</span>
+                                    <span style={{ fontWeight: "bold" }}>{power.breakdown.base}</span>
+                                  </div>
+                                  <div style={{ width: "100%", height: 4, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 2, overflow: "hidden" }}>
+                                    <div style={{ height: "100%", width: `${Math.min(100, (power.breakdown.base / 45) * 100)}%`, background: "linear-gradient(to left, #059669, #34d399)", borderRadius: 2 }} />
+                                  </div>
+                                </div>
+                              )}
+                              {power.breakdown.legend > 0 && (
+                                <div>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#fbbf24", marginBottom: 2 }}>
+                                    <span>شرف الأسطورة (مكافأة الكارت الأسطوري):</span>
+                                    <span style={{ fontWeight: "bold" }}>+{power.breakdown.legend}</span>
+                                  </div>
+                                  <div style={{ width: "100%", height: 4, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 2, overflow: "hidden" }}>
+                                    <div style={{ height: "100%", width: `${Math.min(100, (power.breakdown.legend / 10) * 100)}%`, background: "linear-gradient(to left, #d97706, #fbbf24)", borderRadius: 2 }} />
+                                  </div>
+                                </div>
+                              )}
+                              {power.breakdown.ability > 0 && (
+                                <div>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#2dd4bf", marginBottom: 2 }}>
+                                    <span>القوة التكتيكية (القدرة الخاصة وتأثيرها):</span>
+                                    <span style={{ fontWeight: "bold" }}>{power.breakdown.ability}</span>
+                                  </div>
+                                  <div style={{ width: "100%", height: 4, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 2, overflow: "hidden" }}>
+                                    <div style={{ height: "100%", width: `${Math.min(100, (power.breakdown.ability / 50) * 100)}%`, background: "linear-gradient(to left, #0d9488, #2dd4bf)", borderRadius: 2 }} />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })()}
@@ -577,28 +618,28 @@ export default function CardEditor({
 
                     {/* Trigger */}
                     <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label" style={{ fontSize: 11, color: "#888" }}>الحدث المسبب للقدرة (Trigger) *</label>
+                      <label className="form-label" style={{ fontSize: 11, color: "#888" }}>الحدث المسبب للقدرة (الزناد) *</label>
                       <select
                         className="form-input"
                         value={abilityTrigger}
                         onChange={(e) => setAbilityTrigger(e.target.value as any)}
                         style={{ margin: 0, padding: 6, fontSize: 12, background: "#0b0c0e", borderColor: "#333", color: "#ddd" }}
                       >
-                        <option value="CardRevealed">CardRevealed (عند كشف الكارت في الملعب)</option>
-                        <option value="CardPlayed">CardPlayed (عند إنزال أو لعب الكارت)</option>
-                        <option value="AttackStarted">AttackStarted (عند بدء الهجمة)</option>
-                        <option value="DefenseStarted">DefenseStarted (عند بدء الدفاع والصد)</option>
-                        <option value="GoalScored">GoalScored (عند تسجيل هدف)</option>
-                        <option value="TurnStarted">TurnStarted (عند بداية الدور)</option>
-                        <option value="TurnEnded">TurnEnded (عند نهاية الدور)</option>
-                        <option value="CardDestroyed">CardDestroyed (عند طرد أو استبعاد لاعب)</option>
+                        <option value="CardRevealed">عند كشف الكارت في الملعب</option>
+                        <option value="CardPlayed">عند إنزال أو لعب الكارت</option>
+                        <option value="AttackStarted">عند بدء الهجمة</option>
+                        <option value="DefenseStarted">عند بدء الدفاع والصد</option>
+                        <option value="GoalScored">عند تسجيل هدف</option>
+                        <option value="TurnStarted">عند بداية الدور</option>
+                        <option value="TurnEnded">عند نهاية الدور</option>
+                        <option value="CardDestroyed">عند طرد أو استبعاد لاعب</option>
                       </select>
                     </div>
 
                     {/* Conditions */}
                     <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 8 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <span style={{ fontSize: 11, color: "#aaa", fontWeight: "bold" }}>شروط التفعيل (Conditions)</span>
+                        <span style={{ fontSize: 11, color: "#aaa", fontWeight: "bold" }}>شروط التفعيل</span>
                         <button
                           type="button"
                           className="btn-secondary"
@@ -620,14 +661,14 @@ export default function CardEditor({
                                 value={cond.type}
                                 onChange={(e) => handleUpdateCondition(cIdx, "type", e.target.value)}
                               >
-                                <option value="IsFaceUp">IsFaceUp (الكارت مكشوف)</option>
-                                <option value="IsFaceDown">IsFaceDown (الكارت مقلوب)</option>
-                                <option value="IsAttacker">IsAttacker (صاحب الكارت مهاجم)</option>
-                                <option value="IsDefender">IsDefender (صاحب الكارت مدافع)</option>
-                                <option value="CardOwnerIsEnemy">CardOwnerIsEnemy (الكارت للخصم)</option>
-                                <option value="IsLegend">IsLegend (الكارت أسطوري)</option>
-                                <option value="HasTag">HasTag (يمتلك تاغ معين)</option>
-                                <option value="HasAbility">HasAbility (يمتلك قدرة نشطة)</option>
+                                <option value="IsFaceUp">الكارت مكشوف وجهاً لأعلى</option>
+                                <option value="IsFaceDown">الكارت مقلوب وجهاً لأسفل</option>
+                                <option value="IsAttacker">صاحب الكارت مهاجم</option>
+                                <option value="IsDefender">صاحب الكارت مدافع</option>
+                                <option value="CardOwnerIsEnemy">الكارت يخص الخصم</option>
+                                <option value="IsLegend">الكارت للاعب أسطوري</option>
+                                <option value="HasTag">يمتلك تاغ معين</option>
+                                <option value="HasAbility">يمتلك قدرة نشطة</option>
                               </select>
                               {cond.type === "HasTag" && (
                                 <input
@@ -656,7 +697,7 @@ export default function CardEditor({
                     {/* Actions */}
                     <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 8 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <span style={{ fontSize: 11, color: "#aaa", fontWeight: "bold" }}>إجراءات التأثير (Actions) *</span>
+                        <span style={{ fontSize: 11, color: "#aaa", fontWeight: "bold" }}>إجراءات التأثير *</span>
                         <button
                           type="button"
                           className="btn-secondary"
@@ -679,27 +720,27 @@ export default function CardEditor({
                                   value={act.type}
                                   onChange={(e) => handleUpdateAction(aIdx, "type", e.target.value)}
                                 >
-                                  <option value="AddStat">AddStat (تعديل القيمة هجوم/دفاع/حركات/سحب)</option>
-                                  <option value="RemoveStat">RemoveStat (تخفيض القيمة هجوم/دفاع/حركات/سحب)</option>
-                                  <option value="MultiplyStat">MultiplyStat (مضاعفة القيمة هجوم/دفاع)</option>
-                                  <option value="CancelAction">CancelAction (إحباط هجمة أو صد/تسلل)</option>
-                                  <option value="DestroyCard">DestroyCard (طرد واستبعاد كارت)</option>
-                                  <option value="DrawCard">DrawCard (سحب كروت إضافية)</option>
-                                  <option value="FreezeCard">FreezeCard (تجميد كارت لاعب ❄️)</option>
-                                  <option value="SilenceCard">SilenceCard (كتم قدرة كارت لاعب 🔇)</option>
-                                  <option value="StunCard">StunCard (صدم كارت لاعب وتعطيله 💫)</option>
-                                  <option value="RevealCard">RevealCard (كشف كارت مقلوب)</option>
-                                  <option value="HideCard">HideCard (قلب كارت مكشوف لأسفل)</option>
-                                  <option value="SwapCard">SwapCard (تبديل كارت)</option>
-                                  <option value="StealCard">StealCard (سرقة كارت من الخصم)</option>
-                                  <option value="CopyCard">CopyCard (نسخ قدرات كارت آخر)</option>
-                                  <option value="AddMoves">AddMoves (زيادة حركات تكتيكية)</option>
-                                  <option value="ReduceMoves">ReduceMoves (تقليل حركات الخصم التكتيكية)</option>
-                                  <option value="BlockAttack">BlockAttack (حظر هجوم الخصم)</option>
-                                  <option value="BlockDefense">BlockDefense (حظر دفاع الخصم)</option>
-                                  <option value="BlockAbility">BlockAbility (حظر قدرات كروت الخصم)</option>
-                                  <option value="BlockSpecialCards">BlockSpecialCards (حظر كروت التكتيك للخصم)</option>
-                                  <option value="ReturnToHand">ReturnToHand (إرجاع الكارت لليد)</option>
+                                  <option value="AddStat">إضافة نقاط طاقة (هجوم/دفاع/حركات/سحب)</option>
+                                  <option value="RemoveStat">خصم نقاط طاقة (هجوم/دفاع/حركات/سحب)</option>
+                                  <option value="MultiplyStat">مضاعفة نقاط الطاقة (هجوم/دفاع)</option>
+                                  <option value="CancelAction">إلغاء وإبطال حركة الخصم 🚫</option>
+                                  <option value="DestroyCard">طرد واستبعاد الكارت 🟥</option>
+                                  <option value="DrawCard">سحب كروت إضافية لليد</option>
+                                  <option value="FreezeCard">تجميد الكارت بالكامل ❄️</option>
+                                  <option value="SilenceCard">كتم وتعطيل القدرة 🔇</option>
+                                  <option value="StunCard">صعق وشل حركة الكارت 💫</option>
+                                  <option value="RevealCard">كشف الكارت مقلوباً لأعلى</option>
+                                  <option value="HideCard">إخفاء وقلب الكارت لأسفل</option>
+                                  <option value="SwapCard">تبديل مراكز الكارت</option>
+                                  <option value="StealCard">سرقة كارت من يد الخصم</option>
+                                  <option value="CopyCard">نسخ طاقة/قدرة كارت آخر</option>
+                                  <option value="AddMoves">زيادة الحركات التكتيكية</option>
+                                  <option value="ReduceMoves">تقليص حركات الخصم التكتيكية</option>
+                                  <option value="BlockAttack">حظر هجوم الخصم</option>
+                                  <option value="BlockDefense">حظر دفاع الخصم</option>
+                                  <option value="BlockAbility">حظر قدرات كروت الخصم</option>
+                                  <option value="BlockSpecialCards">حظر كروت التكتيك للخصم</option>
+                                  <option value="ReturnToHand">إعادة الكارت ليد مالكه</option>
                                 </select>
                                 <button
                                   type="button"
@@ -721,14 +762,14 @@ export default function CardEditor({
                                     value={act.target}
                                     onChange={(e) => handleUpdateAction(aIdx, "target", e.target.value)}
                                   >
-                                    <option value="Self">Self (نفسه)</option>
-                                    <option value="Allies">Allies (الحلفاء)</option>
-                                    <option value="Enemies">Enemies (الخصوم)</option>
-                                    <option value="SelectedCard">SelectedCard (كارت مختار)</option>
-                                    <option value="SelectedEnemy">SelectedEnemy (كارت خصم مختار)</option>
-                                    <option value="CurrentAttack">CurrentAttack (الهجوم الحالي)</option>
-                                    <option value="CurrentDefense">CurrentDefense (الدفاع الحالي)</option>
-                                    <option value="All">All (جميع كروت الملعب)</option>
+                                    <option value="Self">نفس الكارت الحالي</option>
+                                    <option value="Allies">جميع كروت الحلفاء بالملعب</option>
+                                    <option value="Enemies">جميع كروت الخصم بالملعب</option>
+                                    <option value="SelectedCard">كارت حليف يتم اختياره يدوياً</option>
+                                    <option value="SelectedEnemy">كارت خصم يتم اختياره يدوياً</option>
+                                    <option value="CurrentAttack">الهجمة الحالية النشطة</option>
+                                    <option value="CurrentDefense">الدفاع الحالي النشط</option>
+                                    <option value="All">جميع كروت الفريقين بالملعب</option>
                                   </select>
                                 </div>
 
@@ -773,14 +814,14 @@ export default function CardEditor({
                                     value={act.duration || "Instant"}
                                     onChange={(e) => handleUpdateAction(aIdx, "duration", e.target.value)}
                                   >
-                                    <option value="Instant">Instant (فوري)</option>
-                                    <option value="CurrentPhase">CurrentPhase (الهجمة الحالية)</option>
-                                    <option value="CurrentTurn">CurrentTurn (الدور الحالي)</option>
-                                    <option value="NextTurn">NextTurn (الدور القادم)</option>
-                                    <option value="XTurns">XTurns (عدد من الأدوار)</option>
-                                    <option value="WhileFaceUp">WhileFaceUp (طالما مكشوف)</option>
-                                    <option value="WhileAlive">WhileAlive (طالما بالملعب)</option>
-                                    <option value="UntilTrigger">UntilTrigger (حتى حدث معين)</option>
+                                    <option value="Instant">لحظي فور الاستخدام</option>
+                                    <option value="CurrentPhase">حتى نهاية الهجمة الحالية</option>
+                                    <option value="CurrentTurn">حتى نهاية الدور الحالي</option>
+                                    <option value="NextTurn">حتى نهاية الدور القادم</option>
+                                    <option value="XTurns">لعدد محدد من الأدوار</option>
+                                    <option value="WhileFaceUp">طالما الكارت مكشوفاً بالملعب</option>
+                                    <option value="WhileAlive">طالما الكارت بالملعب ولم يُطرد</option>
+                                    <option value="UntilTrigger">حتى حدوث حدث معين</option>
                                   </select>
                                 </div>
 
@@ -805,7 +846,7 @@ export default function CardEditor({
                                     <span style={{ fontSize: 9, color: "#888" }}>الحدث:</span>
                                     <input
                                       type="text"
-                                      placeholder="مثلاً GoalScored"
+                                      placeholder="مثلاً GoalScored (عند تسجيل هدف)"
                                       className="form-input"
                                       style={{ margin: 0, padding: 2, fontSize: 10, width: 80, background: "#0b0c0e", borderColor: "#333", color: "#ddd" }}
                                       value={act.durationTrigger || ""}
@@ -888,7 +929,7 @@ export default function CardEditor({
                     type="text"
                     value={tagsStr}
                     onChange={(e) => setTagsStr(e.target.value)}
-                    placeholder="مثلاً: captain, speedster"
+                    placeholder="مثلاً: captain, speedster (قائد، سريع)"
                   />
                 </div>
               )}

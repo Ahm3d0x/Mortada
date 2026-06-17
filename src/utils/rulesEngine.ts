@@ -85,7 +85,7 @@ export function explainAbility(ability: CardAbility): string[] {
     TurnEnded: "عند نهاية دور اللعب",
     CardDestroyed: "عند طرد أو استبعاد كارت لاعب من الملعب",
   };
-  details.push(`الحدث المسبب (Trigger): ${triggerMap[ability.trigger] || ability.trigger}`);
+  details.push(`الحدث المسبب (الزناد): ${triggerMap[ability.trigger] || ability.trigger}`);
 
   // Conditions Explanation
   if (ability.conditions && ability.conditions.length > 0) {
@@ -263,7 +263,7 @@ export function validateAbility(ability: any): { isValid: boolean; message: stri
     }
   }
 
-  return { isValid: true, message: "✓ القدرة صالحة ومطابقة لمحرك قواعد مرتدة (Valid)" };
+  return { isValid: true, message: "✓ القدرة صالحة ومطابقة لمحرك قواعد مرتدة" };
 }
 
 /**
@@ -273,7 +273,16 @@ export function validateAbility(ability: any): { isValid: boolean; message: stri
 export function calculatePowerScore(
   ability: CardAbility | undefined,
   stats: { attack: number; defense: number; isLegend: boolean }
-): { score: number; level: "weak" | "balanced" | "strong"; explanation: string } {
+): {
+  score: number;
+  level: "weak" | "balanced" | "strong";
+  explanation: string;
+  breakdown?: {
+    base: number;
+    legend: number;
+    ability: number;
+  };
+} {
   // Base Stats Score: stats in Mortada range 0-15.
   // Maximum stats = 15 + 15 = 30. We multiply base stats by 1.25.
   let baseScore = (stats.attack + stats.defense) * 1.25;
@@ -407,5 +416,14 @@ export function calculatePowerScore(
     explanation = `✓ كارت متوازن تكتيكياً ومثالي للعب (${totalScore} نقطة). يتلاءم بشكل كامل مع توازن الكروت الأخرى.`;
   }
 
-  return { score: totalScore, level, explanation };
+  return {
+    score: totalScore,
+    level,
+    explanation,
+    breakdown: {
+      base: Math.round((stats.attack + stats.defense) * 1.25),
+      legend: stats.isLegend ? 6.0 : 0,
+      ability: Math.round(abilityScore)
+    }
+  };
 }

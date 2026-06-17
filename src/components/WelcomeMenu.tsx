@@ -21,7 +21,9 @@ interface WelcomeMenuProps {
     maxMovesPerTurn: number,
     initialCardsCount: number,
     selectedPlayerPkgs: string[],
-    selectedSpecialPkgs: string[]
+    selectedSpecialPkgs: string[],
+    defenseDrawsLimit?: number,
+    legendBurnLimit?: number
   ) => void;
   isMobileLandscape?: boolean;
 }
@@ -49,6 +51,8 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
   const [maxDrawsPerTurn, setMaxDrawsPerTurn] = useState<number>(2);
   const [maxMovesPerTurn, setMaxMovesPerTurn] = useState<number>(3);
   const [initialCardsCount, setInitialCardsCount] = useState<number>(5);
+  const [defenseDrawsLimit, setDefenseDrawsLimit] = useState<number>(3);
+  const [legendBurnLimit, setLegendBurnLimit] = useState<number>(2);
 
   // Mute State
   const [isMuted, setIsMuted] = useState(SoundEffects.isMuted);
@@ -101,7 +105,9 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
       maxMovesPerTurn,
       initialCardsCount,
       selectedPlayerPkgs,
-      selectedSpecialPkgs
+      selectedSpecialPkgs,
+      defenseDrawsLimit,
+      legendBurnLimit
     );
   };
 
@@ -442,6 +448,98 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                             </button>
                           );
                         })}
+                      </div>
+                    </div>
+
+                    {/* Advanced Match Customization Grid */}
+                    <div className="grid grid-cols-2 gap-2 bg-black/20 p-2 border border-white/5 rounded-xl text-right text-[8px] animate-fadeIn">
+                      {/* Right: Draws & Moves configuration */}
+                      <div className="space-y-1.5">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[#e0e0e0]/70 text-[8px]">
+                            <span className="font-extrabold text-emerald-400">{maxDrawsPerTurn} سحبات</span>
+                            <span className="font-black">السحبات لكل دورة:</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={1}
+                            max={5}
+                            step={1}
+                            value={maxDrawsPerTurn}
+                            onChange={(e) => setMaxDrawsPerTurn(Number(e.target.value))}
+                            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[#e0e0e0]/70 text-[8px]">
+                            <span className="font-extrabold text-emerald-400">{maxMovesPerTurn} حركات</span>
+                            <span className="font-black">الحركات لكل دورة:</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={1}
+                            max={5}
+                            step={1}
+                            value={maxMovesPerTurn}
+                            onChange={(e) => setMaxMovesPerTurn(Number(e.target.value))}
+                            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[#e0e0e0]/70 text-[8px]">
+                            <span className="font-extrabold text-emerald-400">{initialCardsCount} لاعبين</span>
+                            <span className="font-black">كروت مرحلة التسخين:</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={3}
+                            max={5}
+                            step={1}
+                            value={initialCardsCount}
+                            onChange={(e) => setInitialCardsCount(Number(e.target.value))}
+                            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Left: Defense draws & Legend burn limit */}
+                      <div className="space-y-1.5">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[#e0e0e0]/70 text-[8px]">
+                            <span className="font-extrabold text-teal-400">{defenseDrawsLimit} سحبات</span>
+                            <span className="font-black flex items-center gap-0.5">
+                              <span>سحبات التدعيم (الدفاع):</span>
+                              <span className="cursor-help text-teal-400 font-extrabold" title="عدد الكروت الأقصى التي يُسمح لك بسحبها للدفاع عند هجوم الخصم وقبل لعب كروت الصد">ℹ️</span>
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={5}
+                            step={1}
+                            value={defenseDrawsLimit}
+                            onChange={(e) => setDefenseDrawsLimit(Number(e.target.value))}
+                            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-teal-500"
+                          />
+                          <p className="text-[7px] text-zinc-500 leading-tight">
+                            (السحبات المسموحة لك لتعويض يدك عندما يهاجمك الخصم وقبل الصد)
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-amber-400 text-[8px]">
+                            <span className="font-extrabold text-amber-400">{legendBurnLimit === 0 ? "مجاني (0)" : `${legendBurnLimit} كروت`}</span>
+                            <span className="font-black">حرق كروت للأسطورة:</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={4}
+                            step={1}
+                            value={legendBurnLimit}
+                            onChange={(e) => setLegendBurnLimit(Number(e.target.value))}
+                            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-amber-500"
+                          />
+                        </div>
                       </div>
                     </div>
 

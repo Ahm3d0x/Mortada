@@ -272,7 +272,7 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
                     ))}
                   </div>
 
-                  {powerScoreData?.explanation && (
+                   {powerScoreData?.explanation && (
                     <div className={`mt-2 p-1.5 rounded text-[9px] sm:text-[10px] text-right font-medium leading-normal border ${
                       powerScoreData.level === "strong"
                         ? "bg-rose-950/20 border-rose-800/20 text-rose-300"
@@ -281,6 +281,64 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
                         : "bg-emerald-950/20 border-emerald-800/20 text-emerald-300"
                     }`}>
                       {powerScoreData.explanation}
+                    </div>
+                  )}
+
+                  {powerScoreData && powerScoreData.breakdown && (
+                    <div className="mt-3 pt-2.5 border-t border-white/5 text-right space-y-2 select-none">
+                      <div className="text-[9px] sm:text-[10px] font-black text-[#e0e0e0]/45 uppercase tracking-wider mb-1 flex items-center justify-end gap-1 flex-row-reverse">
+                        <span>📊 تفاصيل احتساب موازنة الكارت</span>
+                      </div>
+                      
+                      <div className="space-y-1.5">
+                        {/* 1. Base stats */}
+                        {powerScoreData.breakdown.base > 0 && (
+                          <div>
+                            <div className="flex justify-between text-[9px] text-slate-400 mb-0.5">
+                              <span className="font-mono font-bold">{powerScoreData.breakdown.base}</span>
+                              <span>القوة البدنية والأساسية (الهجوم/الدفاع)</span>
+                            </div>
+                            <div className="w-full h-1 bg-black/60 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-linear-to-r from-emerald-600 to-emerald-400" 
+                                style={{ width: `${Math.min(100, (powerScoreData.breakdown.base / 45) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 2. Legend Buff */}
+                        {powerScoreData.breakdown.legend > 0 && (
+                          <div>
+                            <div className="flex justify-between text-[9px] text-amber-400 mb-0.5">
+                              <span className="font-mono font-bold">+{powerScoreData.breakdown.legend}</span>
+                              <span>شرف الأسطورة (كارت أسطورة كروي)</span>
+                            </div>
+                            <div className="w-full h-1 bg-black/60 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-linear-to-r from-amber-600 to-amber-400" 
+                                style={{ width: `${Math.min(100, (powerScoreData.breakdown.legend / 10) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 3. Ability strength */}
+                        {powerScoreData.breakdown.ability > 0 && (
+                          <div>
+                            <div className="flex justify-between text-[9px] text-teal-400 mb-0.5">
+                              <span className="font-mono font-bold">{powerScoreData.breakdown.ability}</span>
+                              <span>القوة التكتيكية (القدرة الخاصة وتأثيرها)</span>
+                            </div>
+                            <div className="w-full h-1 bg-black/60 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-linear-to-r from-teal-600 to-teal-400" 
+                                style={{ width: `${Math.min(100, (powerScoreData.breakdown.ability / 50) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
