@@ -46,6 +46,7 @@ export default function App() {
   // Mobile & Orientation state
   const [isMobile, setIsMobile] = useState(false);
   const [isPortrait, setIsPortrait] = useState(false);
+  const [isLockedLandscape, setIsLockedLandscape] = useState(false);
 
   useEffect(() => {
     const checkLayout = () => {
@@ -57,19 +58,44 @@ export default function App() {
 
     checkLayout();
     window.addEventListener("resize", checkLayout);
-    return () => window.removeEventListener("resize", checkLayout);
+    window.addEventListener("orientationchange", checkLayout);
+
+    if (window.screen && window.screen.orientation) {
+      window.screen.orientation.addEventListener("change", checkLayout);
+    }
+
+    return () => {
+      window.removeEventListener("resize", checkLayout);
+      window.removeEventListener("orientationchange", checkLayout);
+      if (window.screen && window.screen.orientation) {
+        window.screen.orientation.removeEventListener("change", checkLayout);
+      }
+    };
   }, []);
 
   const isMobileLandscape = isMobile && (isPortrait || window.innerHeight < 520);
 
-  // Request fullscreen on any click/touch anywhere from the beginning
+  // Request fullscreen and orientation lock on any click/touch anywhere from the beginning
   useEffect(() => {
     const handleFirstInteraction = () => {
       const docEl = document.documentElement;
       if (docEl.requestFullscreen) {
-        docEl.requestFullscreen().catch((err) => {
-          console.warn("Fullscreen request on first interaction failed:", err);
-        });
+        docEl.requestFullscreen()
+          .then(() => {
+            const screenOrientation = window.screen && (window.screen.orientation as any);
+            if (screenOrientation && screenOrientation.lock) {
+              screenOrientation.lock("landscape")
+                .then(() => {
+                  setIsLockedLandscape(true);
+                })
+                .catch((err: any) => {
+                  console.warn("Orientation lock on first interaction failed:", err);
+                });
+            }
+          })
+          .catch((err) => {
+            console.warn("Fullscreen request on first interaction failed:", err);
+          });
       }
       // Clean up after first interaction
       window.removeEventListener("click", handleFirstInteraction);
@@ -2317,7 +2343,7 @@ export default function App() {
   const activeDefenseVal = isAttackDefActive ? calculateTotalDefense(!isPlayerAttacker, !isPlayerAttacker ? playerActiveSpecial : aiActiveSpecial) : 0;
 
   const mainDivClass = `bg-[#050605] text-[#e0e0e0] font-sans relative select-none ${
-    isMobile && isPortrait
+    isMobile && isPortrait && !isLockedLandscape
       ? "w-full h-full overflow-hidden p-1.5"
       : phase === "menu"
         ? isMobileLandscape
@@ -2326,12 +2352,12 @@ export default function App() {
         : "p-1.5 h-screen max-h-screen overflow-hidden md:p-2.5"
   }`;
 
-  const rotatedStyle: React.CSSProperties = isMobile && isPortrait ? {
+  const rotatedStyle: React.CSSProperties = (isMobile && isPortrait && !isLockedLandscape) ? {
     position: "fixed",
     top: "50%",
     left: "50%",
-    width: "100vh",
-    height: "100vw",
+    width: `${window.innerHeight}px`,
+    height: `${window.innerWidth}px`,
     transform: "translate(-50%, -50%) rotate(90deg)",
     transformOrigin: "center",
     overflow: "hidden",
