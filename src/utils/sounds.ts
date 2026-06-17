@@ -6,9 +6,11 @@
 // Simple sound synthesis directly utilizing standard Web Audio API
 export class SoundEffects {
   private static ctx: AudioContext | null = null;
+  public static isMuted = false;
 
   private static getContext(): AudioContext | null {
     if (typeof window === "undefined") return null;
+    if (this.isMuted) return null;
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
@@ -20,6 +22,7 @@ export class SoundEffects {
 
   // Played when a card is selected or swapped
   public static playCardDraw() {
+    if (this.isMuted) return;
     const ctx = this.getContext();
     if (!ctx) return;
     const osc = ctx.createOscillator();

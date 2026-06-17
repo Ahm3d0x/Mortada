@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { motion } from "motion/react";
-import { Shield, Sparkles, Trophy, Users, Zap, Bot, ArrowRight, ArrowLeft } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { Shield, Sparkles, Trophy, Users, Zap, Bot, ArrowRight, ArrowLeft, BookOpen, Settings, PlayCircle, Layers, Volume2, VolumeX } from "lucide-react";
 import { SoundEffects } from "../utils/sounds";
 import { getPackages } from "../admin/adminStore";
 import { isSupabaseConfigured } from "../lib/supabase";
@@ -36,7 +36,11 @@ const TEAM_VIBES = [
 ];
 
 export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: WelcomeMenuProps) {
-  const [step, setStep] = useState<"cover" | "coach" | "packages" | "match" | "opponent">("cover");
+  // Navigation Tabs State
+  const [activeTab, setActiveTab] = useState<"home" | "play" | "decks" | "rules" | "settings">("home");
+
+  // Game Setup States (Wizard under "Play" Tab)
+  const [playStep, setPlayStep] = useState<"coach" | "packages" | "match">("coach");
   const [coachName, setCoachName] = useState("");
   const [selectedVibe, setSelectedVibe] = useState(TEAM_VIBES[0]);
   const [difficulty, setDifficulty] = useState<"normal" | "tactical" | "legend">("normal");
@@ -45,6 +49,12 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
   const [maxDrawsPerTurn, setMaxDrawsPerTurn] = useState<number>(2);
   const [maxMovesPerTurn, setMaxMovesPerTurn] = useState<number>(3);
   const [initialCardsCount, setInitialCardsCount] = useState<number>(5);
+
+  // Mute State
+  const [isMuted, setIsMuted] = useState(SoundEffects.isMuted);
+
+  // Rules Sub-Tab State
+  const [rulesCategory, setRulesCategory] = useState<"basics" | "actions" | "attacking" | "specials">("basics");
 
   // Packages loading
   const [dbPackages, setDbPackages] = useState<any[]>([]);
@@ -69,6 +79,14 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
     }
   }, []);
 
+  const toggleMute = () => {
+    SoundEffects.isMuted = !SoundEffects.isMuted;
+    setIsMuted(SoundEffects.isMuted);
+    if (!SoundEffects.isMuted) {
+      SoundEffects.playCardDraw();
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const finalName = coachName.trim() || "الكابتن البطل";
@@ -87,795 +105,559 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
     );
   };
 
-  // Back progress indicator dot map
-  const activeDotIndex = step === "cover" ? -1 : step === "coach" ? 0 : step === "packages" ? 1 : step === "match" ? 2 : 3;
+  const triggerFullscreen = () => {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen()
+        .then(() => {
+          const screenOrientation = window.screen && (window.screen.orientation as any);
+          if (screenOrientation && screenOrientation.lock) {
+            screenOrientation.lock("landscape").catch(() => {});
+          }
+        })
+        .catch((err) => {
+          console.warn("Fullscreen toggle failed:", err);
+        });
+    }
+  };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.98 }}
-      transition={{ duration: 0.3 }}
-      className={`max-w-xl mx-auto ${
-        isMobileLandscape 
-          ? "my-1 p-2.5 min-h-[260px] max-h-[96vh] text-[10px]" 
-          : "my-3 p-4 md:p-6 min-h-[360px] xs:min-h-[385px] md:min-h-[410px]"
-      } bg-[#0b0e0c]/95 border border-emerald-500/15 rounded-2xl shadow-2xl text-[#e0e0e0] backdrop-blur-md relative overflow-hidden flex flex-col justify-between select-none`}
-      id="welcome_menu_container"
-    >
-      {/* Visual top corner grids */}
-      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-emerald-500/10 to-transparent pointer-events-none rounded-bl-full" />
-      <div className="absolute top-0 left-0 w-16 h-16 bg-[repeating-linear-gradient(45deg,transparent,transparent_8px,rgba(255,255,255,0.015)_8px,rgba(255,255,255,0.015)_16px)] pointer-events-none" />
+    <div className="w-full h-full min-h-screen flex flex-col justify-between select-none relative overflow-hidden bg-[#020503] text-[#e0e0e0] font-sans pb-14">
+      
+      {/* Background soccer pitch line art */}
+      <div className="absolute inset-0 pointer-events-none z-0 opacity-10">
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_50%,rgba(255,255,255,0.025)_50%)] bg-[size:10%_100%]" />
+        <div className="absolute inset-4 border border-white/20 rounded-2xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-44 h-44 rounded-full border border-white/25" />
+        <div className="absolute top-1/2 left-4 right-4 h-[1px] bg-white/25" />
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 w-64 h-24 border border-white/25 border-t-0 rounded-b" />
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-64 h-24 border border-white/25 border-b-0 rounded-t" />
+      </div>
 
-      {/* Progress Dots Bar */}
-      {step !== "cover" && (
-        <div className="flex items-center justify-center gap-1.5 mb-3 shrink-0">
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                i === activeDotIndex 
-                  ? "w-6 bg-emerald-500" 
-                  : i < activeDotIndex 
-                    ? "w-2 bg-emerald-800" 
-                    : "w-2 bg-white/10"
-              }`}
-            />
-          ))}
+      {/* Radial glows */}
+      <div className="absolute top-0 right-1/4 w-[400px] h-[400px] bg-emerald-500/10 rounded-full blur-[80px] pointer-events-none z-0" />
+      <div className="absolute bottom-10 left-1/4 w-[300px] h-[300px] bg-teal-500/10 rounded-full blur-[80px] pointer-events-none z-0" />
+
+      {/* TOP GLOWING HEADER */}
+      <header className="relative z-10 w-full flex items-center justify-between px-6 py-2.5 bg-black/40 border-b border-white/5 backdrop-blur-md shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <h1 className="text-base font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 via-teal-300 to-green-400">
+            مـرتـدة
+          </h1>
         </div>
-      )}
-
-      {/* Admin dashboard link for convenience */}
-      {step === "cover" && (
-        <a
-          href="#/admin"
-          className="absolute top-4 left-4 inline-flex items-center gap-1 px-3 py-1.5 rounded bg-emerald-950/35 border border-emerald-500/25 hover:bg-emerald-900/35 text-[10px] text-emerald-400 font-bold transition-all cursor-pointer z-10"
-        >
-          ⚙️ لوحة التحكم الإدارية
-        </a>
-      )}
-
-      {/* Actual Form wrapper */}
-      <form onSubmit={handleSubmit} className="flex-1 flex flex-col justify-between h-full">
         
-        {/* Step 1: Cover Screen */}
-        {step === "cover" && (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className={`flex-1 flex flex-col justify-around text-center ${isMobileLandscape ? 'py-1' : 'py-4'} relative`}
-          >
-            {/* Centered Golden Trophy */}
-            <div className={`relative flex justify-center ${isMobileLandscape ? 'mb-0.5' : 'mb-1'}`}>
-              <div className="absolute -inset-1 rounded-full bg-emerald-500/10 blur-xl animate-pulse" />
-              <div className={`${isMobileLandscape ? 'w-10 h-10' : 'w-16 h-16'} bg-[#121613] border border-emerald-500/25 rounded-full flex items-center justify-center relative shadow-lg`}>
-                <Trophy className={`${isMobileLandscape ? 'w-5 h-5' : 'w-8 h-8'} text-amber-400`} />
-                <Sparkles className={`${isMobileLandscape ? 'w-2.5 h-2.5' : 'w-4 h-4'} text-emerald-400 absolute -top-1 -right-1 animate-ping`} />
-              </div>
-            </div>
+        <button
+          onClick={toggleMute}
+          className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer border border-white/10"
+          title={isMuted ? "تشغيل الصوت" : "كتم الصوت"}
+        >
+          {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+        </button>
+      </header>
 
-            <div className={`${isMobileLandscape ? 'mb-1.5' : 'mb-4'}`}>
-              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-black uppercase tracking-wider ${isMobileLandscape ? 'mb-0.5 text-[8.5px]' : 'mb-2'}`}>
-                تحدي تكتيك كروت اللقاء الكروي 🏆
-              </span>
-              <h1 className={`font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 via-teal-300 to-green-400 ${isMobileLandscape ? 'text-xl' : 'text-3xl md:text-4xl'}`}>
-                مـرتـدة
-              </h1>
-              <p className={`text-[#e0e0e0]/55 font-semibold ${isMobileLandscape ? 'text-[9.5px] mt-0.5' : 'text-[11px] mt-1'}`}>
-                لعبة التخطيط الكروي وتحدي الذكاء التكتيكي الذكي
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <button
-                type="button"
-                onClick={() => {
-                  SoundEffects.playCardDraw();
-                  setStep("coach");
-                  if (document.documentElement.requestFullscreen) {
-                    document.documentElement.requestFullscreen().catch((err) => {
-                      console.warn("Fullscreen request on button click failed:", err);
-                    });
-                  }
-                }}
-                className={`w-full ${isMobileLandscape ? 'py-1.5 text-[10px] border-b-2 rounded-lg' : 'py-2.5 text-xs md:text-sm border-b-4 rounded-xl'} bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black flex items-center justify-center gap-1.5 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 border-emerald-700 shadow-lg cursor-pointer`}
-              >
-                <span>بدء اللعبة وتجهيز الفريق ⚽</span>
-                <ArrowLeft className={`${isMobileLandscape ? 'w-3 h-3' : 'w-4 h-4'}`} />
-              </button>
-              
-              {!isMobileLandscape && (
-                <p className="text-[9px] text-[#e0e0e0]/30">
-                  نسخة التحديث التكتيكي الشاملة
-                </p>
-              )}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Step 2: Coach and Team Identity Details */}
-        {step === "coach" && (
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex-1 flex flex-col justify-between py-1"
-          >
-            <div>
-              <div className={`text-right border-b border-white/5 ${isMobileLandscape ? 'pb-1 mb-1.5' : 'pb-2 mb-2'}`}>
-                <span className="text-[10px] font-black uppercase text-emerald-500 tracking-wider">مرحلة 1: هوية ومسمى القائد</span>
-                <h2 className={`font-black text-white ${isMobileLandscape ? 'text-[11px]' : 'text-sm'} mt-0.5`}>من هو قائد كتيبتك؟</h2>
-              </div>
-
-              {/* Name Input */}
-              <div className={`${isMobileLandscape ? 'mb-1.5' : 'mb-3'}`}>
-                <label className="block text-[#e0e0e0]/60 font-black mb-1 text-right text-[10px]">
-                  اسم المدرب:
-                </label>
-                <input
-                  id="input_coach_name"
-                  type="text"
-                  placeholder="مثلي: الكابتن جوارديولا..."
-                  maxLength={20}
-                  value={coachName}
-                  onChange={(e) => setCoachName(e.target.value)}
-                  className={`w-full ${isMobileLandscape ? 'px-2 py-1 text-[10px] rounded-md' : 'px-3 py-2 text-xs rounded-lg'} bg-black/55 border border-white/10 focus:outline-none focus:border-emerald-500 text-white text-right placeholder:text-[#e0e0e0]/25 transition-all font-bold`}
-                />
-              </div>
-
-              {/* Team Vibe Selection Grid */}
+      {/* MIDDLE CONTENT WINDOW */}
+      <main className="flex-1 relative z-10 w-full overflow-y-auto px-4 py-2 flex flex-col items-center justify-center max-w-lg mx-auto">
+        <AnimatePresence mode="wait">
+          
+          {/* TAB 1: HOME */}
+          {activeTab === "home" && (
+            <motion.div
+              key="tab_home"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={{ duration: 0.2 }}
+              className="w-full flex flex-col items-center justify-center text-center space-y-4"
+            >
               <div>
-                <label className="block text-[#e0e0e0]/60 font-black mb-1 text-right text-[10px]">
-                  اختر هوية الفريق:
-                </label>
-                
-                <div className={`grid grid-cols-2 ${isMobileLandscape ? 'grid-cols-3 gap-1' : 'md:grid-cols-3 gap-1.5'}`}>
-                  {TEAM_VIBES.map((vibe) => (
-                    <button
-                      key={vibe.name}
-                      type="button"
-                      id={`vibe_btn_${vibe.name}`}
-                      onClick={() => {
-                        SoundEffects.playCardDraw();
-                        setSelectedVibe(vibe);
-                      }}
-                      className={`flex items-center gap-1.5 justify-start ${isMobileLandscape ? 'p-1 rounded-md min-h-[30px]' : 'p-1.5 px-2.5 rounded-lg min-h-[38px]'} border transition-all cursor-pointer relative overflow-hidden text-right min-w-0 flex-1 ${
-                        selectedVibe.name === vibe.name
-                          ? "border-emerald-500 bg-emerald-950/20 text-white shadow-[0_0_8px_rgba(16,185,129,0.1)]"
-                          : "border-white/5 bg-transparent hover:border-white/10 text-slate-400"
-                      }`}
-                    >
-                      {/* Flag Indicator */}
-                      <span className={`${isMobileLandscape ? 'text-xs' : 'text-sm'}`}>{vibe.emoji}</span>
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <span className={`font-extrabold ${isMobileLandscape ? 'text-[8.5px]' : 'text-[9.5px]'} truncate leading-tight`}>{vibe.name}</span>
-                        {!isMobileLandscape && (
-                          <span className="text-[7.5px] text-slate-500 truncate leading-none mt-0.5">{vibe.desc}</span>
-                        )}
-                      </div>
-                    </button>
-                  ))}
+                <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-wider mb-1">
+                  تحدي كروت التكتيك الكروي الذكي 🏆
+                </span>
+                <h2 className="text-3xl font-extrabold tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+                  لعبة التخطيط التكتيكي
+                </h2>
+              </div>
+
+              {/* Massive Soccer Ball CTA FAB */}
+              <div className="relative my-3 flex items-center justify-center">
+                <div className="absolute -inset-4 rounded-full bg-emerald-500/20 blur-xl animate-pulse" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    SoundEffects.playWhistle();
+                    triggerFullscreen();
+                    setActiveTab("play");
+                  }}
+                  className="w-28 h-28 bg-gradient-to-br from-emerald-400 to-teal-500 hover:from-emerald-350 hover:to-teal-400 text-slate-950 rounded-full flex flex-col items-center justify-center gap-1.5 shadow-[0_8px_32px_rgba(16,185,129,0.4)] transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer z-10 border-4 border-slate-900 group"
+                >
+                  <span className="text-4xl group-hover:rotate-45 transition-transform duration-300">⚽</span>
+                  <span className="text-[10px] font-black tracking-wider uppercase">ابدأ اللعب</span>
+                </button>
+              </div>
+
+              {/* Quick stats / Vibe Card */}
+              <div className="w-full bg-black/45 border border-white/10 rounded-2xl p-3 backdrop-blur-md flex items-center justify-around gap-2 max-w-sm">
+                <div className="text-right">
+                  <span className="text-[8px] text-slate-500 block">الهوية الافتراضية</span>
+                  <span className="text-xs font-black text-[#e0e0e0]">{selectedVibe.emoji} {selectedVibe.name}</span>
+                </div>
+                <div className="w-[1px] h-6 bg-white/10" />
+                <div className="text-center">
+                  <span className="text-[8px] text-slate-500 block">مستوى المدرب</span>
+                  <span className="text-xs font-black text-amber-400">المحترف الأسطوري 🌟</span>
+                </div>
+                <div className="w-[1px] h-6 bg-white/10" />
+                <div className="text-left">
+                  <span className="text-[8px] text-slate-500 block">الصعوبة الحالية</span>
+                  <span className="text-xs font-black text-rose-400">
+                    {difficulty === "normal" ? "ناشئ" : difficulty === "tactical" ? "محترف" : "ذكاء أسطوري"}
+                  </span>
                 </div>
               </div>
-            </div>
 
-            {/* Bottom Actions Row */}
-            <div className={`flex items-center justify-between border-t border-white/5 ${isMobileLandscape ? 'pt-1.5 mt-1.5 gap-1.5' : 'pt-2.5 mt-2 gap-2'}`}>
-              <button
-                type="button"
-                onClick={() => {
-                  SoundEffects.playCardDraw();
-                  setStep("cover");
-                }}
-                className={`px-4 ${isMobileLandscape ? 'py-1 text-[9px] rounded-md' : 'py-1.5 text-[10px] rounded-lg'} bg-white/5 hover:bg-white/10 text-white font-extrabold transition-colors cursor-pointer`}
-              >
-                رجوع
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => {
-                  SoundEffects.playCardDraw();
-                  setStep("packages");
-                }}
-                className={`px-5 ${isMobileLandscape ? 'py-1 text-[9px] rounded-md' : 'py-1.5 text-[10px] rounded-lg'} bg-emerald-500 hover:bg-emerald-400 text-black font-black flex items-center gap-1 transition-colors cursor-pointer`}
-              >
-                <span>التالي: باقات اللعب</span>
-                <ArrowLeft className="w-3 h-3" />
-              </button>
-            </div>
-          </motion.div>
-        )}
+              <p className="text-[9.5px] text-slate-400 max-w-xs leading-normal">
+                اضغط على الكرة لمشاهدة باقات اللعب وتعديل خطتك، ثم قيادة هجوم كتيبتك الكروية لصد ضربات الخصوم!
+              </p>
+            </motion.div>
+          )}
 
-        {/* Step 3: Choose Player & Special/Tactical Packages */}
-        {step === "packages" && (
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex-1 flex flex-col justify-between py-1"
-          >
-            <div>
-              <div className={`text-right border-b border-white/5 ${isMobileLandscape ? 'pb-1 mb-1.5' : 'pb-2 mb-2'}`}>
-                <span className="text-[10px] font-black uppercase text-emerald-500 tracking-wider">مرحلة 2: باقات اللعب المستخدمة</span>
-                <h2 className={`font-black text-white ${isMobileLandscape ? 'text-[11px]' : 'text-sm'} mt-0.5`}>اختر باقات اللعيبة والكرات التكتيكية للماتش</h2>
-              </div>
-
-              <div className={`${isMobileLandscape ? 'max-h-[105px]' : 'max-h-[200px] xs:max-h-[240px] md:max-h-[270px]'} overflow-y-auto pr-1.5 space-y-2 select-none scrollbar-thin scrollbar-thumb-emerald-500/20 scrollbar-track-transparent`}>
+          {/* TAB 2: PLAY (WIZARD SETUP) */}
+          {activeTab === "play" && (
+            <motion.div
+              key="tab_play"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="w-full"
+            >
+              <form onSubmit={handleSubmit} className="w-full flex flex-col justify-between">
                 
-                {!isSupabaseConfigured ? (
-                  <div className="p-3 bg-amber-950/20 border border-amber-500/30 rounded-xl text-right">
-                    <p className="text-[10px] text-amber-450 font-bold">⚠️ وضع الاتصال المحلي (قاعدة البيانات غير متصلة)</p>
-                    <p className="text-[9px] text-[#e0e0e0]/70 mt-1 leading-normal">
-                      لم يتم اكتشاف إعدادات Supabase في ملف .env. ستعمل اللعبة تلقائياً بالباقات الافتراضية المدمجة في اللعبة.
-                    </p>
-                  </div>
-                ) : dbLoading ? (
-                  <div className="text-center py-6 text-slate-500 text-xs">
-                    ⏳ جاري تحميل الباقات المتاحة من Supabase...
-                  </div>
-                ) : (
-                  <>
-                    {(() => {
-                      const playerPkgs = dbPackages.filter(p => p.type === "player" || !p.type);
-                      const specialPkgs = dbPackages.filter(p => p.type === "special");
+                {/* Play Wizard Step 1: Coach Info */}
+                {playStep === "coach" && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 15 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="space-y-3"
+                  >
+                    <div className="text-right border-b border-white/5 pb-1.5 mb-2">
+                      <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">مرحلة 1 من 3: الهوية وقائد الفريق</span>
+                      <h3 className="text-sm font-black text-white">من هو قائد كتيبتك الكروية؟</h3>
+                    </div>
 
-                      const filteredPlayerPkgs = playerPkgs.filter(p => 
-                        p.name.toLowerCase().includes(playerSearch.toLowerCase()) || 
-                        (p.description || "").toLowerCase().includes(playerSearch.toLowerCase())
-                      );
+                    <div className="space-y-1">
+                      <label className="block text-[#e0e0e0]/60 font-black text-right text-[9px]">اسم المدرب القائد:</label>
+                      <input
+                        type="text"
+                        placeholder="مثال: الكابتن جوارديولا..."
+                        maxLength={20}
+                        value={coachName}
+                        onChange={(e) => setCoachName(e.target.value)}
+                        className="w-full px-3 py-1.5 rounded-lg bg-black/55 border border-white/10 focus:outline-none focus:border-emerald-500 text-white text-right text-xs font-bold"
+                      />
+                    </div>
 
-                      const filteredSpecialPkgs = specialPkgs.filter(p => 
-                        p.name.toLowerCase().includes(specialSearch.toLowerCase()) || 
-                        (p.description || "").toLowerCase().includes(specialSearch.toLowerCase())
-                      );
+                    <div className="space-y-1">
+                      <label className="block text-[#e0e0e0]/60 font-black text-right text-[9px]">اختر هوية وتكتيك الفريق:</label>
+                      <div className="grid grid-cols-3 gap-1">
+                        {TEAM_VIBES.map((vibe) => (
+                          <button
+                            key={vibe.name}
+                            type="button"
+                            onClick={() => {
+                              SoundEffects.playCardDraw();
+                              setSelectedVibe(vibe);
+                            }}
+                            className={`flex items-center gap-1 p-1 px-2 rounded-lg border transition-all cursor-pointer text-right min-h-[28px] ${
+                              selectedVibe.name === vibe.name
+                                ? "border-emerald-500 bg-emerald-950/20 text-white"
+                                : "border-white/5 bg-black/25 text-slate-400 hover:border-white/10"
+                            }`}
+                          >
+                            <span className="text-xs">{vibe.emoji}</span>
+                            <span className="font-extrabold text-[8.5px] truncate">{vibe.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
-                      return (
-                        <>
-                          {/* Player Packages list */}
-                          <div>
-                            <div className="flex items-center justify-between gap-2 mb-1.5">
-                              <input
-                                type="text"
-                                placeholder="🔍 ابحث عن باقة لاعبين..."
-                                value={playerSearch}
-                                onChange={(e) => setPlayerSearch(e.target.value)}
-                                className="px-2 py-1 rounded bg-black/40 border border-white/10 text-white text-right text-[9px] focus:outline-none focus:border-emerald-500 flex-1"
-                              />
-                              <label className="block text-[#e0e0e0]/60 font-black text-right text-[10px] shrink-0">
-                                باقات اللاعبين المتاحة:
-                              </label>
-                            </div>
-                            {playerPkgs.length === 0 ? (
-                              <p className="text-[9px] text-slate-500 text-right">لا توجد باقات لاعبين. سيتم استخدام الباقة الافتراضية المدمجة.</p>
-                            ) : filteredPlayerPkgs.length === 0 ? (
-                              <p className="text-[9px] text-slate-500 text-right font-medium">لا توجد نتائج مطابقة لبحثك.</p>
-                            ) : (
-                              <div className="space-y-1">
-                                {filteredPlayerPkgs.map((pkg) => {
-                                  const isChecked = selectedPlayerPkgs.includes(pkg.id);
-                                  return (
-                                    <button
-                                      key={pkg.id}
-                                      type="button"
-                                      onClick={() => {
-                                        SoundEffects.playCardDraw();
-                                        setSelectedPlayerPkgs(prev =>
-                                          isChecked ? prev.filter(id => id !== pkg.id) : [...prev, pkg.id]
-                                        );
-                                      }}
-                                      className={`w-full p-2 rounded-lg border flex items-center justify-between text-right cursor-pointer ${
-                                        isChecked
-                                          ? "border-emerald-500 bg-emerald-950/15 text-white"
-                                          : "border-white/5 bg-black/20 text-slate-400 hover:border-white/10"
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <input
-                                          type="checkbox"
-                                          checked={isChecked}
-                                          readOnly
-                                          className="accent-emerald-500"
-                                        />
-                                        <span className="text-[8px] text-slate-500">
-                                          {pkg.legend_percentage}% أساطير
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <div className="text-right">
-                                          <span className="font-extrabold text-[11px] block">{pkg.name}</span>
-                                          <span className="text-[8px] text-slate-500 block truncate max-w-[150px]">{pkg.description || "لا يوجد وصف"}</span>
-                                        </div>
-                                        <span className="text-sm">{pkg.image}</span>
-                                      </div>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Special Packages list */}
-                          <div style={{ marginTop: "12px" }}>
-                            <div className="flex items-center justify-between gap-2 mb-1.5">
-                              <input
-                                type="text"
-                                placeholder="🔍 ابحث عن باقة تكتيكية..."
-                                value={specialSearch}
-                                onChange={(e) => setSpecialSearch(e.target.value)}
-                                className="px-2 py-1 rounded bg-black/40 border border-white/10 text-white text-right text-[9px] focus:outline-none focus:border-emerald-500 flex-1"
-                              />
-                              <label className="block text-[#e0e0e0]/60 font-black text-right text-[10px] shrink-0">
-                                باقات الكروت التكتيكية المتاحة:
-                              </label>
-                            </div>
-                            {specialPkgs.length === 0 ? (
-                              <p className="text-[9px] text-slate-500 text-right">لا توجد باقات كروت تكتيكية. سيتم استخدام الكروت التكتيكية الافتراضية.</p>
-                            ) : filteredSpecialPkgs.length === 0 ? (
-                              <p className="text-[9px] text-slate-500 text-right font-medium">لا توجد نتائج مطابقة لبحثك.</p>
-                            ) : (
-                              <div className="space-y-1">
-                                {filteredSpecialPkgs.map((pkg) => {
-                                  const isChecked = selectedSpecialPkgs.includes(pkg.id);
-                                  return (
-                                    <button
-                                      key={pkg.id}
-                                      type="button"
-                                      onClick={() => {
-                                        SoundEffects.playCardDraw();
-                                        setSelectedSpecialPkgs(prev =>
-                                          isChecked ? prev.filter(id => id !== pkg.id) : [...prev, pkg.id]
-                                        );
-                                      }}
-                                      className={`w-full p-2 rounded-lg border flex items-center justify-between text-right cursor-pointer ${
-                                        isChecked
-                                          ? "border-emerald-500 bg-emerald-950/15 text-white"
-                                          : "border-white/5 bg-black/20 text-slate-400 hover:border-white/10"
-                                      }`}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={isChecked}
-                                        readOnly
-                                        className="accent-emerald-500"
-                                      />
-                                      <div className="flex items-center gap-2">
-                                        <div className="text-right">
-                                          <span className="font-extrabold text-[11px] block">{pkg.name}</span>
-                                          <span className="text-[8px] text-slate-500 block truncate max-w-[150px]">{pkg.description || "لا يوجد وصف"}</span>
-                                        </div>
-                                        <span className="text-sm">{pkg.image}</span>
-                                      </div>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </>
+                    <div className="flex items-center justify-between border-t border-white/5 pt-2 mt-3">
+                      <button
+                        type="button"
+                        onClick={() => { SoundEffects.playCardDraw(); setActiveTab("home"); }}
+                        className="px-4 py-1 bg-white/5 hover:bg-white/10 text-white font-extrabold text-[9px] rounded-lg transition-colors cursor-pointer"
+                      >
+                        إلغاء
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { SoundEffects.playCardDraw(); setPlayStep("packages"); }}
+                        className="px-5 py-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[9px] rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <span>التالي: باقات الكروت</span>
+                        <ArrowLeft className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </motion.div>
                 )}
 
-              </div>
-            </div>
-
-            {/* Bottom Actions Row */}
-            <div className="flex items-center justify-between border-t border-white/5 pt-2.5 mt-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  SoundEffects.playCardDraw();
-                  setStep("coach");
-                }}
-                className="px-4 py-1.5 bg-white/5 hover:bg-white/10 text-white font-extrabold text-[10px] rounded-lg transition-colors cursor-pointer"
-              >
-                السابق
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => {
-                  SoundEffects.playCardDraw();
-                  setStep("match");
-                }}
-                className="px-5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[10px] rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
-              >
-                <span>التالي: إعدادات اللقاء</span>
-                <ArrowLeft className="w-3 h-3" />
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Step 4: Match settings (Length & Legends Ratio) */}
-        {step === "match" && (
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex-1 flex flex-col justify-between py-1"
-          >
-            <div className="flex-1 flex flex-col justify-start">
-              <div className={`text-right border-b border-white/5 ${isMobileLandscape ? 'pb-1 mb-1.5' : 'pb-2 mb-3'}`}>
-                <span className="text-[10px] font-black uppercase text-emerald-500 tracking-wider">مرحلة 3: ضوابط ومعاملات اللقاء</span>
-                <h2 className={`font-black text-white ${isMobileLandscape ? 'text-[11px]' : 'text-sm'} mt-0.5`}>تحديد زمن اللعب وفرص الأساطير والإعدادات</h2>
-              </div>
-
-              {/* Scrollable container for settings options */}
-              <div className={`${isMobileLandscape ? 'max-h-[115px] space-y-2' : 'max-h-[220px] xs:max-h-[260px] md:max-h-[290px] space-y-3.5'} overflow-y-auto pr-1.5 select-none scrollbar-thin scrollbar-thumb-emerald-500/20 scrollbar-track-transparent`}>
-                
-                {/* Match Duration Panel */}
-                <div className="bg-black/25 border border-white/5 rounded-xl p-2.5 relative">
-                  <div className="flex items-center justify-between gap-1 mb-1.5">
-                    <div className="bg-[#10b981]/15 border border-[#10b981]/25 px-2 py-0.5 rounded-lg">
-                      <span className="text-[10px] font-black text-emerald-400">
-                        {Math.floor(matchDuration / 60)} دقيقة
-                      </span>
+                {/* Play Wizard Step 2: Select Packages */}
+                {playStep === "packages" && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 15 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="space-y-3"
+                  >
+                    <div className="text-right border-b border-white/5 pb-1.5 mb-2">
+                      <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">مرحلة 2 من 3: باقات كروت اللعب</span>
+                      <h3 className="text-sm font-black text-white">اختر باقات اللعيبة والكروت التكتيكية للمباراة</h3>
                     </div>
-                    <label className="block text-[#e0e0e0]/75 text-[10px] font-black">
-                      وقت المباراة المطلوب:
-                    </label>
-                  </div>
-                  
-                  <input
-                    type="range"
-                    min={300}
-                    max={3600}
-                    step={60}
-                    value={matchDuration}
-                    onChange={(e) => {
-                      SoundEffects.playCardDraw();
-                      setMatchDuration(Number(e.target.value));
-                    }}
-                    className="w-full h-1 bg-black/50 border border-white/5 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                  />
-                  
-                  {/* Micro presets */}
-                  <div className="grid grid-cols-4 gap-1.5 mt-2">
-                    {[
-                      { label: "5 د", value: 300 },
-                      { label: "10 د", value: 600 },
-                      { label: "30 د", value: 1800 },
-                      { label: "60 د", value: 3600 }
-                    ].map((preset) => {
-                      const isSelected = matchDuration === preset.value;
-                      return (
-                        <button
-                          key={preset.value}
-                          type="button"
-                          onClick={() => {
-                            SoundEffects.playCardDraw();
-                            setMatchDuration(preset.value);
-                          }}
-                          className={`py-1 rounded-md border text-[8.5px] text-center font-bold transition-all cursor-pointer ${
-                            isSelected
-                              ? "border-emerald-500 bg-[#162a1c] text-emerald-300"
-                              : "border-white/5 bg-transparent text-[#e0e0e0]/40 hover:border-white/10 hover:text-white"
-                          }`}
-                        >
-                          {preset.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
 
-                {/* Legendary Cards Appearance Ratio Panel */}
-                <div className="bg-black/25 border border-white/5 rounded-xl p-2.5 relative">
-                  <div className="flex items-center justify-between gap-1 mb-1.5">
-                    <div className="bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 rounded-lg">
-                      <span className="text-[10px] font-black text-amber-400">
-                        {legendPercentage === 0 ? "0% (مستبعدة)" : `${legendPercentage}%`}
-                      </span>
+                    <div className="max-h-[120px] overflow-y-auto space-y-2 pr-1.5 scrollbar-thin scrollbar-thumb-emerald-500/20 text-right">
+                      {!isSupabaseConfigured ? (
+                        <div className="p-2 bg-amber-950/20 border border-amber-500/30 rounded-lg text-right">
+                          <p className="text-[9px] text-amber-450 font-bold">⚠️ وضع المحاكاة المحلي نشّط</p>
+                          <p className="text-[8px] text-slate-400 mt-0.5 leading-normal">
+                            قاعدة البيانات غير متصلة. ستعمل اللعبة تلقائياً بالباقات والكرات التكتيكية الافتراضية المدمجة باللعبة.
+                          </p>
+                        </div>
+                      ) : dbLoading ? (
+                        <div className="text-center py-4 text-slate-500 text-[10px]">⏳ جاري تحميل الباقات من السيرفر...</div>
+                      ) : (
+                        <div className="space-y-2">
+                          {/* Search inputs and list items simplified to fit */}
+                          <div className="text-[9px] text-emerald-450">باقات اللاعبين المتاحة: {dbPackages.length}</div>
+                          {dbPackages.map((pkg) => {
+                            const isChecked = selectedPlayerPkgs.includes(pkg.id) || selectedSpecialPkgs.includes(pkg.id);
+                            const isPlayer = pkg.type === "player" || !pkg.type;
+                            return (
+                              <button
+                                key={pkg.id}
+                                type="button"
+                                onClick={() => {
+                                  SoundEffects.playCardDraw();
+                                  if (isPlayer) {
+                                    setSelectedPlayerPkgs(prev => isChecked ? prev.filter(id => id !== pkg.id) : [...prev, pkg.id]);
+                                  } else {
+                                    setSelectedSpecialPkgs(prev => isChecked ? prev.filter(id => id !== pkg.id) : [...prev, pkg.id]);
+                                  }
+                                }}
+                                className={`w-full p-1.5 rounded-lg border flex items-center justify-between text-right cursor-pointer text-[9px] ${
+                                  isChecked ? "border-emerald-500 bg-emerald-950/15" : "border-white/5 bg-black/25 text-slate-400"
+                                }`}
+                              >
+                                <span className="text-[8px] text-slate-500">{pkg.type === "special" ? "تكتيك" : "لاعبين"}</span>
+                                <span className="font-extrabold">{pkg.name} {pkg.image}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                    <label className="block text-[#e0e0e0]/75 text-[10px] font-black">
-                      نسبة فرصة ظهور أوراق الأساطير:
-                    </label>
-                  </div>
-                  
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={legendPercentage}
-                    onChange={(e) => {
-                      SoundEffects.playCardDraw();
-                      setLegendPercentage(Number(e.target.value));
-                    }}
-                    className="w-full h-1 bg-black/50 border border-white/5 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                  />
-                  
-                  {/* Micro presets */}
-                  <div className="grid grid-cols-5 gap-1 mt-2">
-                    {[
-                      { label: "0%", value: 0 },
-                      { label: "15%", value: 15 },
-                      { label: "30%", value: 30 },
-                      { label: "60%", value: 60 },
-                      { label: "100%", value: 100 }
-                    ].map((preset) => {
-                      const isSelected = legendPercentage === preset.value;
-                      return (
-                        <button
-                          key={preset.value}
-                          type="button"
-                          onClick={() => {
-                            SoundEffects.playCardDraw();
-                            setLegendPercentage(preset.value);
-                          }}
-                          className={`py-1 rounded-md border text-[8.5px] text-center font-bold transition-all cursor-pointer ${
-                            isSelected
-                              ? "border-amber-500 bg-[#302213] text-amber-300 font-extrabold"
-                              : "border-white/5 bg-transparent text-[#e0e0e0]/40 hover:border-white/10 hover:text-white"
-                          }`}
-                        >
-                          {preset.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
 
-                {/* Custom Draws Panel */}
-                <div className="bg-black/25 border border-white/5 rounded-xl p-2.5 relative">
-                  <div className="flex items-center justify-between gap-1 mb-1.5">
-                    <div className="bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.5 rounded-lg">
-                      <span className="text-[10px] font-black text-emerald-450">
-                        {maxDrawsPerTurn} سحبات
-                      </span>
+                    <div className="flex items-center justify-between border-t border-white/5 pt-2 mt-3">
+                      <button
+                        type="button"
+                        onClick={() => { SoundEffects.playCardDraw(); setPlayStep("coach"); }}
+                        className="px-4 py-1 bg-white/5 hover:bg-white/10 text-white font-extrabold text-[9px] rounded-lg transition-colors cursor-pointer"
+                      >
+                        السابق
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { SoundEffects.playCardDraw(); setPlayStep("match"); }}
+                        className="px-5 py-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[9px] rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <span>التالي: صعوبة المباراة</span>
+                        <ArrowLeft className="w-3 h-3" />
+                      </button>
                     </div>
-                    <label className="block text-[#e0e0e0]/75 text-[10px] font-black">
-                      عدد سحبات الورق لكل دور:
-                    </label>
-                  </div>
-                  
-                  <input
-                    type="range"
-                    min={1}
-                    max={5}
-                    step={1}
-                    value={maxDrawsPerTurn}
-                    onChange={(e) => {
-                      SoundEffects.playCardDraw();
-                      setMaxDrawsPerTurn(Number(e.target.value));
-                    }}
-                    className="w-full h-1 bg-black/50 border border-white/5 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                  />
-                  
-                  {/* Micro presets */}
-                  <div className="grid grid-cols-5 gap-1 mt-2">
-                    {[1, 2, 3, 4, 5].map((val) => {
-                      const isSelected = maxDrawsPerTurn === val;
-                      return (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => {
-                            SoundEffects.playCardDraw();
-                            setMaxDrawsPerTurn(val);
-                          }}
-                          className={`py-1 rounded-md border text-[8.5px] text-center font-bold transition-all cursor-pointer ${
-                            isSelected
-                              ? "border-emerald-500 bg-[#162a1c] text-emerald-300 font-extrabold"
-                              : "border-white/5 bg-transparent text-[#e0e0e0]/40 hover:border-white/10 hover:text-white"
-                          }`}
-                        >
-                          {val}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                  </motion.div>
+                )}
 
-                {/* Custom Moves Panel */}
-                <div className="bg-black/25 border border-white/5 rounded-xl p-2.5 relative">
-                  <div className="flex items-center justify-between gap-1 mb-1.5">
-                    <div className="bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 rounded-lg">
-                      <span className="text-[10px] font-black text-amber-450">
-                        {maxMovesPerTurn} حركات
-                      </span>
+                {/* Play Wizard Step 3: Match Details & Start */}
+                {playStep === "match" && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 15 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="space-y-2.5"
+                  >
+                    <div className="text-right border-b border-white/5 pb-1.5 mb-2">
+                      <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">مرحلة 3 من 3: صعوبة وضوابط المباراة</span>
+                      <h3 className="text-sm font-black text-white">اختر صعوبة مدرب الخصم وإعدادات زمن المباراة</h3>
                     </div>
-                    <label className="block text-[#e0e0e0]/75 text-[10px] font-black">
-                      عدد الحركات لكل دور:
-                    </label>
-                  </div>
-                  
-                  <input
-                    type="range"
-                    min={1}
-                    max={5}
-                    step={1}
-                    value={maxMovesPerTurn}
-                    onChange={(e) => {
-                      SoundEffects.playCardDraw();
-                      setMaxMovesPerTurn(Number(e.target.value));
-                    }}
-                    className="w-full h-1 bg-black/50 border border-white/5 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                  />
-                  
-                  {/* Micro presets */}
-                  <div className="grid grid-cols-5 gap-1 mt-2">
-                    {[1, 2, 3, 4, 5].map((val) => {
-                      const isSelected = maxMovesPerTurn === val;
-                      return (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => {
-                            SoundEffects.playCardDraw();
-                            setMaxMovesPerTurn(val);
-                          }}
-                          className={`py-1 rounded-md border text-[8.5px] text-center font-bold transition-all cursor-pointer ${
-                            isSelected
-                              ? "border-amber-500 bg-[#302213] text-amber-300 font-extrabold"
-                              : "border-white/5 bg-transparent text-[#e0e0e0]/40 hover:border-white/10 hover:text-white"
-                          }`}
-                        >
-                          {val}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
 
-                {/* Custom Initial Cards Count Panel */}
-                <div className="bg-black/25 border border-white/5 rounded-xl p-2.5 relative">
-                  <div className="flex items-center justify-between gap-1 mb-1.5">
-                    <div className="bg-teal-500/15 border border-teal-500/25 px-2 py-0.5 rounded-lg">
-                      <span className="text-[10px] font-black text-teal-400">
-                        {initialCardsCount} كروت
-                      </span>
+                    <div className="grid grid-cols-2 gap-2 text-right">
+                      {/* Left Column: Sliders */}
+                      <div className="space-y-2 bg-black/20 p-2 border border-white/5 rounded-xl">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[8px] text-emerald-400">
+                            <span>{Math.floor(matchDuration / 60)} د</span>
+                            <span className="font-bold">وقت المباراة:</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={300}
+                            max={1800}
+                            step={60}
+                            value={matchDuration}
+                            onChange={(e) => setMatchDuration(Number(e.target.value))}
+                            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[8px] text-amber-400">
+                            <span>{legendPercentage}%</span>
+                            <span className="font-bold">نسبة الأساطير:</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={10}
+                            value={legendPercentage}
+                            onChange={(e) => setLegendPercentage(Number(e.target.value))}
+                            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-amber-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Right Column: Difficulty selection */}
+                      <div className="space-y-1 flex flex-col justify-between">
+                        {[
+                          { id: "normal", label: "مدرب ناشئ", color: "border-emerald-500 text-emerald-400 bg-emerald-950/15" },
+                          { id: "tactical", label: "مدرب محترف", color: "border-amber-500 text-amber-400 bg-amber-950/15" },
+                          { id: "legend", label: "جوارديولا (ذكي)", color: "border-rose-500 text-rose-450 bg-rose-950/15" }
+                        ].map((lvl) => {
+                          const isSelected = difficulty === lvl.id;
+                          return (
+                            <button
+                              key={lvl.id}
+                              type="button"
+                              onClick={() => { SoundEffects.playCardDraw(); setDifficulty(lvl.id as any); }}
+                              className={`w-full p-1 px-2.5 rounded-lg border text-right font-extrabold text-[9.5px] cursor-pointer transition-all ${
+                                isSelected ? lvl.color : "border-white/5 bg-transparent text-slate-500 hover:text-white"
+                              }`}
+                            >
+                              {lvl.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <label className="block text-[#e0e0e0]/75 text-[10px] font-black">
-                      عدد كروت البداية لكل لاعب:
-                    </label>
-                  </div>
-                  
-                  <input
-                    type="range"
-                    min={3}
-                    max={10}
-                    step={1}
-                    value={initialCardsCount}
-                    onChange={(e) => {
-                      SoundEffects.playCardDraw();
-                      setInitialCardsCount(Number(e.target.value));
-                    }}
-                    className="w-full h-1 bg-black/50 border border-white/5 rounded-lg appearance-none cursor-pointer accent-teal-500"
-                  />
-                  
-                  {/* Micro presets */}
-                  <div className="grid grid-cols-5 gap-1 mt-2">
-                    {[3, 5, 7, 10].map((val) => {
-                      const isSelected = initialCardsCount === val;
-                      return (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => {
-                            SoundEffects.playCardDraw();
-                            setInitialCardsCount(val);
-                          }}
-                          className={`py-1 rounded-md border text-[8.5px] text-center font-bold transition-all cursor-pointer ${
-                            isSelected
-                              ? "border-teal-500 bg-[#142628] text-teal-300 font-extrabold"
-                              : "border-white/5 bg-transparent text-[#e0e0e0]/40 hover:border-white/10 hover:text-white"
-                          }`}
-                        >
-                          {val}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
 
-              </div>
-            </div>
+                    <div className="flex items-center justify-between border-t border-white/5 pt-2 mt-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { SoundEffects.playCardDraw(); setPlayStep("packages"); }}
+                        className="px-4 py-1 bg-white/5 hover:bg-white/10 text-white font-extrabold text-[9px] rounded-lg transition-colors cursor-pointer"
+                      >
+                        السابق
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-6 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-450 hover:to-teal-450 text-black font-black text-[10px] rounded-xl flex items-center gap-1 shadow-lg cursor-pointer border-none"
+                      >
+                        <span>انطلاق المباراة! 🏁⚽</span>
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
 
-            {/* Bottom Actions Row */}
-            <div className="flex items-center justify-between border-t border-white/5 pt-2.5 mt-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  SoundEffects.playCardDraw();
-                  setStep("packages");
-                }}
-                className="px-4 py-1.5 bg-white/5 hover:bg-white/10 text-white font-extrabold text-[10px] rounded-lg transition-colors cursor-pointer"
-              >
-                السابق
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => {
-                  SoundEffects.playCardDraw();
-                  setStep("opponent");
-                }}
-                className="px-5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[10px] rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
-              >
-                <span>التالي: مستوى الخصم</span>
-                <ArrowLeft className="w-3 h-3" />
-              </button>
-            </div>
-          </motion.div>
-        )}
+              </form>
+            </motion.div>
+          )}
 
-        {/* Step 5: Opponent coach difficulty selection */}
-        {step === "opponent" && (
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex-1 flex flex-col justify-between py-1"
-          >
-            <div>
-              <div className={`text-right border-b border-white/5 ${isMobileLandscape ? 'pb-1 mb-1.5' : 'pb-2 mb-3'}`}>
-                <span className="text-[10px] font-black uppercase text-emerald-500 tracking-wider">مرحلة 4: المدرب المقابل</span>
-                <h2 className={`font-black text-white ${isMobileLandscape ? 'text-[11px]' : 'text-sm'} mt-0.5`}>من ستواجه على الخط الفني؟</h2>
+          {/* TAB 3: DECKS GALLERY */}
+          {activeTab === "decks" && (
+            <motion.div
+              key="tab_decks"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="w-full space-y-3"
+            >
+              <div className="text-right border-b border-white/5 pb-1.5">
+                <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">🎴 مستودع الباقات والتشكيلات</span>
+                <h3 className="text-sm font-black text-white">قائمة باقات اللعب المتوفرة بالنظام</h3>
               </div>
 
-              {/* Tactical Difficulty Selector */}
-              <div className={`${isMobileLandscape ? 'space-y-1' : 'space-y-1.5'}`}>
+              <div className="max-h-[140px] overflow-y-auto space-y-1.5 pr-1 text-right scrollbar-thin scrollbar-thumb-emerald-500/20">
+                {dbPackages.length === 0 ? (
+                  <div className="p-3 bg-black/35 rounded-xl border border-white/5 text-[9px] text-slate-500 text-center leading-normal">
+                    لا يوجد باقات مخصصة حالياً بجدول Supabase. تعمل اللعبة بالباقات والتشكيلات المدمجة محلياً (30 لاعب أسطورة وعادي مع 6 كروت تكتيكية).
+                  </div>
+                ) : (
+                  dbPackages.map((pkg) => (
+                    <div key={pkg.id} className="p-2 bg-black/45 border border-white/5 rounded-lg flex items-center justify-between gap-2">
+                      <span className="text-[8px] text-slate-500">
+                        {pkg.type === "special" ? "باقة تكتيكية خاصة" : "باقة لاعبين"}
+                      </span>
+                      <div className="text-right">
+                        <span className="font-extrabold text-[10px] block text-emerald-400">{pkg.name} {pkg.image}</span>
+                        <span className="text-[8px] text-slate-500 block truncate max-w-[180px]">{pkg.description || "لا يوجد وصف لهذه الباقة"}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* TAB 4: RULES BOOK */}
+          {activeTab === "rules" && (
+            <motion.div
+              key="tab_rules"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="w-full space-y-2.5"
+            >
+              {/* Sub tabs inside rules */}
+              <div className="flex border-b border-white/5 bg-black/25 rounded-t-lg overflow-x-auto">
                 {[
-                  { id: "normal", label: "مدرب ناشئ", icon: Users, desc: "تكتيك أساسي - مثالي للمبتدئين لاستكشاف الأوراق", color: "border-emerald-500 text-emerald-400 bg-emerald-950/10 hover:bg-emerald-950/20" },
-                  { id: "tactical", label: "مدرب محترف", icon: Shield, desc: "تكتيك متقدم - يرد بالتبديلات والصد الدفاعي المنظم", color: "border-amber-500 text-amber-400 bg-amber-950/10 hover:bg-amber-950/20" },
-                  { id: "legend", label: "جوارديولا (ذكي)", icon: Bot, desc: "ذكاء استباقي فائق - يقرأ تكتيكك ويعدل هجومه ويدمج الأساطير بدقة", color: "border-rose-500 text-rose-450 bg-rose-950/10 hover:bg-rose-950/20" }
-                ].map((lvl) => {
-                  const IconComp = lvl.icon;
-                  const isSelected = difficulty === lvl.id;
-                  return (
-                    <button
-                      key={lvl.id}
-                      type="button"
-                      id={`diff_btn_${lvl.id}`}
-                      onClick={() => {
-                        SoundEffects.playCardDraw();
-                        setDifficulty(lvl.id as any);
-                      }}
-                      className={`w-full ${isMobileLandscape ? 'p-1.5 rounded-lg gap-2' : 'p-2.5 rounded-xl gap-3'} border flex items-start transition-all text-right cursor-pointer ${
-                        isSelected
-                          ? `${lvl.color} border-l-4 shadow-md`
-                          : "border-white/5 text-[#e0e0e0]/45 bg-transparent hover:border-white/10 hover:text-white"
-                      }`}
-                    >
-                      <div className="p-1 rounded-lg bg-black/40 mt-0.5 shrink-0">
-                        <IconComp className={`${isMobileLandscape ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <span className={`font-extrabold ${isMobileLandscape ? 'text-[10px]' : 'text-xs'} block`}>{lvl.label}</span>
-                        <p className={`${isMobileLandscape ? 'text-[8.5px]' : 'text-[9.5px]'} opacity-70 leading-normal mt-0.5`}>{lvl.desc}</p>
-                      </div>
-                    </button>
-                  );
-                })}
+                  { id: "basics", label: "الأساسيات" },
+                  { id: "actions", label: "الحركات" },
+                  { id: "attacking", label: "الهجوم" },
+                  { id: "specials", label: "التكتيكات" }
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => { SoundEffects.playCardDraw(); setRulesCategory(t.id as any); }}
+                    className={`flex-1 py-1.5 text-[9px] font-black text-center border-b-2 cursor-pointer transition-all ${
+                      rulesCategory === t.id
+                        ? "border-emerald-400 text-emerald-400 bg-white/5"
+                        : "border-transparent text-slate-500 hover:text-slate-350"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
               </div>
-            </div>
 
-            {/* Bottom Final Actions */}
-            <div className="flex items-center justify-between border-t border-white/5 pt-2.5 mt-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  SoundEffects.playCardDraw();
-                  setStep("match");
-                }}
-                className="px-4 py-1.5 bg-white/5 hover:bg-white/10 text-white font-extrabold text-[10px] rounded-lg transition-colors cursor-pointer"
-              >
-                السابق
-              </button>
-              
-              <button
-                type="submit"
-                id="start_match_submit_button"
-                className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-black font-black text-xs rounded-xl flex items-center gap-1 transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
-              >
-                <span>بدء اللقاء وانطلاق المباراة 🏁⚡</span>
-              </button>
-            </div>
-          </motion.div>
-        )}
+              {/* Scrollable rules text */}
+              <div className="max-h-[120px] overflow-y-auto text-right text-[9px] text-slate-300 leading-normal space-y-2 pr-1 scrollbar-thin scrollbar-thumb-emerald-500/20">
+                {rulesCategory === "basics" && (
+                  <>
+                    <h4 className="font-bold text-white text-[10px] text-emerald-400">الهدف والبداية (التسخين):</h4>
+                    <p>اللعبة تحدي 1 ضد 1. أول مدرب يسجل <strong className="text-white">5 أهداف (بونت)</strong> هو الفائز.</p>
+                    <p>في البداية، يسحب كل مدرب 5 لاعبين ويضعهم أمامه مقلوبين بالملعب. يمنع بدء أي لاعب أسطورة على الملعب في التسخين (يتم إرجاعه للحقيبة في حال ظهوره وسحب كارت بديل).</p>
+                  </>
+                )}
+                {rulesCategory === "actions" && (
+                  <>
+                    <h4 className="font-bold text-white text-[10px] text-emerald-400">حركات اللعب والدور:</h4>
+                    <p>تسحب كارتين في بداية دورك. وتمتلك <strong className="text-white">3 حركات كحد أقصى</strong> في كل دور.</p>
+                    <p>الحركات تشمل: تبديل لاعب مكشوف (1 حركة)، تبديل لاعب مقلوب (1 حركة)، إنزال أسطورة (1 حركة + حرق كارتين من يدك)، أو شن هجوم (2 حركة).</p>
+                  </>
+                )}
+                {rulesCategory === "attacking" && (
+                  <>
+                    <h4 className="font-bold text-white text-[10px] text-emerald-400">قواعد الهجوم والحسم:</h4>
+                    <p>يكلف الهجوم حركتين. تختار مهاجماً مقلوباً وتكشف قوته، ثم تسحب كارت معزز الهجمة (بونطو) من +1 إلى +10 عشوائياً لدعم الهجمة.</p>
+                    <p>يمتلك الخصم 3 حركات فورية لصد الهجوم بكشف المدافعين أو لعب كروت تكتيكية. نقارن إجمالي قوة الهجوم بالدفاع، وإذا تفوق الهجوم يتم إحراز هدف.</p>
+                  </>
+                )}
+                {rulesCategory === "specials" && (
+                  <>
+                    <h4 className="font-bold text-white text-[10px] text-emerald-400">الكروت التكتيكية الخاصة:</h4>
+                    <p>🚌 ركن الباص: تمنح صد دفاعي قوي بمقدار +6 دفاع.</p>
+                    <p>🌧️ عشب مبلل: تقلل قوة هجوم أو دفاع الخصم بـ -4 نقاط.</p>
+                    <p>🚩 تسلل مباغت: يلغي نقاط أقوى مهاجم للخصم في الهجمة تماماً.</p>
+                    <p>🟥 كارت أحمر: يطرد أي لاعب مكشوف لخصمك نهائياً خارج الملعب.</p>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          )}
 
-      </form>
-    </motion.div>
+          {/* TAB 5: SETTINGS */}
+          {activeTab === "settings" && (
+            <motion.div
+              key="tab_settings"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="w-full space-y-3.5"
+            >
+              <div className="text-right border-b border-white/5 pb-1.5">
+                <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">⚙️ إعدادات وخيارات اللعبة</span>
+                <h3 className="text-sm font-black text-white">إدارة الصوت ولوحة التحكم</h3>
+              </div>
+
+              <div className="space-y-2 text-right">
+                {/* Audio Option */}
+                <div className="flex items-center justify-between p-2.5 bg-black/35 border border-white/5 rounded-xl">
+                  <button
+                    onClick={toggleMute}
+                    className={`px-4 py-1 rounded-lg text-[9.5px] font-bold transition-all cursor-pointer ${
+                      isMuted 
+                        ? "bg-red-500/20 text-red-400 border border-red-500/30" 
+                        : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                    }`}
+                  >
+                    {isMuted ? "الصوت مكتوم 🔇" : "الصوت مفعل 🔊"}
+                  </button>
+                  <span className="text-xs font-bold text-slate-300">مؤثرات الصوت التكتيكية:</span>
+                </div>
+
+                {/* Admin Cabinet link */}
+                <div className="flex items-center justify-between p-2.5 bg-black/35 border border-white/5 rounded-xl">
+                  <a
+                    href="#/admin"
+                    className="px-4 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-[9.5px] font-bold cursor-pointer transition-colors block text-center"
+                  >
+                    دخول لوحة التحكم ⚙️
+                  </a>
+                  <span className="text-xs font-bold text-slate-300">لوحة الإدارة وقواعد البيانات:</span>
+                </div>
+
+                {/* Game Info */}
+                <div className="text-center text-[8px] text-slate-500 space-y-0.5 pt-1">
+                  <div>مرتدة © تحدي التخطيط الكروي الذكي</div>
+                  <div>إصدار التحديث التكتيكي v2.1</div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+        </AnimatePresence>
+      </main>
+
+      {/* FIXED BOTTOM NAVIGATION BAR */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#060807]/95 border-t border-white/5 h-14 w-full px-2 shrink-0 z-30 backdrop-blur-md flex justify-around items-center">
+        {[
+          { id: "home", label: "الرئيسية", icon: "🏠" },
+          { id: "play", label: "اللعب", icon: "⚔️" },
+          { id: "decks", label: "الباقات", icon: "🎴" },
+          { id: "rules", label: "القوانين", icon: "📜" },
+          { id: "settings", label: "الإعدادات", icon: "⚙️" }
+        ].map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                SoundEffects.playCardDraw();
+                setActiveTab(tab.id as any);
+              }}
+              className={`flex flex-col items-center justify-center flex-1 h-full py-1 gap-0.5 cursor-pointer relative transition-all ${
+                isActive 
+                  ? "text-emerald-400 font-black scale-105" 
+                  : "text-slate-500 hover:text-slate-400"
+              }`}
+            >
+              <span className="text-lg">{tab.icon}</span>
+              <span className="text-[8.5px] tracking-tight leading-none">{tab.label}</span>
+              {isActive && (
+                <div className="absolute bottom-0 w-8 h-[2.5px] bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+    </div>
   );
 }
