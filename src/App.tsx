@@ -2344,11 +2344,9 @@ export default function App() {
 
   const mainDivClass = `bg-[#050605] text-[#e0e0e0] font-sans relative select-none ${
     isMobile && isPortrait && !isLockedLandscape
-      ? "w-full h-full overflow-hidden p-1.5"
+      ? "w-full h-full overflow-hidden"
       : phase === "menu"
-        ? isMobileLandscape
-          ? "min-h-screen overflow-hidden p-1.5"
-          : "min-h-screen overflow-y-auto p-4 md:p-6"
+        ? "w-full min-h-screen overflow-hidden"
         : "p-1.5 h-screen max-h-screen overflow-hidden md:p-2.5"
   }`;
 
@@ -2365,16 +2363,18 @@ export default function App() {
 
   return (
     <div style={rotatedStyle} className={mainDivClass}>
-      
-      {/* Background glow effects */}
-      <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-10 left-1/4 w-[400px] h-[400px] bg-teal-500/5 rounded-full blur-[100px] pointer-events-none" />
-
-      {/* Main Container */}
-      <div className={`max-w-7xl mx-auto h-full flex flex-col ${phase === "menu" ? "space-y-6" : "space-y-1.5 lg:space-y-2 justify-between"}`}>
-        
-        {/* TOP STATUS NAVIGATION BAR - Hidden during matches on small viewports to match scribbled layouts */}
-        <header className={`${phase === "menu" ? "flex" : "hidden lg:flex"} flex-col sm:flex-row items-center justify-between bg-[#0c0d0c] p-3 px-4 rounded-xl border border-white/5 backdrop-blur-md gap-3 select-none`}>
+      {phase === "menu" && !isGameLoading && !gameLoadError ? (
+        <WelcomeMenu onStartGame={handleStartGame} isMobileLandscape={isMobileLandscape} />
+      ) : (
+        <>
+          {/* Background glow effects */}
+          <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute bottom-10 left-1/4 w-[400px] h-[400px] bg-teal-500/5 rounded-full blur-[100px] pointer-events-none" />
+          {/* Main Container */}
+          <div className="max-w-7xl mx-auto h-full flex flex-col space-y-1.5 lg:space-y-2 justify-between">
+            
+            {/* TOP STATUS NAVIGATION BAR - Hidden during matches on small viewports to match scribbled layouts */}
+            <header className="hidden lg:flex flex-col sm:flex-row items-center justify-between bg-[#0c0d0c] p-3 px-4 rounded-xl border border-white/5 backdrop-blur-md gap-3 select-none">
           <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-start">
             <div className="flex items-center gap-1.5">
               <button
@@ -2500,10 +2500,6 @@ export default function App() {
                 العودة 🔁
               </button>
             </div>
-          </div>
-        ) : phase === "menu" ? (
-          <div className={`flex flex-col justify-center items-center flex-1 ${isMobileLandscape ? 'py-1' : 'py-4 md:py-6'}`} id="welcome_menu_wrapper">
-            <WelcomeMenu onStartGame={handleStartGame} isMobileLandscape={isMobileLandscape} />
           </div>
         ) : (
           <div className="flex flex-row gap-2 w-full h-full select-none text-right overflow-hidden">
@@ -3004,6 +3000,8 @@ export default function App() {
         )}
 
       </div>
+    </>
+  )}
 
       {/* RULES TUTORIAL POPUP OPENER */}
       <GameTutorialPanel

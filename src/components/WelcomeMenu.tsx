@@ -125,10 +125,10 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
       
       {/* Background soccer pitch line art */}
       <div className="absolute inset-0 pointer-events-none z-0 opacity-10">
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_50%,rgba(255,255,255,0.025)_50%)] bg-[size:10%_100%]" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_50%,rgba(255,255,255,0.025)_50%)] bg-size-[10%_100%]" />
         <div className="absolute inset-4 border border-white/20 rounded-2xl" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-44 h-44 rounded-full border border-white/25" />
-        <div className="absolute top-1/2 left-4 right-4 h-[1px] bg-white/25" />
+        <div className="absolute top-1/2 left-4 right-4 h-px bg-white/25" />
         <div className="absolute top-4 left-1/2 -translate-x-1/2 w-64 h-24 border border-white/25 border-t-0 rounded-b" />
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-64 h-24 border border-white/25 border-b-0 rounded-t" />
       </div>
@@ -141,7 +141,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
       <header className="relative z-10 w-full flex items-center justify-between px-6 py-2.5 bg-black/40 border-b border-white/5 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <h1 className="text-base font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 via-teal-300 to-green-400">
+          <h1 className="text-base font-black tracking-tight bg-clip-text text-transparent bg-linear-to-r from-emerald-400 via-teal-300 to-green-400">
             مـرتـدة
           </h1>
         </div>
@@ -201,12 +201,12 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                   <span className="text-[8px] text-slate-500 block">الهوية الافتراضية</span>
                   <span className="text-xs font-black text-[#e0e0e0]">{selectedVibe.emoji} {selectedVibe.name}</span>
                 </div>
-                <div className="w-[1px] h-6 bg-white/10" />
+                <div className="w-px h-6 bg-white/10" />
                 <div className="text-center">
                   <span className="text-[8px] text-slate-500 block">مستوى المدرب</span>
                   <span className="text-xs font-black text-amber-400">المحترف الأسطوري 🌟</span>
                 </div>
-                <div className="w-[1px] h-6 bg-white/10" />
+                <div className="w-px h-6 bg-white/10" />
                 <div className="text-left">
                   <span className="text-[8px] text-slate-500 block">الصعوبة الحالية</span>
                   <span className="text-xs font-black text-rose-400">
@@ -539,28 +539,28 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
               <div className="max-h-[120px] overflow-y-auto text-right text-[9px] text-slate-300 leading-normal space-y-2 pr-1 scrollbar-thin scrollbar-thumb-emerald-500/20">
                 {rulesCategory === "basics" && (
                   <>
-                    <h4 className="font-bold text-white text-[10px] text-emerald-400">الهدف والبداية (التسخين):</h4>
+                    <h4 className="font-bold text-[10px] text-emerald-400">الهدف والبداية (التسخين):</h4>
                     <p>اللعبة تحدي 1 ضد 1. أول مدرب يسجل <strong className="text-white">5 أهداف (بونت)</strong> هو الفائز.</p>
                     <p>في البداية، يسحب كل مدرب 5 لاعبين ويضعهم أمامه مقلوبين بالملعب. يمنع بدء أي لاعب أسطورة على الملعب في التسخين (يتم إرجاعه للحقيبة في حال ظهوره وسحب كارت بديل).</p>
                   </>
                 )}
                 {rulesCategory === "actions" && (
                   <>
-                    <h4 className="font-bold text-white text-[10px] text-emerald-400">حركات اللعب والدور:</h4>
+                    <h4 className="font-bold text-[10px] text-emerald-400">حركات اللعب والدور:</h4>
                     <p>تسحب كارتين في بداية دورك. وتمتلك <strong className="text-white">3 حركات كحد أقصى</strong> في كل دور.</p>
                     <p>الحركات تشمل: تبديل لاعب مكشوف (1 حركة)، تبديل لاعب مقلوب (1 حركة)، إنزال أسطورة (1 حركة + حرق كارتين من يدك)، أو شن هجوم (2 حركة).</p>
                   </>
                 )}
                 {rulesCategory === "attacking" && (
                   <>
-                    <h4 className="font-bold text-white text-[10px] text-emerald-400">قواعد الهجوم والحسم:</h4>
+                    <h4 className="font-bold text-[10px] text-emerald-400">قواعد الهجوم والحسم:</h4>
                     <p>يكلف الهجوم حركتين. تختار مهاجماً مقلوباً وتكشف قوته، ثم تسحب كارت معزز الهجمة (بونطو) من +1 إلى +10 عشوائياً لدعم الهجمة.</p>
                     <p>يمتلك الخصم 3 حركات فورية لصد الهجوم بكشف المدافعين أو لعب كروت تكتيكية. نقارن إجمالي قوة الهجوم بالدفاع، وإذا تفوق الهجوم يتم إحراز هدف.</p>
                   </>
                 )}
                 {rulesCategory === "specials" && (
                   <>
-                    <h4 className="font-bold text-white text-[10px] text-emerald-400">الكروت التكتيكية الخاصة:</h4>
+                    <h4 className="font-bold text-[10px] text-emerald-450">الكروت التكتيكية الخاصة:</h4>
                     <p>🚌 ركن الباص: تمنح صد دفاعي قوي بمقدار +6 دفاع.</p>
                     <p>🌧️ عشب مبلل: تقلل قوة هجوم أو دفاع الخصم بـ -4 نقاط.</p>
                     <p>🚩 تسلل مباغت: يلغي نقاط أقوى مهاجم للخصم في الهجمة تماماً.</p>
