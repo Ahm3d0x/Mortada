@@ -11,7 +11,7 @@ import {
   ROLE_LABELS,
   LEGEND_ROLE_LABELS,
 } from "./adminTypes";
-import { PlayerCard, SpecialCard } from "../types";
+import { PlayerCard, SpecialCard, CardAbility } from "../types";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -22,6 +22,32 @@ function checkSupabase() {
       "Supabase configurations are missing. Please define VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file."
     );
   }
+}
+
+export function parseCardAbility(c: any): any {
+  if (!c) return c;
+  let finalDesc = c.description || "";
+  let ability: CardAbility | undefined = undefined;
+  try {
+    if (c.description && c.description.trim().startsWith("{")) {
+      const parsed = JSON.parse(c.description);
+      finalDesc = parsed.text || "";
+      ability = parsed.ability || undefined;
+    }
+  } catch (e) {
+    // Not JSON
+  }
+  return { ...c, description: finalDesc, ability };
+}
+
+export function serializeCardAbility(cardData: any): any {
+  if (!cardData) return cardData;
+  const { ability, description, ...rest } = cardData;
+  let dbDescription = description || "";
+  if (ability) {
+    dbDescription = JSON.stringify({ text: description, ability });
+  }
+  return { ...rest, description: dbDescription };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -120,7 +146,7 @@ export async function getAllCentralCards(): Promise<AdminCard[]> {
     console.error("Error fetching central cards:", error);
     return [];
   }
-  return (data || []) as AdminCard[];
+  return (data || []).map(parseCardAbility) as AdminCard[];
 }
 
 // Get all tactical cards in central pool
@@ -134,7 +160,7 @@ export async function getAllCentralSpecialCards(): Promise<AdminSpecialCard[]> {
     console.error("Error fetching central special cards:", error);
     return [];
   }
-  return (data || []) as AdminSpecialCard[];
+  return (data || []).map(parseCardAbility) as AdminSpecialCard[];
 }
 
 // Get cards linked to a specific package
@@ -166,7 +192,7 @@ export async function getCardsByPackage(packageId: string): Promise<AdminCard[]>
     console.error("Error fetching cards for package:", error);
     return [];
   }
-  return (data || []).map((row: any) => row.cards).filter(Boolean) as AdminCard[];
+  return (data || []).map((row: any) => parseCardAbility(row.cards)).filter(Boolean) as AdminCard[];
 }
 
 // Get special cards linked to a specific package
@@ -193,7 +219,7 @@ export async function getSpecialCardsByPackage(packageId: string): Promise<Admin
     console.error("Error fetching special cards for package:", error);
     return [];
   }
-  return (data || []).map((row: any) => row.special_cards).filter(Boolean) as AdminSpecialCard[];
+  return (data || []).map((row: any) => parseCardAbility(row.special_cards)).filter(Boolean) as AdminSpecialCard[];
 }
 
 // Create player card and link it to package
@@ -203,9 +229,10 @@ export async function createCardInPackage(
 ): Promise<AdminCard> {
   checkSupabase();
   // 1. Insert in cards central pool
+  const dbData = serializeCardAbility(cardData);
   const { data: card, error: cardError } = await supabase!
     .from("cards")
-    .insert([cardData])
+    .insert([dbData])
     .select()
     .single();
 
@@ -224,7 +251,7 @@ export async function createCardInPackage(
     throw linkError;
   }
 
-  return card as AdminCard;
+  return parseCardAbility(card) as AdminCard;
 }
 
 // Create special card and link it to package
@@ -234,9 +261,10 @@ export async function createSpecialCardInPackage(
 ): Promise<AdminSpecialCard> {
   checkSupabase();
   // 1. Insert in special_cards central pool
+  const dbData = serializeCardAbility(cardData);
   const { data: card, error: cardError } = await supabase!
     .from("special_cards")
-    .insert([cardData])
+    .insert([dbData])
     .select()
     .single();
 
@@ -255,7 +283,7 @@ export async function createSpecialCardInPackage(
     throw linkError;
   }
 
-  return card as AdminSpecialCard;
+  return parseCardAbility(card) as AdminSpecialCard;
 }
 
 // Link existing card to player package
@@ -320,9 +348,10 @@ export async function updateCard(
   updates: Partial<Omit<AdminCard, "id" | "created_at">>
 ): Promise<AdminCard | null> {
   checkSupabase();
+  const dbUpdates = serializeCardAbility(updates);
   const { data, error } = await supabase!
     .from("cards")
-    .update(updates)
+    .update(dbUpdates)
     .eq("id", id)
     .select()
     .single();
@@ -330,7 +359,7 @@ export async function updateCard(
     console.error("Error updating card:", error);
     return null;
   }
-  return data as AdminCard;
+  return parseCardAbility(data) as AdminCard;
 }
 
 // Update special card in central pool
@@ -339,9 +368,10 @@ export async function updateSpecialCard(
   updates: Partial<Omit<AdminSpecialCard, "id" | "created_at">>
 ): Promise<AdminSpecialCard | null> {
   checkSupabase();
+  const dbUpdates = serializeCardAbility(updates);
   const { data, error } = await supabase!
     .from("special_cards")
-    .update(updates)
+    .update(dbUpdates)
     .eq("id", id)
     .select()
     .single();
@@ -349,7 +379,7 @@ export async function updateSpecialCard(
     console.error("Error updating special card:", error);
     return null;
   }
-  return data as AdminSpecialCard;
+  return parseCardAbility(data) as AdminSpecialCard;
 }
 
 // Delete card completely from central pool (ON DELETE CASCADE unlinks it)
@@ -464,22 +494,26 @@ export async function getCardsForGame(packageIds?: string[]): Promise<PlayerCard
 
   const cardsList = Array.from(cardMap.values());
 
-  return cardsList.map((c, idx) => ({
-    id: `admin_${c.id}_${idx}`,
-    name: c.name,
-    type: "player" as const,
-    isLegend: c.is_legend,
-    attack: c.attack,
-    defense: c.defense,
-    role: c.role,
-    roleArabic: c.is_legend
-      ? LEGEND_ROLE_LABELS[c.role] || c.role_arabic
-      : ROLE_LABELS[c.role] || c.role_arabic,
-    description: c.description || "",
-    team: c.team || "",
-    avatar: c.avatar || "⚽",
-    imageUrl: c.image_url || "",
-  }));
+  return cardsList.map((c, idx) => {
+    const parsed = parseCardAbility(c);
+    return {
+      id: `admin_${c.id}_${idx}`,
+      name: c.name,
+      type: "player" as const,
+      isLegend: c.is_legend,
+      attack: c.attack,
+      defense: c.defense,
+      role: c.role,
+      roleArabic: c.is_legend
+        ? LEGEND_ROLE_LABELS[c.role] || c.role_arabic
+        : ROLE_LABELS[c.role] || c.role_arabic,
+      description: parsed.description || "",
+      team: c.team || "",
+      avatar: c.avatar || "⚽",
+      imageUrl: c.image_url || "",
+      ability: parsed.ability,
+    };
+  });
 }
 
 /**
@@ -520,16 +554,20 @@ export async function getSpecialCardsForGame(packageIds?: string[]): Promise<Spe
 
   const cardsList = Array.from(cardMap.values());
 
-  return cardsList.map((c, idx) => ({
-    id: `admin_spec_${c.id}_${idx}`,
-    name: c.name,
-    type: "special" as const,
-    effect: c.effect as any,
-    effectArabic: c.effect_arabic || "",
-    description: c.description || "",
-    icon: c.icon || "🃏",
-    imageUrl: c.image_url || "",
-  }));
+  return cardsList.map((c, idx) => {
+    const parsed = parseCardAbility(c);
+    return {
+      id: `admin_spec_${c.id}_${idx}`,
+      name: c.name,
+      type: "special" as const,
+      effect: c.effect as any,
+      effectArabic: c.effect_arabic || "",
+      description: parsed.description || "",
+      icon: c.icon || "🃏",
+      imageUrl: c.image_url || "",
+      ability: parsed.ability,
+    };
+  });
 }
 
 /**

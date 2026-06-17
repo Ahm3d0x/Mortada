@@ -175,7 +175,7 @@ export default function ActionDashboard({
           <button
             onClick={onConfirmLineup}
             id="confirm_warmup_lineup_button"
-            className="w-full md:w-auto px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white rounded-xl font-black text-xs md:text-sm shadow-md cursor-pointer transform hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center justify-center gap-1 border-none"
+            className="w-full md:w-auto px-5 py-2.5 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white rounded-xl font-black text-xs md:text-sm shadow-md cursor-pointer transform hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center justify-center gap-1 border-none"
           >
             <Sparkles className="w-4 h-4 text-white animate-spin" />
             <span>بدء اللقاء 🏁</span>
@@ -189,7 +189,7 @@ export default function ActionDashboard({
               onClick={onDeclareAttack}
               id="declare_tactical_attack_button"
               disabled={movesLeft < 2}
-              className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 text-white rounded-xl font-black text-xs md:text-sm shadow bg-rose-950/20 cursor-pointer hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed border-none"
+              className="px-4 py-2.5 bg-linear-to-r from-rose-600 to-red-600 hover:from-rose-500 text-white rounded-xl font-black text-xs md:text-sm shadow bg-rose-950/20 cursor-pointer hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed border-none"
             >
               <Swords className="w-4 h-4 text-rose-300" />
               <span>هجوم مباشر ⚔️</span>
@@ -221,7 +221,7 @@ export default function ActionDashboard({
             <button
               onClick={onResolveAttack}
               id="trigger_shooting_resolution_button"
-              className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 text-white font-black rounded-xl text-xs md:text-sm flex items-center justify-center gap-1 shadow-lg border-none cursor-pointer animate-pulse"
+              className="px-5 py-2.5 bg-linear-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 text-white font-black rounded-xl text-xs md:text-sm flex items-center justify-center gap-1 shadow-lg border-none cursor-pointer animate-pulse"
             >
               <span>{isAttackBlocked ? "تسديدة معززة ⚽" : "تسديدة حاسمة ⚽"}</span>
             </button>
@@ -249,7 +249,7 @@ export default function ActionDashboard({
           <button
             onClick={onResetGame}
             id="restart_game_main_button"
-            className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 text-white font-black rounded-xl text-xs md:text-sm transition-colors cursor-pointer border-none shadow-md"
+            className="px-6 py-2.5 bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 text-white font-black rounded-xl text-xs md:text-sm transition-colors cursor-pointer border-none shadow-md"
           >
             مباراة جديدة 🔁
           </button>

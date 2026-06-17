@@ -94,6 +94,10 @@ export default function GameCard({
   const isLegend = isPlayer && (card as PlayerCard).isLegend;
   const isSpecial = card.type === "special";
 
+  const isFrozen = isPlayer && (card as PlayerCard).frozen;
+  const isStunned = isPlayer && (card as PlayerCard).stunned;
+  const isSilenced = isPlayer && (card as PlayerCard).silenced;
+
   return (
     <div 
       style={{ perspective: "1200px" }}
@@ -186,6 +190,34 @@ export default function GameCard({
               : ""
           } ${disabled ? "opacity-35 cursor-not-allowed" : ""}`}
         >
+          {/* Status Overlay Indicators */}
+          {isFrozen && (
+            <div className="absolute inset-0 bg-blue-500/25 backdrop-blur-[1px] flex flex-col items-center justify-center z-30 rounded-2xl border border-blue-400/40">
+              <span className="text-2xl animate-pulse">❄️</span>
+              {size !== "sm" && size !== "pitch" && (
+                <span className="text-[10px] text-blue-200 mt-1 font-bold">مجمد</span>
+              )}
+            </div>
+          )}
+
+          {isStunned && (
+            <div className="absolute inset-0 bg-amber-500/20 backdrop-blur-[0.5px] flex flex-col items-center justify-center z-30 rounded-2xl border border-amber-400/30">
+              <span className="text-2xl animate-spin" style={{ animationDuration: '4s' }}>💫</span>
+              {size !== "sm" && size !== "pitch" && (
+                <span className="text-[10px] text-amber-200 mt-1 font-bold">مصدوم</span>
+              )}
+            </div>
+          )}
+
+          {isSilenced && (
+            <div className="absolute inset-0 bg-red-500/15 backdrop-blur-[0.5px] flex flex-col items-center justify-center z-30 rounded-2xl border border-red-400/35">
+              <span className="text-2xl animate-bounce">🔇</span>
+              {size !== "sm" && size !== "pitch" && (
+                <span className="text-[10px] text-red-200 mt-1 font-bold font-sans">صامت</span>
+              )}
+            </div>
+          )}
+
           {/* If there's a card image URL, render the full-size image as the card's front face */}
           {hasImage ? (
             <div className="absolute inset-0 w-full h-full z-0">
@@ -221,8 +253,8 @@ export default function GameCard({
                 <motion.div 
                   className={`absolute top-0 -left-[140%] w-[100%] h-full transform skew-x-30 pointer-events-none z-0 ${
                     isLegend 
-                      ? "bg-gradient-to-r from-transparent via-amber-400/10 to-transparent" 
-                      : "bg-gradient-to-r from-transparent via-teal-400/10 to-transparent"
+                      ? "bg-linear-to-r from-transparent via-amber-400/10 to-transparent" 
+                      : "bg-linear-to-r from-transparent via-teal-400/10 to-transparent"
                   }`}
                   animate={{ left: ["-140%", "140%"] }}
                   transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}

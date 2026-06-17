@@ -455,7 +455,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                       </button>
                       <button
                         type="submit"
-                        className="px-6 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-450 hover:to-teal-450 text-black font-black text-[10px] rounded-xl flex items-center gap-1 shadow-lg cursor-pointer border-none"
+                        className="px-6 py-1.5 bg-linear-to-r from-emerald-500 to-teal-500 hover:from-emerald-450 hover:to-teal-450 text-black font-black text-[10px] rounded-xl flex items-center gap-1 shadow-lg cursor-pointer border-none"
                       >
                         <span>انطلاق المباراة! 🏁⚽</span>
                       </button>

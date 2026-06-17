@@ -20,6 +20,7 @@ import {
 } from "./adminStore";
 import { isSupabaseConfigured } from "../lib/supabase";
 import PackageManager from "./PackageManager";
+import SandboxTester from "./SandboxTester";
 import "./admin.css";
 
 // Package Emoji Options
@@ -30,6 +31,7 @@ const PKG_EMOJIS = [
 ];
 
 export default function AdminApp() {
+  const [activeTab, setActiveTab] = useState<"packages" | "sandbox">("packages");
   const [packages, setPackages] = useState<AdminPackage[]>([]);
   const [cardCounts, setCardCounts] = useState<Record<string, number>>({});
   const [adminCardsActive, setAdminCardsActive] = useState(false);
@@ -223,6 +225,40 @@ export default function AdminApp() {
             ← العودة للعبة
           </a>
 
+          {/* Navigation tabs */}
+          <div style={{ padding: "8px 8px 0", display: "flex", gap: 6 }}>
+            <button
+              onClick={() => setActiveTab("packages")}
+              className={`btn-secondary ${activeTab === "packages" ? "active" : ""}`}
+              style={{
+                flex: 1,
+                margin: 0,
+                padding: "6px 8px",
+                fontSize: "11px",
+                background: activeTab === "packages" ? "rgba(16,185,129,0.15)" : "transparent",
+                borderColor: activeTab === "packages" ? "#10b981" : "rgba(255,255,255,0.1)",
+                color: activeTab === "packages" ? "#10b981" : "#888",
+              }}
+            >
+              📦 الباقات
+            </button>
+            <button
+              onClick={() => setActiveTab("sandbox")}
+              className={`btn-secondary ${activeTab === "sandbox" ? "active" : ""}`}
+              style={{
+                flex: 1,
+                margin: 0,
+                padding: "6px 8px",
+                fontSize: "11px",
+                background: activeTab === "sandbox" ? "rgba(16,185,129,0.15)" : "transparent",
+                borderColor: activeTab === "sandbox" ? "#10b981" : "rgba(255,255,255,0.1)",
+                color: activeTab === "sandbox" ? "#10b981" : "#888",
+              }}
+            >
+              🧪 اختبار القواعد
+            </button>
+          </div>
+
           {/* Search packages */}
           <div style={{ padding: "8px 8px 0" }}>
             <input
@@ -253,9 +289,12 @@ export default function AdminApp() {
                 <div
                   key={p.id}
                   className={`sidebar-item ${
-                    selectedPkgId === p.id ? "active" : ""
+                    selectedPkgId === p.id && activeTab === "packages" ? "active" : ""
                   }`}
-                  onClick={() => setSelectedPkgId(p.id)}
+                  onClick={() => {
+                    setSelectedPkgId(p.id);
+                    setActiveTab("packages");
+                  }}
                 >
                   <span className="item-emoji">{p.image}</span>
                   <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", flex: 1 }}>{p.name}</span>
@@ -272,9 +311,12 @@ export default function AdminApp() {
                 <div
                   key={p.id}
                   className={`sidebar-item special-package ${
-                    selectedPkgId === p.id ? "active" : ""
+                    selectedPkgId === p.id && activeTab === "packages" ? "active" : ""
                   }`}
-                  onClick={() => setSelectedPkgId(p.id)}
+                  onClick={() => {
+                    setSelectedPkgId(p.id);
+                    setActiveTab("packages");
+                  }}
                 >
                   <span className="item-emoji">{p.image}</span>
                   <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", flex: 1 }}>{p.name}</span>
@@ -347,7 +389,9 @@ export default function AdminApp() {
 
         {/* Main Content */}
         <main className="admin-main">
-          {selectedPkg ? (
+          {activeTab === "sandbox" ? (
+            <SandboxTester />
+          ) : selectedPkg ? (
             <PackageManagerComp
               key={selectedPkg.id}
               pkg={selectedPkg}

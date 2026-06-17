@@ -7,6 +7,7 @@ import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, Shield, Swords, Sparkles, Award, Star, Info, Zap } from "lucide-react";
 import { Card, PlayerCard, SpecialCard } from "../types";
+import { explainAbility, calculatePowerScore } from "../utils/rulesEngine";
 
 interface CardInspectorModalProps {
   card: Card | null;
@@ -19,6 +20,13 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
   const isPlayer = card.type === "player";
   const player = isPlayer ? (card as PlayerCard) : null;
   const special = !isPlayer ? (card as SpecialCard) : null;
+
+  const abilityExplanation = card.ability ? explainAbility(card.ability) : [];
+  const powerScoreData = card.ability ? calculatePowerScore(card.ability, {
+    attack: isPlayer && player ? player.attack : 0,
+    defense: isPlayer && player ? player.defense : 0,
+    isLegend: isPlayer && player ? player.isLegend : false,
+  }) : null;
 
   // Render player descriptions / advantages based on stats
   const getPlayerAdvantages = (p: PlayerCard) => {
@@ -232,6 +240,51 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
                   ) : null}
                 </div>
               </div>
+
+              {/* Rules Engine Ability Block */}
+              {card.ability && (
+                <div className="space-y-2 bg-black/45 p-3 rounded-xl border border-emerald-500/20 shadow-inner text-right mt-3">
+                  <div className="flex items-center justify-between flex-row-reverse border-b border-white/5 pb-1.5 mb-1.5">
+                    <div className="flex items-center gap-1.5 flex-row-reverse text-emerald-400">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                      <span className="text-[10px] sm:text-xs font-black">القدرة الخاصة المبرمجة ⚙️</span>
+                    </div>
+                    {powerScoreData && (
+                      <div className={`px-2 py-0.5 rounded-full text-[9px] font-black border flex items-center gap-1 ${
+                        powerScoreData.level === "strong" 
+                          ? "bg-rose-500/10 text-rose-400 border-rose-500/30 shadow-[0_0_10px_rgba(244,63,94,0.15)]"
+                          : powerScoreData.level === "weak"
+                          ? "bg-slate-500/10 text-slate-400 border-slate-500/30"
+                          : "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.15)]"
+                      }`}>
+                        <Zap className="w-2.5 h-2.5" />
+                        <span>نقاط القوة: {powerScoreData.score}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    {abilityExplanation.map((line, idx) => (
+                      <div key={idx} className="text-[10px] sm:text-xs text-slate-300 flex items-start justify-end gap-1.5 flex-row-reverse leading-relaxed">
+                        <span className="text-emerald-400 mt-0.5">●</span>
+                        <span className="flex-1">{line}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {powerScoreData?.explanation && (
+                    <div className={`mt-2 p-1.5 rounded text-[9px] sm:text-[10px] text-right font-medium leading-normal border ${
+                      powerScoreData.level === "strong"
+                        ? "bg-rose-950/20 border-rose-800/20 text-rose-300"
+                        : powerScoreData.level === "weak"
+                        ? "bg-slate-900/35 border-slate-700/20 text-slate-400"
+                        : "bg-emerald-950/20 border-emerald-800/20 text-emerald-300"
+                    }`}>
+                      {powerScoreData.explanation}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Back Button */}

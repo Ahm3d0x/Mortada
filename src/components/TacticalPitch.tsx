@@ -226,9 +226,9 @@ export default function TacticalPitch({
   };
 
   return (
-    <div className="w-full bg-gradient-to-b from-[#0c2a16] via-[#071d0e] to-[#041208] rounded-2xl p-4 md:p-6 border border-emerald-500/35 shadow-[0_16px_48px_rgba(0,0,0,0.65)] overflow-hidden relative">
+    <div className="w-full bg-linear-to-b from-[#0c2a16] via-[#071d0e] to-[#041208] rounded-2xl p-4 md:p-6 border border-emerald-500/35 shadow-[0_16px_48px_rgba(0,0,0,0.65)] overflow-hidden relative">
       {/* Vertical Grass Turf Stripes (Requirement 7) */}
-      <div className="absolute inset-0 opacity-5 pointer-events-none bg-[linear-gradient(90deg,transparent_50%,rgba(255,255,255,0.15)_50%)] bg-[size:10%_100%]" />
+      <div className="absolute inset-0 opacity-5 pointer-events-none bg-[linear-gradient(90deg,transparent_50%,rgba(255,255,255,0.15)_50%)] bg-size-[10%_100%]" />
       
       {/* Pitch White Lines Markings (Premium tactical aesthetics) */}
       <div className="absolute inset-0 border-2 border-white/10 mx-4 my-4 pointer-events-none rounded-xl" />
@@ -298,13 +298,13 @@ export default function TacticalPitch({
 
         {/* Tactical Middle Pitch divider - Streamlined and narrow on mobile */}
         <div className="relative my-4 flex flex-col items-center justify-center gap-2">
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-emerald-500/15" />
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-emerald-500/15" />
           <div className="z-10 bg-[#0c0e0c] border border-emerald-500/20 px-3 py-0.5 rounded-full text-[9px] font-mono font-black text-emerald-400 uppercase tracking-widest shadow-[0_0_8px_rgba(16,185,129,0.15)]">
             ⚙️ تكتيكات اللقاء
           </div>
 
           {currentPonto && (
-            <div className="z-10 bg-gradient-to-r from-amber-950/80 to-amber-900/80 border border-amber-500/40 px-3 py-1 rounded-xl text-center shadow-[0_0_10px_rgba(245,158,11,0.15)] animate-fadeIn max-w-xs">
+            <div className="z-10 bg-linear-to-r from-amber-950/80 to-amber-900/80 border border-amber-500/40 px-3 py-1 rounded-xl text-center shadow-[0_0_10px_rgba(245,158,11,0.15)] animate-fadeIn max-w-xs">
               <span className="text-[8.5px] text-amber-400 font-black block uppercase mb-0.5">
                 🔥 معزز الهجمة (Ponto)
               </span>

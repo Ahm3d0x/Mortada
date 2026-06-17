@@ -4,6 +4,8 @@
  * Maps to Supabase tables: packages, cards, special_cards, package_cards, package_special_cards
  */
 
+import { CardAbility } from "../types";
+
 export type AdminPlayerRole = "attacker" | "defender" | "midfielder" | "goalkeeper";
 
 export interface AdminPackage {
@@ -30,6 +32,7 @@ export interface AdminCard {
   avatar: string;            // emoji (fallback)
   image_url: string;         // Real card image URL (Google Drive, Imgur, etc.)
   tags: string[];            // e.g. ["captain", "speedster"]
+  ability?: CardAbility;     // Dynamic rules engine ability
   created_at: string;
   updated_at: string;
 }
@@ -42,6 +45,7 @@ export interface AdminSpecialCard {
   description: string;
   icon: string;              // emoji icon
   image_url: string;         // Real card image URL
+  ability?: CardAbility;     // Dynamic rules engine ability
   created_at: string;
   updated_at: string;
 }

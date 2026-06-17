@@ -63,15 +63,15 @@ export default function TopScoreHeader({
   return (
     <div className="w-full bg-[#121412]/95 border border-[#10b981]/20 rounded-xl px-4 py-2 shadow-lg backdrop-blur-md relative overflow-hidden" id="broadcasting_top_scoreboard">
       {/* Decorative turf stripes behind */}
-      <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/10 via-transparent to-emerald-950/10 pointer-events-none" />
+      <div className="absolute inset-0 bg-linear-to-r from-emerald-950/10 via-transparent to-emerald-950/10 pointer-events-none" />
       
       {/* Time countdown bar indicator */}
-      <div className="absolute bottom-0 left-0 h-[2px] bg-gradient-to-r from-teal-500 via-emerald-400 to-amber-500 transition-all duration-1000" style={{ width: `${100 - percentElapsed}%` }} />
+      <div className="absolute bottom-0 left-0 h-[2px] bg-linear-to-r from-teal-500 via-emerald-400 to-amber-500 transition-all duration-1000" style={{ width: `${100 - percentElapsed}%` }} />
 
       <div className="flex items-center justify-between gap-3 h-8">
         {/* LEFT COMPARTMENT: Player Coach profile */}
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-850 flex items-center justify-center text-sm shadow border border-emerald-400/20">
+          <div className="w-7 h-7 rounded-full bg-linear-to-tr from-emerald-600 to-teal-850 flex items-center justify-center text-sm shadow border border-emerald-400/20">
             {getTeamEmoji(playerTeam)}
           </div>
           <span className="text-[10px] md:text-xs font-black text-emerald-400">
@@ -115,7 +115,7 @@ export default function TopScoreHeader({
           <span className="text-[10px] md:text-xs font-black text-rose-450">
             {aiTeam === "الفراعنة" ? "الخصم" : aiTeam}
           </span>
-          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-rose-600 to-amber-850 flex items-center justify-center text-sm shadow border border-rose-500/20">
+          <div className="w-7 h-7 rounded-full bg-linear-to-tr from-rose-600 to-amber-850 flex items-center justify-center text-sm shadow border border-rose-500/20">
             {getTeamEmoji(aiTeam)}
           </div>
         </div>

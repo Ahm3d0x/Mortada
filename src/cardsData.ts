@@ -17,7 +17,16 @@ export const INITIAL_SPECIAL_CARDS: Omit<SpecialCard, "id">[] = [
     effect: "offside",
     effectArabic: "تسلل",
     description: "يقع كارت هجوم الخصم بمصيدة التسلل ويلغي نقاط المهاجم الأقوى لديه تماماً لهذه الهجمة.",
-    icon: "🚩"
+    icon: "🚩",
+    ability: {
+      trigger: "CardPlayed",
+      conditions: [{ type: "CardOwnerIsEnemy" }],
+      actions: [{
+        type: "CancelAction",
+        target: "CurrentAttack",
+        duration: "Instant"
+      }]
+    }
   },
   {
     name: "أمطار وغرق العشب",
@@ -25,7 +34,18 @@ export const INITIAL_SPECIAL_CARDS: Omit<SpecialCard, "id">[] = [
     effect: "wet_pitch",
     effectArabic: "عشب مبلل",
     description: "تبلل أرضية الملعب لتحد من سرعة هجمات أو متانة دفاعات خصمك بمقدار 4 نقاط.",
-    icon: "🌧️"
+    icon: "🌧️",
+    ability: {
+      trigger: "CardPlayed",
+      conditions: [{ type: "CardOwnerIsEnemy" }],
+      actions: [{
+        type: "RemoveStat",
+        stat: "attack",
+        value: 4,
+        target: "CurrentAttack",
+        duration: "Instant"
+      }]
+    }
   },
   {
     name: "مرتدة قاتلة",
@@ -33,7 +53,18 @@ export const INITIAL_SPECIAL_CARDS: Omit<SpecialCard, "id">[] = [
     effect: "counter_attack",
     effectArabic: "هجمة مرتدة",
     description: "استغل الاندفاع الهجومي للخصم لخلق هجمة معاكسة حاسمة تزيد هجوم المهاجم بـ +4 نقاط.",
-    icon: "↗️"
+    icon: "↗️",
+    ability: {
+      trigger: "CardPlayed",
+      conditions: [{ type: "IsAttacker" }],
+      actions: [{
+        type: "AddStat",
+        stat: "attack",
+        value: 4,
+        target: "CurrentAttack",
+        duration: "Instant"
+      }]
+    }
   },
   {
     name: "الجمهور الحماسي",
@@ -41,7 +72,27 @@ export const INITIAL_SPECIAL_CARDS: Omit<SpecialCard, "id">[] = [
     effect: "fans",
     effectArabic: "دعم الجماهير",
     description: "الهتاف المزلزل بالمدرج يمنح أي لاعب مكشوف بملعبك طاقة هجومية ودفاعية إضافية +3 نقاط.",
-    icon: "🥁"
+    icon: "🥁",
+    ability: {
+      trigger: "CardPlayed",
+      conditions: [],
+      actions: [
+        {
+          type: "AddStat",
+          stat: "attack",
+          value: 3,
+          target: "Allies",
+          duration: "Instant"
+        },
+        {
+          type: "AddStat",
+          stat: "defense",
+          value: 3,
+          target: "Allies",
+          duration: "Instant"
+        }
+      ]
+    }
   },
   {
     name: "تكتيك ركن الباص",
@@ -49,7 +100,18 @@ export const INITIAL_SPECIAL_CARDS: Omit<SpecialCard, "id">[] = [
     effect: "park_the_bus",
     effectArabic: "ركن الباص",
     description: "تنظيم دفاعي معقد خلف الكرة يغلق المنافذ بالكامل ليعطي المدافعين المعنيين زيادة دفاعية +6 نقاط.",
-    icon: "🚌"
+    icon: "🚌",
+    ability: {
+      trigger: "CardPlayed",
+      conditions: [{ type: "IsDefender" }],
+      actions: [{
+        type: "AddStat",
+        stat: "defense",
+        value: 6,
+        target: "CurrentDefense",
+        duration: "Instant"
+      }]
+    }
   },
   {
     name: "طرد مباشر (حمراء)",
@@ -57,7 +119,16 @@ export const INITIAL_SPECIAL_CARDS: Omit<SpecialCard, "id">[] = [
     effect: "red_card",
     effectArabic: "كارت أحمر",
     description: "حكم المباراة يتدخل! قم باستبعاد أي كارت لاعب مكشوف لخصمك ومطرود من الملعب حتى نهاية المباراة.",
-    icon: "🟥"
+    icon: "🟥",
+    ability: {
+      trigger: "CardPlayed",
+      conditions: [],
+      actions: [{
+        type: "DestroyCard",
+        target: "SelectedEnemy",
+        duration: "Instant"
+      }]
+    }
   },
   {
     name: "طاقة كأس العالم",
@@ -65,7 +136,17 @@ export const INITIAL_SPECIAL_CARDS: Omit<SpecialCard, "id">[] = [
     effect: "world_cup",
     effectArabic: "روح المونديال",
     description: "شحن معنويات الفريق يتيح لك فوراً سحب كارتين إضافيين (من أي مجموعة تناسب تكتيكاتك).",
-    icon: "🏆"
+    icon: "🏆",
+    ability: {
+      trigger: "CardPlayed",
+      conditions: [],
+      actions: [{
+        type: "DrawCard",
+        value: 2,
+        target: "Self",
+        duration: "Instant"
+      }]
+    }
   }
 ];
 

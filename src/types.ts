@@ -5,6 +5,90 @@
 
 export type CardType = "player" | "special";
 
+export type CardAbilityActionType =
+  | "AddStat"
+  | "RemoveStat"
+  | "MultiplyStat"
+  | "DestroyCard"
+  | "DrawCard"
+  | "RevealCard"
+  | "HideCard"
+  | "SwapCard"
+  | "StealCard"
+  | "CopyCard"
+  | "FreezeCard"
+  | "SilenceCard"
+  | "StunCard"
+  | "AddMoves"
+  | "ReduceMoves"
+  | "BlockAttack"
+  | "BlockDefense"
+  | "BlockAbility"
+  | "BlockSpecialCards"
+  | "CancelAction"
+  | "ReturnToHand";
+
+export interface CardAbilityAction {
+  type: CardAbilityActionType;
+  stat?: "attack" | "defense" | "moves" | "draw";
+  value?: number;
+  target:
+    | "Self"
+    | "Allies"
+    | "Enemies"
+    | "SelectedCard"
+    | "SelectedEnemy"
+    | "CurrentAttack"
+    | "CurrentDefense"
+    | "All";
+  duration?:
+    | "Instant"
+    | "CurrentPhase"
+    | "CurrentTurn"
+    | "NextTurn"
+    | "XTurns"
+    | "WhileFaceUp"
+    | "WhileAlive"
+    | "UntilTrigger";
+  durationTurns?: number;
+  durationTrigger?: string;
+  stackable?: boolean;
+  maxUses?: number;
+}
+
+export type CardAbilityConditionType =
+  | "IsFaceUp"
+  | "IsFaceDown"
+  | "IsLegend"
+  | "IsAttacker"
+  | "IsDefender"
+  | "CardOwnerIsEnemy"
+  | "HasTag"
+  | "HasAbility";
+
+export interface CardAbilityCondition {
+  type: CardAbilityConditionType;
+  value?: string;
+}
+
+export type CardAbilityTriggerType =
+  | "CardPlayed"
+  | "CardRevealed"
+  | "AttackStarted"
+  | "DefenseStarted"
+  | "GoalScored"
+  | "TurnStarted"
+  | "TurnEnded"
+  | "CardDestroyed";
+
+export interface CardAbility {
+  trigger: CardAbilityTriggerType;
+  conditions: CardAbilityCondition[];
+  actions: CardAbilityAction[];
+  powerScore?: number;
+  maxUses?: number;
+}
+
 export type PlayerRole = "attacker" | "defender" | "midfielder" | "goalkeeper";
 
 export interface PlayerCard {
@@ -20,6 +104,17 @@ export interface PlayerCard {
   team: string; // e.g. "مصر", "البرتغال", "الأرجنتين"
   avatar: string; // Emoji representing the player
   imageUrl?: string;
+  ability?: CardAbility;
+  // Runtime game states
+  frozen?: boolean;
+  frozenTurnsLeft?: number;
+  stunned?: boolean;
+  stunnedTurnsLeft?: number;
+  silenced?: boolean;
+  silencedTurnsLeft?: number;
+  revealTurn?: number;
+  playTurn?: number;
+  abilityUses?: number;
 }
 
 export type SpecialEffect =
@@ -39,6 +134,11 @@ export interface SpecialCard {
   effectArabic: string;
   description: string;
   icon: string; // Emoji
+  imageUrl?: string;
+  ability?: CardAbility;
+  // Runtime game states
+  playTurn?: number;
+  durationTurnsLeft?: number;
 }
 
 export type Card = PlayerCard | SpecialCard;
