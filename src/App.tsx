@@ -74,6 +74,7 @@ export default function App() {
   }, []);
 
   const isMobileLandscape = isMobile && (isPortrait || window.innerHeight < 520);
+  const isRotated = isMobile && isPortrait && !isLockedLandscape;
 
   // Request fullscreen and orientation lock on any click/touch anywhere from the beginning
   useEffect(() => {
@@ -2346,7 +2347,7 @@ export default function App() {
     isMobile && isPortrait && !isLockedLandscape
       ? "w-full h-full overflow-hidden"
       : phase === "menu"
-        ? "w-full min-h-screen overflow-hidden"
+        ? "w-full h-screen overflow-hidden"
         : "p-1.5 h-screen max-h-screen overflow-hidden md:p-2.5"
   }`;
 
@@ -2354,8 +2355,8 @@ export default function App() {
     position: "fixed",
     top: "50%",
     left: "50%",
-    width: `${window.innerHeight}px`,
-    height: `${window.innerWidth}px`,
+    width: "100vh",
+    height: "100vw",
     transform: "translate(-50%, -50%) rotate(90deg)",
     transformOrigin: "center",
     overflow: "hidden",
@@ -2714,7 +2715,7 @@ export default function App() {
                     return (
                       <div 
                         key={`ai-pitch-slot-${idx}`}
-                        className={`relative rounded-2xl overflow-hidden aspect-[2/3] max-h-[22.5vh] md:max-h-[24vh] w-full mx-auto transition-all flex flex-col justify-between ${
+                        className={`relative rounded-2xl overflow-hidden aspect-[2/3] ${isRotated ? 'max-h-[22vw]' : 'max-h-[22.5vh] md:max-h-[24vh]'} w-full mx-auto transition-all flex flex-col justify-between ${
                           isSelectable 
                             ? "ring-2 ring-rose-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103" 
                             : ""
@@ -2956,7 +2957,7 @@ export default function App() {
                     return (
                       <div 
                         key={`player-pitch-slot-${idx}`}
-                        className={`relative rounded-2xl overflow-hidden aspect-[2/3] max-h-[22.5vh] md:max-h-[24vh] w-full mx-auto transition-all flex flex-col justify-between ${
+                        className={`relative rounded-2xl overflow-hidden aspect-[2/3] ${isRotated ? 'max-h-[22vw]' : 'max-h-[22.5vh] md:max-h-[24vh]'} w-full mx-auto transition-all flex flex-col justify-between ${
                           isSelectable 
                             ? "ring-2 ring-emerald-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103 animate-pulse" 
                             : ""
@@ -3026,7 +3027,7 @@ export default function App() {
               exit={{ scale: 0.8, y: 50 }}
               transition={{ type: "spring", damping: 15 }}
               onClick={(e) => e.stopPropagation()}
-              className="max-w-md w-full max-h-[90vh] overflow-y-auto rounded-xl p-4 sm:p-6 text-center border border-white/10 shadow-2xl relative bg-[#0c0d0c] text-white flex flex-col items-center cursor-default"
+              className="max-w-md w-full max-h-[90%] overflow-y-auto rounded-xl p-4 sm:p-6 text-center border border-white/10 shadow-2xl relative bg-[#0c0d0c] text-white flex flex-col items-center cursor-default"
             >
               {/* Close Button X */}
               <button 

@@ -27,7 +27,7 @@ export default function GameTutorialPanel({ isOpen, onClose }: GameTutorialPanel
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
       <div
-        className="w-full max-w-3xl bg-slate-900 border-2 border-emerald-500 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+        className="w-full max-w-3xl bg-slate-900 border-2 border-emerald-500 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90%]"
         id="tutorial_dialog"
       >
         {/* Header */}
@@ -143,7 +143,7 @@ export default function GameTutorialPanel({ isOpen, onClose }: GameTutorialPanel
                   </div>
                 </div>
                 <div className="flex justify-between items-start bg-slate-900 p-2.5 rounded-lg border border-slate-850">
-                  <span className="text-emerald-400 font-mono font-bold font-bold">حركتين (2)</span>
+                  <span className="text-emerald-400 font-mono font-bold">حركتين (2)</span>
                   <div className="text-right">
                     <span className="font-bold text-white">إعلان الهجوم على الخصم:</span>
                     <p className="text-slate-400 mt-1">شن غارة هجومية لتسجيل الأهداف (يتطلب حركتين متوفرتين ولاعب بالملعب مقلوب لديه هجوم).</p>

@@ -121,7 +121,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
   };
 
   return (
-    <div className="w-full h-full min-h-screen flex flex-col justify-between select-none relative overflow-hidden bg-[#020503] text-[#e0e0e0] font-sans pb-14">
+    <div className="w-full h-full flex flex-col justify-between select-none relative overflow-hidden bg-[#020503] text-[#e0e0e0] font-sans pb-14">
       
       {/* Background soccer pitch line art */}
       <div className="absolute inset-0 pointer-events-none z-0 opacity-10">
@@ -138,7 +138,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
       <div className="absolute bottom-10 left-1/4 w-[300px] h-[300px] bg-teal-500/10 rounded-full blur-[80px] pointer-events-none z-0" />
 
       {/* TOP GLOWING HEADER */}
-      <header className="relative z-10 w-full flex items-center justify-between px-6 py-2.5 bg-black/40 border-b border-white/5 backdrop-blur-md shrink-0">
+      <header className={`relative z-10 w-full flex items-center justify-between px-6 ${isMobileLandscape ? 'py-1.5' : 'py-2.5'} bg-black/40 border-b border-white/5 backdrop-blur-md shrink-0`}>
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
           <h1 className="text-base font-black tracking-tight bg-clip-text text-transparent bg-linear-to-r from-emerald-400 via-teal-300 to-green-400">
@@ -167,7 +167,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
               transition={{ duration: 0.2 }}
-              className="w-full flex flex-col items-center justify-center text-center space-y-4"
+              className={`w-full flex flex-col items-center justify-center text-center ${isMobileLandscape ? 'space-y-2' : 'space-y-4'}`}
             >
               <div>
                 <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-wider mb-1">
@@ -179,7 +179,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
               </div>
 
               {/* Massive Soccer Ball CTA FAB */}
-              <div className="relative my-3 flex items-center justify-center">
+              <div className={`relative flex items-center justify-center ${isMobileLandscape ? 'my-1' : 'my-3'}`}>
                 <div className="absolute -inset-4 rounded-full bg-emerald-500/20 blur-xl animate-pulse" />
                 <button
                   type="button"
@@ -188,15 +188,15 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                     triggerFullscreen();
                     setActiveTab("play");
                   }}
-                  className="w-28 h-28 bg-gradient-to-br from-emerald-400 to-teal-500 hover:from-emerald-350 hover:to-teal-400 text-slate-950 rounded-full flex flex-col items-center justify-center gap-1.5 shadow-[0_8px_32px_rgba(16,185,129,0.4)] transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer z-10 border-4 border-slate-900 group"
+                  className={`${isMobileLandscape ? 'w-20 h-20' : 'w-28 h-28'} bg-gradient-to-br from-emerald-400 to-teal-500 hover:from-emerald-350 hover:to-teal-400 text-slate-950 rounded-full flex flex-col items-center justify-center gap-1 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer z-10 border-4 border-slate-900 group`}
                 >
-                  <span className="text-4xl group-hover:rotate-45 transition-transform duration-300">⚽</span>
-                  <span className="text-[10px] font-black tracking-wider uppercase">ابدأ اللعب</span>
+                  <span className={`${isMobileLandscape ? 'text-2xl' : 'text-4xl'} group-hover:rotate-45 transition-transform duration-300`}>⚽</span>
+                  <span className="text-[9px] font-black tracking-wider uppercase">ابدأ اللعب</span>
                 </button>
               </div>
 
               {/* Quick stats / Vibe Card */}
-              <div className="w-full bg-black/45 border border-white/10 rounded-2xl p-3 backdrop-blur-md flex items-center justify-around gap-2 max-w-sm">
+              <div className={`w-full bg-black/45 border border-white/10 rounded-2xl ${isMobileLandscape ? 'p-1.5' : 'p-3'} backdrop-blur-md flex items-center justify-around gap-2 max-w-sm`}>
                 <div className="text-right">
                   <span className="text-[8px] text-slate-500 block">الهوية الافتراضية</span>
                   <span className="text-xs font-black text-[#e0e0e0]">{selectedVibe.emoji} {selectedVibe.name}</span>
@@ -215,7 +215,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                 </div>
               </div>
 
-              <p className="text-[9.5px] text-slate-400 max-w-xs leading-normal">
+              <p className={`text-[9.5px] text-slate-400 max-w-xs leading-normal ${isMobileLandscape ? 'hidden' : 'block'}`}>
                 اضغط على الكرة لمشاهدة باقات اللعب وتعديل خطتك، ثم قيادة هجوم كتيبتك الكروية لصد ضربات الخصوم!
               </p>
             </motion.div>

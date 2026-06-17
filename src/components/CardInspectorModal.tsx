@@ -60,7 +60,7 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
           animate={{ scale: 1, y: 0, opacity: 1 }}
           exit={{ scale: 0.9, y: 30, opacity: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 26 }}
-          className="relative max-w-lg md:max-w-xl w-full max-h-[92vh] overflow-y-auto bg-[#121412] rounded-3xl border border-emerald-500/30 shadow-[0_20px_60px_rgba(16,185,129,0.25)] flex flex-col md:flex-row z-10 mx-auto"
+          className="relative max-w-lg md:max-w-xl w-full max-h-[92%] overflow-y-auto bg-[#121412] rounded-3xl border border-emerald-500/30 shadow-[0_20px_60px_rgba(16,185,129,0.25)] flex flex-col md:flex-row z-10 mx-auto"
         >
           {/* Aesthetic background matrix */}
           <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_15px,rgba(255,255,255,0.01)_15px,rgba(255,255,255,0.01)_30px)] pointer-events-none" />
@@ -75,7 +75,7 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
           </button>
 
           {/* LEFT: Stunning rotating card display */}
-          <div className="md:w-[45%] p-4 md:p-6 flex flex-col items-center justify-center bg-gradient-to-b from-black via-[#070907] to-[#121412] border-b md:border-b-0 md:border-l border-white/5 relative">
+          <div className="md:w-[45%] p-4 md:p-6 flex flex-col items-center justify-center bg-linear-to-b from-black via-[#070907] to-[#121412] border-b md:border-b-0 md:border-l border-white/5 relative">
             <div className="absolute top-3 left-3 flex items-center gap-1 text-[8px] font-black text-emerald-400 uppercase tracking-widest bg-emerald-900/35 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
               <Zap className="w-2 h-2" />
               <span>معاينة للبطاقة</span>
@@ -89,7 +89,7 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
               initial={{ rotateY: 180, scale: 0.8 }}
               animate={{ rotateY: 0, scale: 1 }}
               transition={{ delay: 0.1, type: "spring", stiffness: 120, damping: 20 }}
-              className="relative p-2 rounded-2xl border-2 flex flex-col justify-between w-40 h-56 md:w-44 md:h-64 text-xs md:text-sm shadow-2xl overflow-hidden select-none bg-gradient-to-b from-[#181918] to-black mt-4 md:mt-0"
+              className="relative p-2 rounded-2xl border-2 flex flex-col justify-between w-40 h-56 md:w-44 md:h-64 text-xs md:text-sm shadow-2xl overflow-hidden select-none bg-linear-to-b from-[#181918] to-black mt-4 md:mt-0"
               style={{
                 borderColor: player?.isLegend ? "#fbbf24" : special ? "#2dd4bf" : "rgba(255,255,255,0.1)",
                 boxShadow: player?.isLegend ? "0 0 20px rgba(251,191,36,0.12)" : special ? "0 0 20px rgba(45,212,191,0.12)" : "none"
@@ -183,7 +183,7 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
                         initial={{ width: 0 }}
                         animate={{ width: `${player.attack}%` }}
                         transition={{ duration: 0.8, ease: "easeOut" }}
-                        className="h-full bg-gradient-to-r from-red-600 to-rose-400"
+                        className="h-full bg-linear-to-r from-red-600 to-rose-400"
                       />
                     </div>
                   </div>
@@ -202,7 +202,7 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
                         initial={{ width: 0 }}
                         animate={{ width: `${player.defense}%` }}
                         transition={{ duration: 0.8, ease: "easeOut" }}
-                        className="h-full bg-gradient-to-r from-teal-600 to-emerald-400"
+                        className="h-full bg-linear-to-r from-teal-600 to-emerald-400"
                       />
                     </div>
                   </div>
@@ -238,7 +238,7 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
             <div className="mt-4 pt-3 border-t border-white/5">
               <button
                 onClick={onClose}
-                className="w-full py-2 bg-gradient-to-r from-[#1b2b1e] to-black hover:from-[#26412b] border border-emerald-500/20 hover:border-emerald-500/40 text-emerald-400 text-xs font-black rounded-xl transition-all cursor-pointer shadow-md"
+                className="w-full py-2 bg-linear-to-r from-[#1b2b1e] to-black hover:from-[#26412b] border border-emerald-500/20 hover:border-emerald-500/40 text-emerald-400 text-xs font-black rounded-xl transition-all cursor-pointer shadow-md"
               >
                 إغلاق ✕
               </button>
