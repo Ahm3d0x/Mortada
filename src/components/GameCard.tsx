@@ -47,11 +47,17 @@ export default function GameCard({
   const cardImageUrl = (card as any).imageUrl || (card as any).image_url || (card as any).image;
   const hasImage = !!cardImageUrl;
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const longPressedRef = React.useRef<boolean>(false);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (disabled || !onInspect) return;
+    longPressedRef.current = false;
     // Set a timeout for 500ms for solid long-press detection
     timerRef.current = setTimeout(() => {
+      longPressedRef.current = true;
+      if (navigator.vibrate) {
+        navigator.vibrate(50); // Premium haptic vibe feedback!
+      }
       onInspect();
     }, 500);
   };
@@ -61,6 +67,17 @@ export default function GameCard({
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (longPressedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      longPressedRef.current = false; // Reset
+      return;
+    }
+    if (disabled) return;
+    if (onClick) onClick();
   };
 
   // Card size parameters
@@ -106,7 +123,8 @@ export default function GameCard({
       {/* 3D Rotator card element */}
       <motion.div
         id={`card_3d_wrapper_${card.id}`}
-        onClick={disabled ? undefined : onClick}
+        onClick={handleClick}
+        onContextMenu={(e) => e.preventDefault()}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUpOrCancel}
         onPointerLeave={handlePointerUpOrCancel}

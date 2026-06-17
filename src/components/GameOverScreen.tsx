@@ -126,7 +126,7 @@ export default function GameOverScreen({
   const conversionPct = conversionSum > 0 ? Math.round((playerConversion / conversionSum) * 100) : 50;
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-[#040604] via-[#090f09] to-[#040604] text-white p-3 sm:p-6 md:p-8 flex flex-col justify-between select-none relative overflow-y-auto font-sans">
+    <div className="h-full min-h-full bg-linear-to-b from-[#040604] via-[#090f09] to-[#040604] text-white p-3 sm:p-6 md:p-8 flex flex-col justify-between select-none relative overflow-y-auto font-sans">
       {/* Background glow matrix */}
       <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute -bottom-20 right-10 w-[350px] h-[350px] bg-teal-500/5 rounded-full blur-[100px] pointer-events-none" />
@@ -374,7 +374,7 @@ export default function GameOverScreen({
               animate={{ opacity: 1, y: 0 }}
               className="w-full max-w-2xl mx-auto flex flex-col"
             >
-              <div className="bg-[#0c0d0c]/85 border border-white/10 rounded-2xl p-4 shadow-2xl flex flex-col h-[380px]">
+              <div className="bg-[#0c0d0c]/85 border border-white/10 rounded-2xl p-4 shadow-2xl flex flex-col h-[260px] sm:h-[380px]">
                 
                 {/* Sub-tab selectors inside the history section */}
                 <div className="flex justify-end gap-1 mb-3 bg-[#080908] p-1 border border-white/5 rounded-xl shrink-0">

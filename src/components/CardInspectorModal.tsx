@@ -34,13 +34,13 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
     if (p.isLegend) {
       advantages.push("👑 أسطورة أساسية بقوة استثنائية.");
     }
-    if (p.attack >= 85) {
+    if (p.attack >= 12) {
       advantages.push("⚔️ هجوم خارق وتهديف حاسم.");
     }
-    if (p.defense >= 85) {
+    if (p.defense >= 12) {
       advantages.push("🛡️ دفاع صلب وقطع كرات ممتاز.");
     }
-    if (Math.abs(p.attack - p.defense) <= 15) {
+    if (Math.abs(p.attack - p.defense) <= 2) {
       advantages.push("🔄 لاعب متزن تكتيكياً.");
     }
     if (p.role === "goalkeeper") {
@@ -48,6 +48,27 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
     }
     advantages.push("📊 تكتيك مرن بالمركز.");
     return advantages;
+  };
+
+  const getSpecialUsageInstructions = (effect: string): string => {
+    switch (effect) {
+      case "offside":
+        return "تُفعل تلقائياً عندما يبدأ الخصم بالهجوم عليك. تلغي هذه الخطوة القوة الهجومية للمهاجم الأقوى لدى الخصم لتمنع الخطورة تماماً وتسمح لمدافعيك وحارسك بالسيطرة على الكرة.";
+      case "wet_pitch":
+        return "العب هذا التكتيك خلال دورك؛ يتأثر عشب الملعب بالبلل مما يبطئ حركة الخصم ويقلل قوته الهجومية بمقدار 4 نقاط كاملة، مما يصعب عليه اختراق دفاعاتك.";
+      case "counter_attack":
+        return "العب هذا كارت هجومي أثناء محاولتك للتسديد. يمنح المهاجم النشط لديك طاقة هجومية إضافية قدرها +4 نقاط لتزيد من احتمال هز شباك الخصم.";
+      case "fans":
+        return "العب هذا الكارت في دورك ليشعل الجمهور الحماس بالمدرج. يمنح هذا الهتاف زيادة +3 نقاط في الهجوم والدفاع لجميع لاعبيك المكشوفين بالملعب.";
+      case "park_the_bus":
+        return "العب هذا الكارت في مرحلة الدفاع عند هجوم الخصم. يتراجع لاعبوك لتغطية المرمى وإغلاق المساحات، مما يعزز دفاع مدافعيك المعنيين بالتصدي بـ +6 نقاط دفاعية.";
+      case "red_card":
+        return "العب الكارت في دورك؛ يتدخل الحكم ليمنحك سلطة طرد أي لاعب مكشوف للخصم واستبعاده بالبطاقة الحمراء 🟥 خارج اللقاء تماماً، مما يجعله يلعب بنقص عددي.";
+      case "world_cup":
+        return "العب الكارت في دورك لتحفيز الفريق. يمنحك هذا فوراً الحق بسحب كارتين إضافيين من باقات السحب لتعزز يدك وتزيد من خياراتك التكتيكية.";
+      default:
+        return "العب هذا الكارت التكتيكي في دورك أو عند الصد بحسب الحاجة. سيقوم محرك القواعد تلقائياً باحتساب تأثيره المبرمج وتطبيقه على الإحصائيات أو اللاعبين بالملعب.";
+    }
   };
 
   return (
@@ -218,7 +239,7 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
               )}
 
               {/* Advantage list block */}
-              <div>
+              <div className="space-y-2.5">
                 <div className="flex items-center justify-start gap-1 pr-1 flex-row-reverse text-slate-400 mb-1">
                   <Info className="w-3.5 h-3.5 text-emerald-400" />
                   <span className="text-[10px] sm:text-xs font-black">مواصفات التكتيك الخاص بالبطاقة:</span>
@@ -232,13 +253,36 @@ export default function CardInspectorModal({ card, onClose }: CardInspectorModal
                       </div>
                     ))
                   ) : special ? (
-                    <>
+                    <div className="space-y-2">
                       <div className="text-[10px] sm:text-xs text-slate-300 bg-white/5 p-2 rounded-lg leading-normal">
                         ✨ {special.description}
                       </div>
-                    </>
+                      <div className="bg-teal-950/20 border border-teal-500/25 p-2.5 rounded-xl text-right space-y-1.5">
+                        <div className="flex items-center gap-1.5 flex-row-reverse text-teal-400 border-b border-white/5 pb-1">
+                          <Info className="w-3.5 h-3.5 animate-pulse" />
+                          <span className="text-[9.5px] sm:text-xs font-black">إرشادات استخدام التكتيك 💡</span>
+                        </div>
+                        <p className="text-[9px] sm:text-[10.5px] text-slate-350 leading-relaxed font-medium">
+                          {getSpecialUsageInstructions(special.effect)}
+                        </p>
+                      </div>
+                    </div>
                   ) : null}
                 </div>
+
+                {player && player.isLegend && (
+                  <div className="bg-amber-950/20 border border-amber-500/25 p-2.5 rounded-xl text-right space-y-1.5 mt-1">
+                    <div className="flex items-center gap-1.5 flex-row-reverse text-amber-400 border-b border-white/5 pb-1">
+                      <Star className="w-3.5 h-3.5 animate-pulse text-amber-400" />
+                      <span className="text-[9.5px] sm:text-xs font-black">قوانين وكيفية استعمال الأسطورة 👑</span>
+                    </div>
+                    <div className="space-y-1 text-[9px] sm:text-[10.5px] text-slate-300 leading-relaxed">
+                      <p>● <strong>شرط الإنزال (الحرق):</strong> لا يمكن تنزيل الأسطورة مباشرة بالملعب. لابد من التضحية (حرق) كارتين عاديين من يدك خارج اللعب أولاً، ثم تنزيله في مركز فارغ أو استبداله بلاعب مكشوف.</p>
+                      <p>● <strong>الأفضلية الكروية:</strong> يتميز الأسطورة بطاقة قصوى تبلغ 15 نقطة في مركزه المفضل، مما يضمن تفوقاً تكتيكياً ساحقاً للفريق.</p>
+                      <p>● <strong>الموازنة الأساسية:</strong> يحصل كارت الأسطورة تلقائياً على +6 نقاط قوة كعازل موازنة في محرك الاحتساب.</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Rules Engine Ability Block */}
