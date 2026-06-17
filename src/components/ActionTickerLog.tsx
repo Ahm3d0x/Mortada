@@ -79,7 +79,7 @@ export default function ActionTickerLog({ logs, onClear }: ActionTickerLogProps)
                 <span>{log.timestamp}</span>
                 <Clock className="w-2.5 h-2.5" />
               </div>
-              <span className="font-medium flex-1">{log.text}</span>
+              <span className="font-medium flex-1 whitespace-pre-line text-right">{log.text}</span>
             </div>
           ))
         )}

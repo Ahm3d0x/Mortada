@@ -96,12 +96,13 @@ export default function TacticalPitch({
     const selectable = isSelectable(idx, true);
     const isSelected = phase === "attacking" && currentAttackerIdx === idx;
     const isSpent = !!slot.spent;
+    const isActiveInPlay = !!slot.revealedInAttack;
     
     return (
       <div key={`ai_pitch_${idx}`} className={`flex flex-col items-center gap-1 w-full ${isMobile ? 'max-w-[75px] xs:max-w-[85px] sm:max-w-[100px]' : 'max-w-[120px]'}`} id={`ai_slot_pos_${idx}`}>
         <div
           onClick={() => selectable && onSelectSlot(idx)}
-          className={`relative w-full aspect-[2/3] rounded-xl border flex flex-col items-center justify-center transition-all ${
+          className={`relative w-full aspect-[2/3] rounded-xl border flex flex-col items-center justify-center transition-all duration-300 ${
             slot.card 
               ? "bg-transparent border-transparent" 
               : "bg-black/35 border-white/5 shadow-inner"
@@ -109,7 +110,11 @@ export default function TacticalPitch({
             selectable 
               ? "cursor-pointer ring-2 ring-emerald-500/70 shadow-[0_0_12px_rgba(16,185,129,0.5)] scale-[1.02] animate-pulse" 
               : "opacity-95"
-          } ${isSpent ? "opacity-50 grayscale-[50%] scale-[0.98]" : ""}`}
+          } ${isSpent ? "opacity-50 grayscale-[50%] scale-[0.98]" : ""} ${
+            isActiveInPlay 
+              ? "translate-y-3.5 scale-105 z-30 border-rose-500 ring-4 ring-rose-500/60 shadow-[0_0_25px_rgba(239,68,68,0.9)] animate-pulse"
+              : ""
+          }`}
         >
           {slot.card ? (
             <div className="relative w-full h-full">
@@ -119,6 +124,8 @@ export default function TacticalPitch({
                 size="pitch"
                 disabled={!selectable}
                 onInspect={() => slot.isRevealed && onInspectCard && onInspectCard(slot.card)}
+                isActive={isActiveInPlay}
+                activeColor="rose"
                 className={`${isSelected ? "border-rose-500 ring-4 ring-rose-500/30" : ""} ${isSpent ? "pointer-events-none" : ""}`}
               />
               {isSpent && (
@@ -160,6 +167,7 @@ export default function TacticalPitch({
     const isSelected = selectedSlotIdx === idx;
     const isActiveAttacker = phase === "attacking" && currentAttackerIdx === idx;
     const isSpent = !!slot.spent;
+    const isActiveInPlay = !!slot.revealedInAttack;
 
     const peekingThisCard = isPeekMode && !slot.isRevealed;
 
@@ -167,7 +175,7 @@ export default function TacticalPitch({
       <div key={`player_pitch_${idx}`} className={`flex flex-col items-center gap-1 w-full ${isMobile ? 'max-w-[75px] xs:max-w-[85px] sm:max-w-[100px]' : 'max-w-[120px]'}`} id={`player_slot_pos_${idx}`}>
         <div
           onClick={() => selectable && onSelectSlot(idx)}
-          className={`relative w-full aspect-[2/3] rounded-xl border flex flex-col items-center justify-center transition-all ${
+          className={`relative w-full aspect-[2/3] rounded-xl border flex flex-col items-center justify-center transition-all duration-300 ${
             slot.card 
               ? "bg-transparent border-transparent" 
               : "bg-black/35 border-white/5 cursor-pointer hover:border-emerald-500/20 shadow-inner"
@@ -179,7 +187,11 @@ export default function TacticalPitch({
             selectable 
               ? "cursor-pointer ring-2 ring-emerald-500/70 shadow-[0_0_12px_rgba(16,185,129,0.5)] scale-[1.02] animate-pulse" 
               : ""
-          } ${isSpent ? "opacity-50 grayscale-[50%] scale-[0.98]" : ""}`}
+          } ${isSpent ? "opacity-50 grayscale-[50%] scale-[0.98]" : ""} ${
+            isActiveInPlay 
+              ? "-translate-y-3.5 scale-105 z-30 border-emerald-500 ring-4 ring-emerald-500/60 shadow-[0_0_25px_rgba(16,185,129,0.9)] animate-pulse"
+              : ""
+          }`}
         >
           {slot.card ? (
             <div className="relative w-full h-full">
@@ -190,6 +202,8 @@ export default function TacticalPitch({
                 isSelected={isSelected}
                 disabled={!selectable}
                 onInspect={() => onInspectCard && onInspectCard(slot.card)}
+                isActive={isActiveInPlay}
+                activeColor="emerald"
                 className={`${isActiveAttacker ? "border-emerald-400 ring-4 ring-emerald-500/40" : ""} ${isSpent ? "pointer-events-none" : ""}`}
               />
               {peekingThisCard && (

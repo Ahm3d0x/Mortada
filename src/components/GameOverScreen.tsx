@@ -64,6 +64,15 @@ function StatCompareRow({ label, playerVal, aiVal, playerPct }: StatCompareRowPr
   );
 }
 
+// Safe formatting of coach name without duplicating titles
+const formatNameWithTitle = (name: string, defaultTitle: string = "الكابتن") => {
+  const trimmed = name.trim();
+  if (trimmed.includes("الكابتن") || trimmed.includes("المدرب")) {
+    return trimmed;
+  }
+  return `${defaultTitle} ${trimmed}`;
+};
+
 export default function GameOverScreen({
   playerScore,
   aiScore,
@@ -79,7 +88,9 @@ export default function GameOverScreen({
   const [activeHistoryTab, setActiveHistoryTab] = useState<"rounds" | "logs">("rounds");
 
   const isPlayerWinner = playerScore >= aiScore;
-  const winnerName = isPlayerWinner ? coachName || "المدرب اللاعب" : aiCoachName;
+  const winnerName = isPlayerWinner 
+    ? formatNameWithTitle(coachName || "المدرب اللاعب", "الكابتن") 
+    : formatNameWithTitle(aiCoachName, "المدرب");
   
   const totalAttackPower = matchRounds
     .filter((r) => r.attacker === "player")
@@ -246,8 +257,8 @@ export default function GameOverScreen({
                   </h1>
                   <p className="text-[10px] sm:text-xs text-slate-400 font-medium max-w-md mx-auto leading-relaxed">
                     {isPlayerWinner
-                      ? `تهانينا للكابتن ${winnerName}! لقد أحرزت اللقب بعد تخطيط ذكي وتجاوز تكتلات الخصم.`
-                      : `حظاً أوفر للكابتن ${coachName}! لقد تفوق الكابتن ${winnerName} في الحسابات التكتيكية هذه المرة.`}
+                      ? `تهانينا لـ ${winnerName}! لقد أحرزت اللقب بعد تخطيط ذكي وتجاوز تكتلات الخصم.`
+                      : `حظاً أوفر لـ ${formatNameWithTitle(coachName, "الكابتن")}! لقد تفوق ${winnerName} في الحسابات التكتيكية هذه المرة.`}
                   </p>
                 </motion.div>
 

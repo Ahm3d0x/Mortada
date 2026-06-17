@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Trophy, Swords, Shield, RefreshCw, Sparkles, HelpCircle, Volume2, Gamepad2, Timer, AlertCircle } from "lucide-react";
 
@@ -38,7 +38,323 @@ const getFormattedTime = () => {
   return now.toTimeString().split(" ")[0];
 };
 
+// Safe formatting of coach name without duplicating titles
+const formatNameWithTitle = (name: string, defaultTitle: string = "الكابتن") => {
+  const trimmed = name.trim();
+  if (trimmed.includes("الكابتن") || trimmed.includes("المدرب")) {
+    return trimmed;
+  }
+  return `${defaultTitle} ${trimmed}`;
+};
+
+const recycleCard = (card: PlayerCard): PlayerCard => ({
+  ...card,
+  id: `recycled_${card.id.split('_')[0] || 'card'}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+  frozen: false,
+  stunned: false,
+  silenced: false,
+  frozenTurnsLeft: undefined,
+  stunnedTurnsLeft: undefined,
+  silencedTurnsLeft: undefined
+});
+
+const formatGoalLog = (
+  isPlayerAttack: boolean,
+  attackVal: number,
+  defenseVal: number,
+  attackBrk: string,
+  defBrk: string,
+  scoreText: string
+) => {
+  const title = isPlayerAttack ? "⚽️ جــوووول لـفـريـقـك! 🎉" : "⚽️ جــوووول للخصم! 🥅";
+  const status = isPlayerAttack
+    ? `نجح هجومك الشرس (${attackVal} ⚡) في اختراق دفاع الخصم (${defenseVal} 🧱)`
+    : `اخترق هجوم الخصم (${attackVal} ⚡) خط دفاعك الصلد (${defenseVal} 🧱)`;
+  
+  return `${title}
+👉 ${status}
+----------------------------------
+🔥 قوة الهجوم الإجمالية: ${attackVal} ⚡
+🛡️ قوة الدفاع الإجمالية: ${defenseVal} 🧱
+
+📊 تفاصيل الحسبة الفنية:
+[قوة الهجوم ⚔️]:
+${attackBrk}
+
+[قوة الدفاع 🛡️]:
+${defBrk || "   ● لا يوجد مدافعين نشطين (0)"}
+----------------------------------
+🏆 النتيجة الحالية: ${scoreText}`;
+};
+
+const formatBlockLog = (
+  isPlayerAttack: boolean,
+  attackVal: number,
+  defenseVal: number,
+  attackBrk: string,
+  defBrk: string,
+  scoreText: string
+) => {
+  const title = isPlayerAttack ? "🛡️ تصدي رائع من دفاع الخصم!" : "🛡️ تصدي بـطـولـي من دفاعك! 🧤";
+  const status = isPlayerAttack
+    ? `تصدى جدار الخصم (${defenseVal} 🧱) لتسديدتك القوية (${attackVal} ⚡)`
+    : `نجح جدارك الدفاعي (${defenseVal} 🧱) في إحباط غزو الخصم (${attackVal} ⚡)`;
+
+  return `${title}
+👉 ${status}
+----------------------------------
+🛡️ قوة الدفاع الإجمالية: ${defenseVal} 🧱
+🔥 قوة الهجوم الإجمالية: ${attackVal} ⚡
+
+📊 تفاصيل الحسبة الفنية:
+[قوة الدفاع 🛡️]:
+${defBrk || "   ● لا يوجد مدافعين نشطين (0)"}
+
+[قوة الهجوم ⚔️]:
+${attackBrk}
+----------------------------------
+🚫 النتيجة مستمرة: ${scoreText}`;
+};
+
 export default function App() {
+  // Helper to generate detailed calculation breakdown
+  const getDetailedCalculation = (
+    isPlayerSide: boolean,
+    isAttackingStage: boolean,
+    attackerIdx: number | null,
+    activePonto: PontoCard | null,
+    playerActiveSpecialsList: SpecialCard[],
+    aiActiveSpecialsList: SpecialCard[],
+    playerSlotsOverride?: typeof playerSlots,
+    aiSlotsOverride?: typeof aiSlots
+  ): { total: number; breakdown: string } => {
+    let baseScore = 0;
+    const slots = playerSlotsOverride && aiSlotsOverride 
+      ? (isPlayerSide ? playerSlotsOverride : aiSlotsOverride)
+      : (isPlayerSide ? playerSlots : aiSlots);
+
+    const playerList: string[] = [];
+    slots.forEach((slot) => {
+      if (slot.card && slot.isRevealed && slot.revealedInAttack) {
+        if (slot.card.frozen || slot.card.stunned) {
+          playerList.push(`   ● ${slot.card.name} (0 [مستبعد - تجميد/صدمة])`);
+          return;
+        }
+        const val = isAttackingStage ? slot.card.attack : slot.card.defense;
+        baseScore += val;
+        playerList.push(`   ● ${slot.card.name} (${val})`);
+      }
+    });
+
+    let pontoVal = 0;
+    let pontoText = "";
+    if (isAttackingStage && activePonto && isPlayerSide === isPlayerAttacker) {
+      baseScore += activePonto.value;
+      pontoVal = activePonto.value;
+      pontoText = activePonto.text;
+    }
+
+    const activeSources: { card: Card; isPlayerOwned: boolean }[] = [];
+    const activePlayerSlots = playerSlotsOverride || playerSlots;
+    const activeAiSlots = aiSlotsOverride || aiSlots;
+    
+    activePlayerSlots.forEach((slot) => {
+      if (slot.card && slot.isRevealed) {
+        activeSources.push({ card: slot.card, isPlayerOwned: true });
+      }
+    });
+    activeAiSlots.forEach((slot) => {
+      if (slot.card && slot.isRevealed) {
+        activeSources.push({ card: slot.card, isPlayerOwned: false });
+      }
+    });
+    playerActiveSpecialsList.forEach((spec) => {
+      activeSources.push({ card: spec, isPlayerOwned: true });
+    });
+    aiActiveSpecialsList.forEach((spec) => {
+      activeSources.push({ card: spec, isPlayerOwned: false });
+    });
+
+    let modifiers = 0;
+    let multiplier = 1;
+    let cancelStrongestAttacker = false;
+
+    const multiplierLogs: string[] = [];
+    const modifierLogs: string[] = [];
+
+    activeSources.forEach((src) => {
+      const { card, isPlayerOwned } = src;
+
+      if (card.ability) {
+        const isSilenced = (card as any).silenced || (card as any).abilityBlocked;
+        if (isSilenced) return;
+
+        const ability = card.ability;
+        const triggerMatches = 
+          (ability.trigger === "CardRevealed" && card.type === "player") ||
+          (ability.trigger === "CardPlayed" && card.type === "special") ||
+          (ability.trigger === "AttackStarted" && isAttackingStage) ||
+          (ability.trigger === "DefenseStarted" && !isAttackingStage);
+
+        if (triggerMatches) {
+          let conditionsMet = true;
+          if (ability.conditions) {
+            ability.conditions.forEach((cond) => {
+              if (cond.type === "IsAttacker") {
+                const isOwnerAttacking = isPlayerOwned === isPlayerAttacker;
+                if (!isOwnerAttacking) conditionsMet = false;
+              }
+              if (cond.type === "IsDefender") {
+                const isOwnerDefending = isPlayerOwned !== isPlayerAttacker;
+                if (!isOwnerDefending) conditionsMet = false;
+              }
+              if (cond.type === "CardOwnerIsEnemy") {
+                if (isPlayerOwned === isPlayerSide) conditionsMet = false;
+              }
+              if (cond.type === "IsLegend") {
+                if (card.type === "player" && !(card as PlayerCard).isLegend) {
+                  conditionsMet = false;
+                }
+              }
+            });
+          }
+
+          if (conditionsMet && ability.actions) {
+            ability.actions.forEach((act) => {
+              const isCurrentAttackTarget = act.target === "CurrentAttack" && isAttackingStage && (isPlayerOwned === isPlayerSide);
+              const isCurrentDefenseTarget = act.target === "CurrentDefense" && !isAttackingStage && (isPlayerOwned === isPlayerSide);
+
+              const isTargetSide = (act.target === "Allies" && isPlayerOwned === isPlayerSide) ||
+                                   (act.target === "Enemies" && isPlayerOwned !== isPlayerSide) ||
+                                   isCurrentAttackTarget ||
+                                   isCurrentDefenseTarget ||
+                                   (act.target === "Self" && card === src.card && isPlayerOwned === isPlayerSide);
+
+              if (isTargetSide) {
+                if (act.type === "AddStat") {
+                  if (act.stat === "attack" && isAttackingStage) {
+                    modifiers += act.value ?? 0;
+                    modifierLogs.push(`   ● قدرة [${card.name}]: +${act.value} قوة هجوم`);
+                  }
+                  if (act.stat === "defense" && !isAttackingStage) {
+                    modifiers += act.value ?? 0;
+                    modifierLogs.push(`   ● قدرة [${card.name}]: +${act.value} قوة دفاع`);
+                  }
+                } else if (act.type === "RemoveStat") {
+                  if (act.stat === "attack" && isAttackingStage) {
+                    modifiers -= act.value ?? 0;
+                    modifierLogs.push(`   ● قدرة [${card.name}]: -${act.value} قوة هجوم`);
+                  }
+                  if (act.stat === "defense" && !isAttackingStage) {
+                    modifiers -= act.value ?? 0;
+                    modifierLogs.push(`   ● قدرة [${card.name}]: -${act.value} قوة دفاع`);
+                  }
+                } else if (act.type === "MultiplyStat") {
+                  if (act.stat === "attack" && isAttackingStage) {
+                    multiplier *= act.value ?? 1;
+                    multiplierLogs.push(`   ● مضاعفة [${card.name}]: ×${act.value}`);
+                  }
+                  if (act.stat === "defense" && !isAttackingStage) {
+                    multiplier *= act.value ?? 1;
+                    multiplierLogs.push(`   ● مضاعفة [${card.name}]: ×${act.value}`);
+                  }
+                } else if (act.type === "CancelAction" && isAttackingStage) {
+                  cancelStrongestAttacker = true;
+                }
+              }
+            });
+          }
+        }
+      } else if (card.type === "special") {
+        const spec = card as SpecialCard;
+        if (isAttackingStage) {
+          if (isPlayerOwned === isPlayerAttacker) {
+            if (spec.effect === "counter_attack" && isPlayerSide === isPlayerAttacker) {
+              modifiers += 4;
+              modifierLogs.push(`   ● تكتيك [${spec.name}]: +4 قوة هجمة مرتدة`);
+            }
+            if (spec.effect === "fans" && isPlayerSide === isPlayerAttacker) {
+              modifiers += 3;
+              modifierLogs.push(`   ● تكتيك [${spec.name}]: +3 دعم جماهيري`);
+            }
+          } else {
+            if (spec.effect === "wet_pitch" && isPlayerSide === isPlayerAttacker) {
+              modifiers -= 4;
+              modifierLogs.push(`   ● تكتيك [${spec.name}]: -4 عشب مبلل`);
+            }
+            if (spec.effect === "offside" && isPlayerSide === isPlayerAttacker) {
+              cancelStrongestAttacker = true;
+            }
+          }
+        } else {
+          if (isPlayerOwned !== isPlayerAttacker) {
+            if (spec.effect === "park_the_bus" && isPlayerSide !== isPlayerAttacker) {
+              modifiers += 6;
+              modifierLogs.push(`   ● تكتيك [${spec.name}]: +6 ركن الحافلة`);
+            }
+            if (spec.effect === "fans" && isPlayerSide !== isPlayerAttacker) {
+              modifiers += 3;
+              modifierLogs.push(`   ● تكتيك [${spec.name}]: +3 دعم جماهيري`);
+            }
+          }
+        }
+      }
+    });
+
+    let scoreAfterMultiplier = baseScore * multiplier;
+    let finalVal = scoreAfterMultiplier + modifiers;
+    
+    let cancelledCardText = "";
+    if (isAttackingStage && cancelStrongestAttacker) {
+      let maxAttStrength = 0;
+      let maxCardName = "";
+      slots.forEach((s) => {
+        if (s.card && s.isRevealed && s.revealedInAttack) {
+          if (s.card.attack > maxAttStrength) {
+            maxAttStrength = s.card.attack;
+            maxCardName = s.card.name;
+          }
+        }
+      });
+      finalVal -= maxAttStrength;
+      if (maxCardName) {
+        cancelledCardText = `   ● تسلل نشط: إلغاء نقاط أقوى مهاجم [${maxCardName}] (-${maxAttStrength})`;
+      }
+    }
+
+    const totalVal = Math.max(0, finalVal);
+
+    const lines: string[] = [];
+    if (playerList.length > 0) {
+      lines.push(...playerList);
+    } else {
+      lines.push(`   ● لا يوجد لاعبين نشطين (0)`);
+    }
+
+    if (pontoVal > 0) {
+      lines.push(`   ● كارت البونتو: +${pontoVal} [${pontoText}]`);
+    }
+
+    if (multiplierLogs.length > 0) {
+      lines.push(...multiplierLogs);
+    }
+
+    if (modifierLogs.length > 0) {
+      lines.push(...modifierLogs);
+    }
+
+    if (cancelledCardText) {
+      lines.push(cancelledCardText);
+    }
+
+    const detailString = lines.join("\n");
+
+    return {
+      total: totalVal,
+      breakdown: detailString
+    };
+  };
+
   // Static AI properties
   const aiCoachName = "المدرب الغريم (تكتيك روبوت)";
   const aiTeam = "كتائب الروبوت الذكية 🤖";
@@ -151,6 +467,14 @@ export default function App() {
 
   // Main Game state variables
   const [phase, setPhase] = useState<GamePhase>("menu");
+  const phaseRef = useRef<GamePhase>("menu");
+  const isResolvingRef = useRef<boolean>(false);
+
+  // Keep phaseRef synchronized with state phase
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
   const [coachName, setCoachName] = useState("");
   const [teamVibe, setTeamVibe] = useState("");
   const [difficulty, setDifficulty] = useState<"normal" | "tactical" | "legend">("normal");
@@ -402,13 +726,13 @@ export default function App() {
           
           // Determine the winner based on goals
           if (playerScore > aiScore) {
-            const victoryMsg = `⏰ انتهى وقت المباراة الرسمي! تكتيكات الكابتن ${coachName} حسمت النصر التاريخي بالنتيجة ${playerScore} - ${aiScore}! ⚽🏆`;
+            const victoryMsg = `⏰ انتهى وقت المباراة الرسمي! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بالنتيجة ${playerScore} - ${aiScore}! ⚽🏆`;
             setLogs(prevLogs => [
               { id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), text: victoryMsg, type: "success" },
               ...prevLogs
             ]);
           } else if (aiScore > playerScore) {
-            const lossMsg = `⏰ انتهى وقت المباراة الرسمي! للأسف المدرب المنافس ${aiCoachName} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`;
+            const lossMsg = `⏰ انتهى وقت المباراة الرسمي! للأسف الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`;
             setLogs(prevLogs => [
               { id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), text: lossMsg, type: "danger" },
                ...prevLogs
@@ -440,13 +764,10 @@ export default function App() {
     if (hasNoMoves && cannotDrawMore) {
       const timer = setTimeout(() => {
         // Double check phase is still player_turn before auto-ending
-        setPhase((currPhase) => {
-          if (currPhase === "player_turn") {
-            addLog("⚙️ انتقال تكتيكي تلقائي: انتهت حركاتك وسحباتك لهذا الدور، ينتقل التحكم للخصم!", "neutral");
-            handleEndPlayerTurn();
-          }
-          return currPhase;
-        });
+        if (phaseRef.current === "player_turn") {
+          addLog("⚙️ انتقال تكتيكي تلقائي: انتهت حركاتك وسحباتك لهذا الدور، ينتقل التحكم للخصم!", "neutral");
+          handleEndPlayerTurn();
+        }
       }, 1200);
       return () => clearTimeout(timer);
     }
@@ -821,7 +1142,7 @@ export default function App() {
       // Switch to Warmup
       setPhase("warmup");
       setLogs([]);
-      addLog(`صافرة البداية! دخل المدرب ${name} بهوية ${vibe} لملاقاة خصمه ذو الصعوبة [${diff === "normal" ? "ناشئ" : diff === "tactical" ? "محترف" : "أسطوري"}].`, "success");
+      addLog(`صافرة البداية! دخل ${formatNameWithTitle(name, "المدرب")} بهوية ${vibe} لملاقاة خصمه ذو الصعوبة [${diff === "normal" ? "ناشئ" : diff === "tactical" ? "محترف" : "أسطوري"}].`, "success");
       addLog(`مرحلة التسخين نشطة! الملعب فارغ حالياً، قم بسحب ${initialCards} لاعبين لتوزيع مراكزهم بالضغط على زر 'سحب لاعب' (سيكون اللاعبون مقلوبين تكتيكياً)، ثم اضغط على زر 'بدء اللقاء' لتنطلق صافرة الحكم.`, "info");
       addLog("حقيبة الكروت بيدك فارغة حالياً. بمجرد تأكيد الخطة وبدء اللقاء، يمكنك سحب كروت تكتيكية جديدة في أدوارك ليدك لدعم مهارات وهجوم فريقك.", "neutral");
 
@@ -1994,7 +2315,7 @@ export default function App() {
     drawnPonto: PontoCard,
     onComplete?: (updatedSlots: typeof aiSlots, updatedSpecials: typeof aiActiveSpecial) => void
   ) => {
-    addLog(`🤖 الخصم المدرب ${aiCoachName} يحلل قوة تسديدتك ويتحلّى بالذكاء التكتيكي للصد والعرقلة...`, "neutral");
+    addLog(`🤖 الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} يحلل قوة تسديدتك ويتحلّى بالذكاء التكتيكي للصد والعرقلة...`, "neutral");
 
     setTimeout(() => {
       let aiMoves = defenseMovesLeft;
@@ -2200,12 +2521,22 @@ export default function App() {
 
   // MAIN RESOLUTION OF ACTIVE PLAYER ATTACK
   const handleResolveAttack = () => {
-    if (currentAttackerIdx === null || !currentPonto) return;
+    if (isResolvingRef.current || phaseRef.current !== "attacking") return;
+    isResolvingRef.current = true;
+
+    if (currentAttackerIdx === null || !currentPonto) {
+      isResolvingRef.current = false;
+      return;
+    }
+
+    phaseRef.current = "resolution";
 
     if (isMultiplayer) {
       // Calculate total scores immediately for multiplayer
-      const finalAttack = calculateTotalAttack(true, currentAttackerIdx, currentPonto, playerActiveSpecial);
-      const finalDefense = calculateTotalDefense(false, aiActiveSpecial);
+      const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentPonto, playerActiveSpecial, aiActiveSpecial, playerSlots, aiSlots);
+      const defDetail = getDetailedCalculation(false, false, null, null, playerActiveSpecial, aiActiveSpecial, playerSlots, aiSlots);
+      const finalAttack = attackDetail.total;
+      const finalDefense = defDetail.total;
 
       const isGoal = finalAttack > finalDefense;
       const defenders = aiSlots.filter((s) => s.card && s.isRevealed && s.revealedInAttack).map((s) => s.card!.name);
@@ -2223,16 +2554,16 @@ export default function App() {
           subtitle: `إجمالي هجومك (${finalAttack}) تجاوز بنجاح تكتلات دفاع الخصم (${finalDefense}) لتسجل هدفاً تكتيكياً مميزاً!`,
           isGoal: true
         });
-        addLog(`⚽ جــوووووول خيالي! أحرز المهاجم هدفاً ثمنياً (مرتدة) لصالحك! النتيجة الآن: ${newScore} - ${aiScore}`, "success");
+        addLog(formatGoalLog(true, finalAttack, finalDefense, attackDetail.breakdown, defDetail.breakdown, `${newScore} - ${aiScore}`), "success");
         recordRound("player", finalAttack, finalDefense, currentPonto.value, currentPonto.text, true, attackerName, defenders, newScore, aiScore);
       } else {
         SoundEffects.playTackleBlock();
         setCelebrationMessage({
           title: "يا لها من فرصة ضائعة! التصدي للمحاولة 🧤🚫",
-          subtitle: `تكتلات defense الخصم الحصين (${finalDefense}) تفوقت أو تساوت مع قواك الضاربة (${finalAttack}) ليفشل هجومك!`,
+          subtitle: `تكتلات دفاع الخصم الحصين (${finalDefense}) تفوقت أو تساوت مع قواك الضاربة (${finalAttack}) ليفشل هجومك!`,
           isGoal: false
         });
-        addLog(`🚫 تصدي أسطوري! نجح حامي مرماهم بقطع هجمتك الشرسة. النتيجة ما زالت: ${playerScore} - ${aiScore}`, "danger");
+        addLog(formatBlockLog(true, finalAttack, finalDefense, attackDetail.breakdown, defDetail.breakdown, `${playerScore} - ${aiScore}`), "danger");
         recordRound("player", finalAttack, finalDefense, currentPonto.value, currentPonto.text, false, attackerName, defenders, playerScore, aiScore);
       }
 
@@ -2241,65 +2572,21 @@ export default function App() {
       // IN OFFLINE MODE (VS AI):
       // The AI has not played defense yet. We trigger its AI defense reaction now,
       // and mathematically resolve the outcome inside the callback once it is completed.
-      addLog(`🤖 الخصم المدرب ${aiCoachName} يدرس تسديدتك الكلية وتكتيكاتك بالملعب ويقود خط الصد التكتيكي الفوري...`, "neutral");
+      addLog(`🤖 الخصم يدرس تسديدتك الكلية وتكتيكاتك بالملعب ويقود خط الصد التكتيكي الفوري...`, "neutral");
       
       triggerAIDefenseReaction(currentAttackerIdx, currentPonto, (updatedSlots, updatedSpecials) => {
-        // Compute final defense based on updated AI slots & specials
-        let finalDefense = 0;
-        updatedSlots.forEach((s) => {
-          if (s.card && s.isRevealed && s.revealedInAttack) {
-            finalDefense += s.card.defense;
-          }
-        });
-        
-        // Add active AI specials defense impact
-        updatedSpecials.forEach((spec) => {
-          if (spec.effect === "park_the_bus") {
-            finalDefense += 4;
-          }
-          if (spec.effect === "fans") {
-            finalDefense += 3;
-          }
-        });
-        
-        // Calculate total attack using player active specials and newly played AI defense specials (e.g. offside/wet_pitch)
-        let baseAttackPwr = 0;
-        playerSlots.forEach((slot) => {
-          if (slot.card && slot.isRevealed && slot.revealedInAttack) {
-            baseAttackPwr += slot.card.attack;
-          }
-        });
-        if (currentPonto) {
-          baseAttackPwr += currentPonto.value;
-        }
-        playerActiveSpecial.forEach((spec) => {
-          if (spec.effect === "counter_attack") baseAttackPwr += 4;
-          if (spec.effect === "fans") baseAttackPwr += 3;
-        });
-        
-        // Subtract AI defensive special effects on attack power
-        updatedSpecials.forEach((spec) => {
-          if (spec.effect === "wet_pitch") {
-            baseAttackPwr -= 4;
-          }
-          if (spec.effect === "offside") {
-            let maxAttStrength = 0;
-            playerSlots.forEach((s) => {
-              if (s.card && s.isRevealed && s.revealedInAttack) {
-                maxAttStrength = Math.max(maxAttStrength, s.card.attack);
-              }
-            });
-            baseAttackPwr -= maxAttStrength;
-          }
-        });
-        
-        const computedAttack = Math.max(0, baseAttackPwr);
-        const computedDefense = Math.max(0, finalDefense);
-        
+        // Calculate total attack and defense using our standard functions (with overrides)
+        const computedAttack = calculateTotalAttack(true, currentAttackerIdx, currentPonto, playerActiveSpecial, playerSlots, updatedSlots);
+        const computedDefense = calculateTotalDefense(false, updatedSpecials, playerSlots, updatedSlots);
+
         const isGoal = computedAttack > computedDefense;
         const defenders = updatedSlots.filter((s) => s.card && s.isRevealed && s.revealedInAttack).map((s) => s.card!.name);
         const attackerName = playerSlots[currentAttackerIdx]?.card?.name || "لاعبك";
-        
+
+        // Get detailed calculations
+        const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentPonto, playerActiveSpecial, updatedSpecials, playerSlots, updatedSlots);
+        const defDetail = getDetailedCalculation(false, false, null, null, playerActiveSpecial, updatedSpecials, playerSlots, updatedSlots);
+
         if (isGoal) {
           const newScore = playerScore + 1;
           setPlayerScore(newScore);
@@ -2312,7 +2599,7 @@ export default function App() {
             subtitle: `إجمالي هجومك (${computedAttack}) تجاوز بنجاح تكتلات دفاع الخصم (${computedDefense}) لتسجل هدفاً تكتيكياً مميزاً!`,
             isGoal: true
           });
-          addLog(`⚽ جــوووووول خيالي! أحرز فريقك هدفاً ثميناً (مرتدة) لصالحك! النتيجة الآن: ${newScore} - ${aiScore}`, "success");
+          addLog(formatGoalLog(true, computedAttack, computedDefense, attackDetail.breakdown, defDetail.breakdown, `${newScore} - ${aiScore}`), "success");
           recordRound("player", computedAttack, computedDefense, currentPonto.value, currentPonto.text, true, attackerName, defenders, newScore, aiScore);
           setIsAttackBlocked(false);
           setPhase("resolution");
@@ -2321,9 +2608,10 @@ export default function App() {
           if (playerMovesLeft > 0) {
             // Player still has moves left to reinforce!
             setIsAttackBlocked(true);
+            isResolvingRef.current = false;
+            phaseRef.current = "attacking";
             SoundEffects.playTackleBlock();
-            addLog(`🧤 تصدي تكتيكي للخصم: تفوق خط صد الخصم البالغ (${computedDefense}) على تسديدتك (${computedAttack}).`, "warning");
-            addLog(`💡 بما أنه متبقي لك حركات تكتيكية، يمكنك مواصلة الهجوم بالنقر على لاعب مقلوب من التشكيلة لكشفه وضمه للهجوم، أو الضغط على زر "إنهاء الهجمة 🛑" للاستسلام بالتصدي.`, "info");
+            addLog(`🧤 تصدي تكتيكي للخصم! دفاع الخصم (${computedDefense}) > هجومك (${computedAttack})\n📊 تفاصيل الحسبة الفنية:\n[قوة الهجوم ⚔️]:\n${attackDetail.breakdown}\n[قوة الدفاع 🛡️]:\n${defDetail.breakdown}\n💡 بما أنه متبقي لك حركات تكتيكية، يمكنك مواصلة الهجوم بالنقر على لاعب مقلوب من التشكيلة لكشفه وضمه للهجوم، أو الضغط على زر "إنهاء الهجمة 🛑" للاستسلام بالتصدي.`, "warning");
           } else {
             // No moves left, auto end attack sequence
             setIsAttackBlocked(false);
@@ -2333,7 +2621,7 @@ export default function App() {
               subtitle: `تكتلات دفاع الخصم الحصين (${computedDefense}) تفوقت أو تساوت مع قواك الضاربة (${computedAttack}) ليفشل هجومك!`,
               isGoal: false
             });
-            addLog(`🚫 تصدي أسطوري! نجح حامي مرماهم بقطع هجمتك الشرسة. النتيجة ما زالت: ${playerScore} - ${aiScore}`, "danger");
+            addLog(formatBlockLog(true, computedAttack, computedDefense, attackDetail.breakdown, defDetail.breakdown, `${playerScore} - ${aiScore}`), "danger");
             recordRound("player", computedAttack, computedDefense, currentPonto.value, currentPonto.text, false, attackerName, defenders, playerScore, aiScore);
             setPhase("resolution");
           }
@@ -2343,57 +2631,26 @@ export default function App() {
   };
 
   const handleForceEndAttack = () => {
+    if (isResolvingRef.current) return;
+    isResolvingRef.current = true;
+    phaseRef.current = "resolution";
+
     // Accumulate scores for final consolation modal
-    let finalDefense = 0;
-    aiSlots.forEach((s) => {
-      if (s.card && s.isRevealed && s.revealedInAttack) {
-        finalDefense += s.card.defense;
-      }
-    });
-    aiActiveSpecial.forEach((spec) => {
-      if (spec.effect === "park_the_bus") finalDefense += 4;
-      if (spec.effect === "fans") finalDefense += 3;
-    });
-
-    let baseAttackPwr = 0;
-    playerSlots.forEach((slot) => {
-      if (slot.card && slot.isRevealed && slot.revealedInAttack) {
-        baseAttackPwr += slot.card.attack;
-      }
-    });
-    if (currentPonto) {
-      baseAttackPwr += currentPonto.value;
-    }
-    playerActiveSpecial.forEach((spec) => {
-      if (spec.effect === "counter_attack") baseAttackPwr += 4;
-      if (spec.effect === "fans") baseAttackPwr += 3;
-    });
-
-    aiActiveSpecial.forEach((spec) => {
-      if (spec.effect === "wet_pitch") baseAttackPwr -= 4;
-      if (spec.effect === "offside") {
-        let maxAtt = 0;
-        playerSlots.forEach((s) => {
-          if (s.card && s.isRevealed && s.revealedInAttack) {
-            maxAtt = Math.max(maxAtt, s.card.attack);
-          }
-        });
-        baseAttackPwr -= maxAtt;
-      }
-    });
-
-    const computedAttack = Math.max(0, baseAttackPwr);
-    const computedDefense = Math.max(0, finalDefense);
+    const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentPonto, playerActiveSpecial, aiActiveSpecial, playerSlots, aiSlots);
+    const defDetail = getDetailedCalculation(false, false, null, null, playerActiveSpecial, aiActiveSpecial, playerSlots, aiSlots);
+    const computedAttack = attackDetail.total;
+    const computedDefense = defDetail.total;
 
     SoundEffects.playTackleBlock();
     setCelebrationMessage({
       title: "يا لها من فرصة ضائعة! التصدي للمحاولة 🧤🚫",
-      subtitle: `تكتلات دفاع الخصم الحصين (${computedDefense}) تفوقت أو تساوت مع قواك الضاربة (${computedAttack}) ليفشل هجومك!`,
+      subtitle: `تكتلات defense الخصم الحصين (${computedDefense}) تفوقت أو تساوت مع قواك الضاربة (${computedAttack}) ليفشل هجومك!`,
       isGoal: false
     });
-    addLog(`🚫 تصدي أسطوري! انتهت الهجمة المستمرة بالتصدي بعد أن قررت عدم تعزيزها. النتيجة ما زالت: ${playerScore} - ${aiScore}`, "danger");
 
     const defenders = aiSlots.filter((s) => s.card && s.isRevealed && s.revealedInAttack).map((s) => s.card!.name);
+    addLog(formatBlockLog(true, computedAttack, computedDefense, attackDetail.breakdown, defDetail.breakdown, `${playerScore} - ${aiScore}`), "danger");
+
     const attackerName = playerSlots[currentAttackerIdx!]?.card?.name || "لاعبك";
     recordRound("player", computedAttack, computedDefense, currentPonto?.value || 0, currentPonto?.text || "", false, attackerName, defenders, playerScore, aiScore);
 
@@ -2418,6 +2675,9 @@ export default function App() {
 
   // CONFIRM ACTION OVER TO START NEXT ACTIONS
   const handleAcknowledgeResolution = () => {
+    if (phaseRef.current !== "resolution") return;
+    isResolvingRef.current = false;
+
     setCelebrationMessage(null);
     setSelectedPitchSlotIdx(null);
     setCurrentAttackerIdx(null);
@@ -2499,13 +2759,13 @@ export default function App() {
     // Check if score limit of 5 is attained to win!
     if (playerScore >= 5) {
       setPhase("game_over");
-      addLog(`صافرة النهاية للماتش اللذيذ! الكابتن ${coachName} يحرز اللقب القاري بخمسة أهداف كاملة! تهانينا ومبارك! 🏆🎉`, "success");
+      addLog(`صافرة النهاية للماتش اللذيذ! ${formatNameWithTitle(coachName, "الكابتن")} يحرز اللقب القاري بخمسة أهداف كاملة! تهانينا ومبارك! 🏆🎉`, "success");
       setShowConfetti(true);
       return;
     }
     if (aiScore >= 5) {
       setPhase("game_over");
-      addLog(`عذراً يا كابتن! الخصم المدرب ${aiCoachName} تفوق بالحسابات السريعة وأحرز اللقب. حظاً أوفر المرة المقبلة.`, "danger");
+      addLog(`عذراً يا كابتن! الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} تفوق بالحسابات السريعة وأحرز اللقب. حظاً أوفر المرة المقبلة.`, "danger");
       return;
     }
 
@@ -2570,17 +2830,21 @@ export default function App() {
     }
 
     // Switch turn
-    if (phase === "resolution") {
+    if (phaseRef.current === "resolution") {
       setIsAttackBlocked(false);
       setDefenseMovesLeft(maxMovesPerTurn);
       if (isPlayerAttacker) {
         if (playerMovesLeft > 0) {
+          phaseRef.current = "player_turn";
           setPhase("player_turn");
           addLog(`متابعة دور الماتش! متبقي لك عدد ${playerMovesLeft} حركات تكتيكية لإدارتها. يمكنك اللعب، سحب كروت أو النقر على "إنهاء الدور" يدوياً.`, "neutral");
         } else {
+          phaseRef.current = "ai_turn";
+          setPhase("ai_turn");
           handleAIPlayTurn();
         }
       } else {
+        phaseRef.current = "player_turn";
         setPhase("player_turn");
         setPlayerMovesLeft(maxMovesPerTurn);
         setHasScoredThisTurn(false);
@@ -2594,13 +2858,16 @@ export default function App() {
 
   // END YOUR TURN MANUALLY
   const handleEndPlayerTurn = () => {
+    if (phaseRef.current !== "player_turn") return;
+    phaseRef.current = "ai_turn";
+    setPhase("ai_turn");
+
     setSelectedPitchSlotIdx(null);
     setSelectedHandCardId(null);
     setBurningCardIds([]);
 
     if (isMultiplayer) {
       const nextPhase = "ai_turn";
-      setPhase(nextPhase as any);
       setCardsDrawnThisTurn(0);
       setPlayerMovesLeft(0);
       setAiMovesLeft(maxMovesPerTurn);
@@ -2644,8 +2911,9 @@ export default function App() {
 
   // THE AI TURN STRATEGY ENGINE (PvE AI AUTOMATED RUNNER)
   const handleAIPlayTurn = () => {
+    phaseRef.current = "ai_turn";
     setPhase("ai_turn");
-    addLog(`🏁 الآن ينتقل دور التوجيه واللعب للمدرب الخصم ${aiCoachName}.`, "info");
+    addLog(`🏁 الآن ينتقل دور التوجيه واللعب للخصم: ${formatNameWithTitle(aiCoachName, "المدرب")}.`, "info");
 
     setTimeout(() => {
       // AI Draws 2 cards
@@ -2665,7 +2933,7 @@ export default function App() {
       setAiDeck(updatedAiDeck);
       setSpecialDeck(updatedAiSpecial);
       setAiHand(newAiHand);
-      addLog(`🤖 الخصم المدرب ${aiCoachName} يسحب كارتين مميزين ليده التكتيكية.`, "neutral");
+      addLog(`🤖 الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} يسحب كارتين مميزين ليده التكتيكية.`, "neutral");
 
       // AI Moves execution (has 3 moves)
       setTimeout(() => {
@@ -2933,12 +3201,18 @@ export default function App() {
 
   // PLAY CONFIRM DEFENSIVE ACTION RESULT
   const handleConfirmDefense = () => {
+    if (phaseRef.current !== "ai_attacking") return;
+    phaseRef.current = "resolution";
+    setPhase("resolution");
+
     // Player finishes defensive phase, calculate outcome of AI's attack on Player!
     if (currentAttackerIdx === null || !currentPonto) return;
 
     // AI Attacks, Player Defends
-    const finalAttack = calculateTotalAttack(false, currentAttackerIdx, currentPonto, aiActiveSpecial);
-    const finalDefense = calculateTotalDefense(true, playerActiveSpecial);
+    const attackDetail = getDetailedCalculation(false, true, currentAttackerIdx, currentPonto, playerActiveSpecial, aiActiveSpecial, playerSlots, aiSlots);
+    const defDetail = getDetailedCalculation(true, false, null, null, playerActiveSpecial, aiActiveSpecial, playerSlots, aiSlots);
+    const finalAttack = attackDetail.total;
+    const finalDefense = defDetail.total;
 
     const isGoal = finalAttack > finalDefense;
     const nextAiScore = isGoal ? aiScore + 1 : aiScore;
@@ -2959,7 +3233,7 @@ export default function App() {
       newLogs.push({
         id: Math.random().toString(),
         timestamp: getFormattedTime(),
-        text: `⚽ هدف للخصم! المهاجم يخترق حرس مرمانا بنجاح. النتيجة الآن: ${playerScore} - ${nextAiScore}`,
+        text: formatGoalLog(false, finalAttack, finalDefense, attackDetail.breakdown, defDetail.breakdown, `${playerScore} - ${nextAiScore}`),
         type: "danger" as const
       });
       recordRound("ai", finalAttack, finalDefense, currentPonto.value, currentPonto.text, true, attackerName, defenders, playerScore, nextAiScore);
@@ -2994,7 +3268,7 @@ export default function App() {
         newLogs.push({
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
-          text: `🚨 الخصم يرفض الاستسلام لمقاومتك! دفع بنجم الهجوم [ ${bestNominee.s.card!.name} ] لمضاعفة الضغط بـ +${bestNominee.s.card!.attack}!`,
+          text: `🚨 الخصم يدفع بنجم الهجوم [ ${bestNominee.s.card!.name} ] لمضاعفة الضغط بـ +${bestNominee.s.card!.attack}!`,
           type: "warning" as const
         });
         addLog(`🛡️ الخصم يواصل ضغطه هجومياً! يمكنك البقاء وإضافة مدافعين جدد ثم النقر على "تأكيد الدفاع" مجدداً لصد التعزيز!`, "info");
@@ -3009,7 +3283,7 @@ export default function App() {
         newLogs.push({
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
-          text: `🧱 تصدي رائع! خط دفاع اللوحة أحبط تسديدة الخصم وقواهم. النتيجة ما زالت: ${playerScore} - ${aiScore}`,
+          text: formatBlockLog(false, finalAttack, finalDefense, attackDetail.breakdown, defDetail.breakdown, `${playerScore} - ${aiScore}`),
           type: "success" as const
         });
         recordRound("ai", finalAttack, finalDefense, currentPonto.value, currentPonto.text, false, attackerName, defenders, playerScore, aiScore);

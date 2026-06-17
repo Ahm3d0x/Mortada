@@ -20,6 +20,8 @@ interface GameCardProps {
   size?: "sm" | "md" | "lg" | "pitch";
   className?: string;
   onInspect?: () => void;
+  isActive?: boolean;
+  activeColor?: "emerald" | "rose";
 }
 
 const getShortRole = (role: string) => {
@@ -41,7 +43,9 @@ export default function GameCard({
   disabled,
   size = "md",
   className = "",
-  onInspect
+  onInspect,
+  isActive = false,
+  activeColor = "emerald"
 }: GameCardProps) {
   const isPlayer = card.type === "player";
   const cardImageUrl = (card as any).imageUrl || (card as any).image_url || (card as any).image;
@@ -170,6 +174,12 @@ export default function GameCard({
             transform: "rotateY(180deg)"
           }}
           className={`rounded-2xl overflow-hidden select-none w-full h-full shadow-lg transition-all ${
+            isActive
+              ? activeColor === "rose"
+                ? "ring-4 ring-rose-500/80 shadow-[0_0_20px_rgba(244,63,94,0.7)] border-rose-400 animate-pulse"
+                : "ring-4 ring-emerald-500/80 shadow-[0_0_20px_rgba(16,185,129,0.7)] border-emerald-400 animate-pulse"
+              : ""
+          } ${
             isSelected
               ? "ring-4 ring-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)]"
               : ""
@@ -198,6 +208,12 @@ export default function GameCard({
               : isSpecial
               ? "border border-teal-500/20 bg-gradient-to-br from-[#0b1b19] via-[#090e0c] to-black text-teal-100 shadow-[0_5px_15px_rgba(20,184,166,0.18)]"
               : "border border-white/5 bg-gradient-to-b from-[#131413] to-black text-[#e0e0e0] shadow-xl"
+          } ${
+            isActive
+              ? activeColor === "rose"
+                ? "ring-4 ring-rose-500/80 shadow-[0_0_20px_rgba(244,63,94,0.7)] border-rose-400 z-45 animate-pulse"
+                : "ring-4 ring-emerald-500/80 shadow-[0_0_20px_rgba(16,185,129,0.7)] border-emerald-400 z-45 animate-pulse"
+              : ""
           } ${
             isSelected
               ? "ring-4 ring-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)]"

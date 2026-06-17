@@ -235,6 +235,87 @@ export function generateDeckFromPool(pool: PlayerCard[], legendRatio: number): P
   return selected.sort(() => Math.random() - 0.5);
 }
 
+/**
+ * Generates two completely disjoint decks from the same card pool.
+ * Each physical card from the pool appears in at most ONE of the two decks.
+ * Cards removed from the field (burned/replaced/expired) return to a shared
+ * discard pile so they can be reshuffled back when decks run low.
+ *
+ * Strategy:
+ * - Shuffle the pool once
+ * - Split the first half to playerDeck and second half to aiDeck
+ * - If pool is small, cycle through but track which original card IDs are used per side
+ */
+export function generateUniqueDecks(
+  pool: PlayerCard[],
+  legendRatio: number
+): { playerDeck: PlayerCard[]; aiDeck: PlayerCard[] } {
+  if (pool.length === 0) {
+    return { playerDeck: [], aiDeck: [] };
+  }
+
+  // Separate legends and normals
+  const legendCards = pool.filter(c => c.isLegend).sort(() => Math.random() - 0.5);
+  const normalCards = pool.filter(c => !c.isLegend).sort(() => Math.random() - 0.5);
+
+  const targetSizePerDeck = Math.max(20, Math.floor(pool.length / 2));
+  const numLegendsPerDeck = Math.min(
+    Math.floor(legendCards.length / 2),
+    Math.max(0, Math.round((legendRatio / 100) * targetSizePerDeck))
+  );
+  const numNormalsPerDeck = Math.max(0, targetSizePerDeck - numLegendsPerDeck);
+
+  const playerSelected: PlayerCard[] = [];
+  const aiSelected: PlayerCard[] = [];
+
+  // Assign legends alternately between player and ai
+  const legendPool = [...legendCards];
+  for (let i = 0; i < legendPool.length; i++) {
+    const card = legendPool[i];
+    if (playerSelected.filter(c => c.isLegend).length < numLegendsPerDeck) {
+      playerSelected.push({ ...card, id: `p_leg_${i}_${Math.random().toString(36).substr(2, 9)}` });
+    } else if (aiSelected.filter(c => c.isLegend).length < numLegendsPerDeck) {
+      aiSelected.push({ ...card, id: `a_leg_${i}_${Math.random().toString(36).substr(2, 9)}` });
+    }
+    // Extra legends go alternately
+  }
+
+  // Fill remaining legend slots from leftover legends (each goes to only one side)
+  let legendRemainder = legendPool.slice(numLegendsPerDeck * 2);
+  legendRemainder.forEach((card, i) => {
+    if (i % 2 === 0 && playerSelected.filter(c => c.isLegend).length < numLegendsPerDeck + 2) {
+      playerSelected.push({ ...card, id: `p_leg_r${i}_${Math.random().toString(36).substr(2, 9)}` });
+    } else if (aiSelected.filter(c => c.isLegend).length < numLegendsPerDeck + 2) {
+      aiSelected.push({ ...card, id: `a_leg_r${i}_${Math.random().toString(36).substr(2, 9)}` });
+    }
+  });
+
+  // Assign normals: first half to player, second half to ai
+  const normalPool = [...normalCards];
+  const halfNormals = Math.floor(normalPool.length / 2);
+
+  for (let i = 0; i < normalPool.length; i++) {
+    const card = normalPool[i];
+    if (i < halfNormals && playerSelected.filter(c => !c.isLegend).length < numNormalsPerDeck) {
+      playerSelected.push({ ...card, id: `p_n${i}_${Math.random().toString(36).substr(2, 9)}` });
+    } else if (i >= halfNormals && aiSelected.filter(c => !c.isLegend).length < numNormalsPerDeck) {
+      aiSelected.push({ ...card, id: `a_n${i}_${Math.random().toString(36).substr(2, 9)}` });
+    } else {
+      // Fill whichever is short
+      if (playerSelected.filter(c => !c.isLegend).length <= aiSelected.filter(c => !c.isLegend).length) {
+        playerSelected.push({ ...card, id: `p_fill${i}_${Math.random().toString(36).substr(2, 9)}` });
+      } else {
+        aiSelected.push({ ...card, id: `a_fill${i}_${Math.random().toString(36).substr(2, 9)}` });
+      }
+    }
+  }
+
+  return {
+    playerDeck: playerSelected.sort(() => Math.random() - 0.5),
+    aiDeck: aiSelected.sort(() => Math.random() - 0.5),
+  };
+}
+
 // Original hardcoded deck generation
 function generateDeckFromHardcoded(legendRatio: number): PlayerCard[] {
   const normalCards = INITIAL_PLAYER_CARDS.filter(c => !c.isLegend);
