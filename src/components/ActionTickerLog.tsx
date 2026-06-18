@@ -141,7 +141,7 @@ export default function ActionTickerLog({ logs, onClear }: ActionTickerLogProps)
       );
     }
 
-    // Special card/effect bonuses, e.g. "كارت البونتو: +7 [اختراق منفرد استثنائي لخطوط الدفاع]"
+    // Special card/effect bonuses, e.g. "كارت المعزز: +7 [اختراق منفرد استثنائي لخطوط الدفاع]"
     const hasPlusVal = cleanLine.includes("+") || cleanLine.includes("-") || cleanLine.includes("×");
     
     if (hasPlusVal) {

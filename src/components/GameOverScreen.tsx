@@ -13,8 +13,8 @@ interface MatchRoundRecord {
   attacker: "player" | "ai";
   attackPower: number;
   defensePower: number;
-  pontoValue: number;
-  pontoText: string;
+  boosterValue: number;
+  boosterText: string;
   isGoal: boolean;
   attackerName: string;
   defenders: string[];
@@ -317,7 +317,8 @@ export default function GameOverScreen({
   const [activeTab, setActiveTab] = useState<"summary" | "stats" | "history">("summary");
   const [activeHistoryTab, setActiveHistoryTab] = useState<"rounds" | "logs">("rounds");
 
-  const isPlayerWinner = playerScore >= aiScore;
+  const isDraw = playerScore === aiScore;
+  const isPlayerWinner = playerScore > aiScore;
   const winnerName = isPlayerWinner 
     ? formatNameWithTitle(coachName || "المدرب اللاعب", "الكابتن") 
     : formatNameWithTitle(aiCoachName, "المدرب");
@@ -379,11 +380,27 @@ export default function GameOverScreen({
         {activeTab !== "summary" && (
           <div className="max-w-xl mx-auto w-full flex justify-between items-center bg-[#0c0d0c]/80 border border-white/5 backdrop-blur-md rounded-2xl p-2.5 mb-3 px-4 z-10 relative">
             <div className="flex items-center gap-2">
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isPlayerWinner ? "bg-yellow-500/10 text-yellow-400" : "bg-rose-500/10 text-rose-500"}`}>
-                {isPlayerWinner ? <Trophy className="w-3 h-3 animate-pulse" /> : <ShieldAlert className="w-3 h-3 animate-pulse" />}
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                isPlayerWinner 
+                  ? "bg-yellow-500/10 text-yellow-400" 
+                  : isDraw 
+                    ? "bg-emerald-500/10 text-emerald-400" 
+                    : "bg-rose-500/10 text-rose-500"
+              }`}>
+                {isPlayerWinner ? (
+                  <Trophy className="w-3 h-3 animate-pulse" />
+                ) : isDraw ? (
+                  <Activity className="w-3 h-3 animate-pulse" />
+                ) : (
+                  <ShieldAlert className="w-3 h-3 animate-pulse" />
+                )}
               </div>
               <span className="text-[10px] font-black text-slate-350">
-                {isPlayerWinner ? "فوز تكتيكي مستحق 🏆" : "هزيمة مشرفة 🏁"}
+                {isPlayerWinner 
+                  ? "فوز تكتيكي مستحق 🏆" 
+                  : isDraw 
+                    ? "تعادل تكتيكي مثير 🤝" 
+                    : "هزيمة مشرفة 🏁"}
               </span>
             </div>
             <div className="flex items-center gap-1.5 font-mono text-xs font-black">
@@ -451,7 +468,11 @@ export default function GameOverScreen({
                 >
                   <motion.div
                     className={`absolute inset-0 rounded-full blur-2xl ${
-                      isPlayerWinner ? "bg-yellow-500/35" : "bg-rose-500/25"
+                      isPlayerWinner 
+                        ? "bg-yellow-500/35" 
+                        : isDraw 
+                          ? "bg-emerald-500/25" 
+                          : "bg-rose-500/25"
                     }`}
                     animate={{
                       scale: [1, 1.3, 1],
@@ -464,10 +485,16 @@ export default function GameOverScreen({
                     }}
                   />
                   <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center bg-black/40 border ${
-                    isPlayerWinner ? "border-yellow-400 shadow-[0_0_20px_rgba(234,179,8,0.25)]" : "border-rose-500 shadow-[0_0_20px_rgba(239,68,68,0.15)]"
+                    isPlayerWinner 
+                      ? "border-yellow-400 shadow-[0_0_20px_rgba(234,179,8,0.25)]" 
+                      : isDraw 
+                        ? "border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.2)]" 
+                        : "border-rose-500 shadow-[0_0_20px_rgba(239,68,68,0.15)]"
                   } relative z-10`}>
                     {isPlayerWinner ? (
                       <Trophy className="w-10 h-10 sm:w-12 sm:h-12 text-yellow-400 drop-shadow-[0_4px_10px_rgba(234,179,8,0.5)] animate-bounce" style={{ animationDuration: '3s' }} />
+                    ) : isDraw ? (
+                      <Activity className="w-10 h-10 sm:w-12 sm:h-12 text-emerald-400 drop-shadow-[0_4px_10px_rgba(16,185,129,0.5)] animate-pulse" />
                     ) : (
                       <ShieldAlert className="w-10 h-10 sm:w-12 sm:h-12 text-rose-500 drop-shadow-[0_4px_10px_rgba(239,68,68,0.5)] animate-pulse" />
                     )}
@@ -481,14 +508,24 @@ export default function GameOverScreen({
                   className="space-y-1"
                 >
                   <h1 className={`text-xl sm:text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-linear-to-r ${
-                    isPlayerWinner ? "from-yellow-300 via-amber-400 to-yellow-200" : "from-rose-400 via-red-500 to-rose-300"
+                    isPlayerWinner 
+                      ? "from-yellow-300 via-amber-400 to-yellow-200" 
+                      : isDraw 
+                        ? "from-emerald-300 via-teal-400 to-emerald-200" 
+                        : "from-rose-400 via-red-500 to-rose-300"
                   }`}>
-                    {isPlayerWinner ? "🏁 صــافــرة النــهــايــة: فــوز تــكــتــيــكــي! 🏆" : "🏁 انتهت المواجهة: هزيمة مشرفة"}
+                    {isPlayerWinner 
+                      ? "🏁 صــافــرة النــهــايــة: فــوز تــكــتــيــكــي! 🏆" 
+                      : isDraw 
+                        ? "🏁 صــافــرة النــهــايــة: تــعــادل تــكــتــيــكــي! 🤝" 
+                        : "🏁 انتهت المواجهة: هزيمة مشرفة 🏁"}
                   </h1>
                   <p className="text-[10px] sm:text-xs text-slate-400 font-medium max-w-md mx-auto leading-relaxed">
                     {isPlayerWinner
                       ? `تهانينا لـ ${winnerName}! لقد أحرزت اللقب بعد تخطيط ذكي وتجاوز تكتلات الخصم.`
-                      : `حظاً أوفر لـ ${formatNameWithTitle(coachName, "الكابتن")}! لقد تفوق ${winnerName} في الحسابات التكتيكية هذه المرة.`}
+                      : isDraw
+                        ? `مباراة قوية ومتكافئة! تقاسم الكابتن ${formatNameWithTitle(coachName, "الكابتن")} والمدرب ${formatNameWithTitle(aiCoachName, "المدرب")} السيطرة والنتيجة بالتعادل بنتيجة ${playerScore} - ${aiScore}.`
+                        : `حظاً أوفر لـ ${formatNameWithTitle(coachName, "الكابتن")}! لقد تفوق ${winnerName} في الحسابات التكتيكية هذه المرة.`}
                   </p>
                 </motion.div>
 
@@ -691,9 +728,9 @@ export default function GameOverScreen({
 
                             {/* Defenders list and ponto detail */}
                             <div className="text-[9px] text-slate-400 leading-normal flex items-start gap-1 justify-end flex-row-reverse">
-                              {round.pontoValue > 0 && (
+                              {round.boosterValue > 0 && (
                                 <span className="bg-[#0b100b] border border-emerald-500/10 px-1.5 py-0.2 rounded text-[8px] text-emerald-300 whitespace-nowrap">
-                                  {round.pontoText} (+{round.pontoValue})
+                                  {round.boosterText} (+{round.boosterValue})
                                 </span>
                               )}
                               {round.defenders.length > 0 && (

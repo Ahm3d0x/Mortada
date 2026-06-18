@@ -6,18 +6,18 @@
 import React from "react";
 import { Swords, Shield, Star, RefreshCw } from "lucide-react";
 import GameCard from "./GameCard";
-import { PlayerCard, SpecialCard, PontoCard } from "../types";
+import { PlayerCard, SpecialCard, BoosterCard } from "../types";
 
 interface TacticalPitchProps {
   playerCoachName: string;
   playerTeam: string;
   playerScore: number;
-  playerSlots: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean }[];
+  playerSlots: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean }[];
   
   aiCoachName: string;
   aiTeam: string;
   aiScore: number;
-  aiSlots: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean }[];
+  aiSlots: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean }[];
 
   selectedSlotIdx: number | null;
   currentAttackerIdx: number | null;
@@ -43,7 +43,7 @@ interface TacticalPitchProps {
   aiHandCount?: number;
   onInspectCard?: (card: any) => void;
 
-  currentPonto: PontoCard | null;
+  currentBooster: BoosterCard | null;
 }
 
 // Tactical Positions Label Map
@@ -81,7 +81,7 @@ export default function TacticalPitch({
   setIsHandExpanded,
   aiHandCount = 3,
   onInspectCard,
-  currentPonto
+  currentBooster
 }: TacticalPitchProps) {
 
   const isPeekMode = true;
@@ -370,15 +370,15 @@ export default function TacticalPitch({
             ⚙️ تكتيكات اللقاء
           </div>
 
-          {currentPonto && (
+          {currentBooster && (
             <div className="z-10 bg-linear-to-r from-amber-950/80 to-amber-900/80 border border-amber-500/40 px-3 py-1 rounded-xl text-center shadow-[0_0_10px_rgba(245,158,11,0.15)] animate-fadeIn max-w-xs">
               <span className="text-[8.5px] text-amber-400 font-black block uppercase mb-0.5">
-                🔥 معزز الهجمة (Ponto)
+                🔥 معزز الهجمة
               </span>
               <div className="flex items-center justify-center gap-1.5">
-                <span className="text-[10px] text-white font-extrabold">{currentPonto.text}</span>
+                <span className="text-[10px] text-white font-extrabold">{currentBooster.text}</span>
                 <span className="text-[10px] font-mono font-black text-amber-300 bg-black/45 px-1.5 py-0.2 rounded border border-amber-500/20">
-                  +{currentPonto.value} ⚔️
+                  +{currentBooster.value} ⚔️
                 </span>
               </div>
             </div>

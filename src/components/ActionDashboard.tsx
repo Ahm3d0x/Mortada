@@ -5,7 +5,7 @@
 
 import React from "react";
 import { Swords, Shield, Zap, Sparkles, AlertTriangle, ArrowLeftCircle, Bot } from "lucide-react";
-import { GamePhase, PontoCard } from "../types";
+import { GamePhase, BoosterCard } from "../types";
 
 interface ActionDashboardProps {
   phase: GamePhase;
@@ -13,7 +13,7 @@ interface ActionDashboardProps {
   playerCoachName: string;
   aiCoachName: string;
   cardsDrawnThisTurn: number;
-  currentPonto: PontoCard | null;
+  currentBooster: BoosterCard | null;
   activeAttackerName: string | null;
   attackPower: number;
   defensePower: number;
@@ -39,7 +39,7 @@ export default function ActionDashboard({
   playerCoachName,
   aiCoachName,
   cardsDrawnThisTurn,
-  currentPonto,
+  currentBooster,
   activeAttackerName,
   attackPower,
   defensePower,
@@ -180,15 +180,13 @@ export default function ActionDashboard({
             <Sparkles className="w-4 h-4 text-white animate-spin" />
             <span>بدء اللقاء 🏁</span>
           </button>
-        )}
-
-        {phase === "player_turn" && (
+        )}        {phase === "player_turn" && (
           <>
             {/* Attack Button */}
             <button
               onClick={onDeclareAttack}
               id="declare_tactical_attack_button"
-              disabled={movesLeft < 2}
+              disabled={movesLeft < 1}
               className="px-4 py-2.5 bg-linear-to-r from-rose-600 to-red-600 hover:from-rose-500 text-white rounded-xl font-black text-xs md:text-sm shadow bg-rose-950/20 cursor-pointer hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed border-none"
             >
               <Swords className="w-4 h-4 text-rose-300" />

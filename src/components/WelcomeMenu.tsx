@@ -23,7 +23,8 @@ interface WelcomeMenuProps {
     selectedPlayerPkgs: string[],
     selectedSpecialPkgs: string[],
     defenseDrawsLimit?: number,
-    legendBurnLimit?: number
+    legendBurnLimit?: number,
+    maxBonusValue?: number
   ) => void;
   isMobileLandscape?: boolean;
 }
@@ -53,6 +54,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
   const [initialCardsCount, setInitialCardsCount] = useState<number>(5);
   const [defenseDrawsLimit, setDefenseDrawsLimit] = useState<number>(3);
   const [legendBurnLimit, setLegendBurnLimit] = useState<number>(2);
+  const [maxBonusValue, setMaxBonusValue] = useState<number>(10);
 
   // Mute State
   const [isMuted, setIsMuted] = useState(SoundEffects.isMuted);
@@ -107,7 +109,8 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
       selectedPlayerPkgs,
       selectedSpecialPkgs,
       defenseDrawsLimit,
-      legendBurnLimit
+      legendBurnLimit,
+      maxBonusValue
     );
   };
 
@@ -502,7 +505,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                         </div>
                       </div>
 
-                      {/* Left: Legend burn limit */}
+                      {/* Left: Legend burn limit & Max Booster Value */}
                       <div className="space-y-1.5 flex flex-col justify-center">
                         <div className="space-y-1">
                           <div className="flex items-center justify-between text-amber-400 text-[8px]">
@@ -517,6 +520,21 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                             value={legendBurnLimit}
                             onChange={(e) => setLegendBurnLimit(Number(e.target.value))}
                             className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-amber-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-emerald-400 text-[8px]">
+                            <span className="font-extrabold text-emerald-400">{maxBonusValue}</span>
+                            <span className="font-black">أقصى قيمة للمعزز:</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={5}
+                            max={20}
+                            step={1}
+                            value={maxBonusValue}
+                            onChange={(e) => setMaxBonusValue(Number(e.target.value))}
+                            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
                           />
                         </div>
                       </div>
@@ -617,7 +635,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                 {rulesCategory === "basics" && (
                   <>
                     <h4 className="font-bold text-[10px] text-emerald-400">الهدف والبداية (التسخين):</h4>
-                    <p>اللعبة تحدي 1 ضد 1. أول مدرب يسجل <strong className="text-white">5 أهداف (بونت)</strong> هو الفائز.</p>
+                    <p>اللعبة تحدي 1 ضد 1. أول مدرب يسجل <strong className="text-white">5 أهداف</strong> هو الفائز.</p>
                     <p>في البداية، يسحب كل مدرب 5 لاعبين ويضعهم أمامه مقلوبين بالملعب. يمنع بدء أي لاعب أسطورة على الملعب في التسخين (يتم إرجاعه للحقيبة في حال ظهوره وسحب كارت بديل).</p>
                   </>
                 )}
@@ -625,13 +643,13 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                   <>
                     <h4 className="font-bold text-[10px] text-emerald-400">حركات اللعب والدور:</h4>
                     <p>تسحب كارتين في بداية دورك. وتمتلك <strong className="text-white">3 حركات كحد أقصى</strong> في كل دور.</p>
-                    <p>الحركات تشمل: تبديل لاعب مكشوف (1 حركة)، تبديل لاعب مقلوب (1 حركة)، إنزال أسطورة (1 حركة + حرق كارتين من يدك)، أو شن هجوم (2 حركة).</p>
+                    <p>الحركات تشمل: تبديل لاعب مكشوف (1 حركة)، تبديل لاعب مقلوب (1 حركة)، إنزال أسطورة (1 حركة + حرق كارتين من يدك)، أو شن هجوم (1 حركة).</p>
                   </>
                 )}
                 {rulesCategory === "attacking" && (
                   <>
                     <h4 className="font-bold text-[10px] text-emerald-400">قواعد الهجوم والحسم:</h4>
-                    <p>يكلف الهجوم حركتين. تختار مهاجماً مقلوباً وتكشف قوته، ثم تسحب كارت معزز الهجمة (بونطو) من +1 إلى +10 عشوائياً لدعم الهجمة.</p>
+                    <p>يكلف الهجوم حركة واحدة. تختار مهاجماً مقلوباً وتكشف قوته، ثم تسحب كارت معزز الهجمة من +1 إلى القيمة القصوى عشوائياً لدعم الهجمة.</p>
                     <p>يمتلك الخصم 3 حركات فورية لصد الهجوم بكشف المدافعين أو لعب كروت تكتيكية. نقارن إجمالي قوة الهجوم بالدفاع، وإذا تفوق الهجوم يتم إحراز هدف.</p>
                   </>
                 )}

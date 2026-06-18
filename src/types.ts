@@ -143,7 +143,7 @@ export interface SpecialCard {
 
 export type Card = PlayerCard | SpecialCard;
 
-export interface PontoCard {
+export interface BoosterCard {
   id: string;
   value: number; // e.g., +1, +2, +3, +4, +5, +7, +10
   text: string;  // Custom title e.g. "ركلة حرة مباشرة!", "تسديدة صاروخية!"
@@ -169,7 +169,7 @@ export interface ActionLog {
 export interface Coach {
   name: string;
   teamVibe: string; // e.g., "الفراعنة", "الساموراي", "الملكي"
-  score: number; // Number of "Ponto" goals scored. Target: 5
+  score: number; // Number of goals scored. Target: 5
   pitch: {
     card: PlayerCard | null;
     isRevealed: boolean;
@@ -185,9 +185,9 @@ export interface GameState {
   aiMovesLeft: number; // Max 3 per turn
   playerDeck: PlayerCard[];
   specialDeck: SpecialCard[];
-  pontoDeck: PontoCard[];
+  boosterDeck: BoosterCard[];
   currentAttackerIdx: number | null; // Slot index of active attacker
-  currentPonto: PontoCard | null; // Drawn Ponto card
+  currentBooster: BoosterCard | null; // Drawn Booster card
   activeSpecialCards: {
     player: SpecialCard[];
     ai: SpecialCard[];

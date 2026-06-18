@@ -23,7 +23,7 @@ interface CoachHandProps {
   isPlayerTurn: boolean;
   isHandExpanded: boolean;
   setIsHandExpanded: (val: boolean) => void;
-  playerSlots: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean }[];
+  playerSlots: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean }[];
 
   onSelectCard: (id: string) => void;
   onDrawCard: (deckType: "player" | "special") => void;

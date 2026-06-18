@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { PlayerCard, SpecialCard, PontoCard, PlayerRole } from "./types";
+import { PlayerCard, SpecialCard, BoosterCard, PlayerRole } from "./types";
 
 // Famous Football Stars split into regular and legends
 export const INITIAL_PLAYER_CARDS: Omit<PlayerCard, "id">[] = [];
@@ -118,7 +118,7 @@ export const INITIAL_SPECIAL_CARDS: Omit<SpecialCard, "id">[] = [
     type: "special",
     effect: "red_card",
     effectArabic: "كارت أحمر",
-    description: "حكم المباراة يتدخل! قم باستبعاد أي كارت لاعب مكشوف لخصمك ومطرود من الملعب حتى نهاية المباراة.",
+    description: "حكم المباراة يتدخل! قم باستبعاد أي كارت لاعب لخصمك (مكشوف أو مقلوب) خارج الملعب تماماً حتى نهاية المباراة.",
     icon: "🟥",
     ability: {
       trigger: "CardPlayed",
@@ -150,8 +150,8 @@ export const INITIAL_SPECIAL_CARDS: Omit<SpecialCard, "id">[] = [
   }
 ];
 
-// Ponto booster cards drawn on attack to add surprise value to the shot!
-export const INITIAL_PONTO_CARDS: Omit<PontoCard, "id">[] = [
+// Booster booster cards drawn on attack to add surprise value to the shot!
+export const INITIAL_BOOSTER_CARDS: Omit<BoosterCard, "id">[] = [
   { value: 1, text: "تمريرة أرضية سريعة" },
   { value: 2, text: "عرضية ركنية متقنة" },
   { value: 3, text: "ركلة حرة على مشارف المنطقة" },
@@ -441,16 +441,23 @@ export function generateSpecialDeckFromPool(pool: SpecialCard[]): SpecialCard[] 
   } as SpecialCard)).sort(() => Math.random() - 0.5);
 }
 
-// Helper to fully initialize and shuffle Ponto decks 
-export function generatePontoDeck(): PontoCard[] {
-  const duplicated: Omit<PontoCard, "id">[] = [];
+// Helper to fully initialize and shuffle Booster decks
+export function generateBoosterDeck(maxBonusValue: number = 10): BoosterCard[] {
+  const scaledCards = INITIAL_BOOSTER_CARDS.map(c => {
+    let val = c.value;
+    if (c.value > 0) {
+      val = Math.max(1, Math.round((c.value / 10) * maxBonusValue));
+    }
+    return { ...c, value: val };
+  });
+  const duplicated: Omit<BoosterCard, "id">[] = [];
   for (let i = 0; i < 4; i++) {
-    duplicated.push(...INITIAL_PONTO_CARDS);
+    duplicated.push(...scaledCards);
   }
   return duplicated.map((card, idx) => ({
     ...card,
-    id: `ponto_${idx}_${Math.random().toString(36).substr(2, 9)}`
-  } as PontoCard)).sort(() => Math.random() - 0.5);
+    id: `booster_${idx}_${Math.random().toString(36).substr(2, 9)}`
+  } as BoosterCard)).sort(() => Math.random() - 0.5);
 }
 
 // Generates disjoint decks for host/player and guest/AI from the admin or hardcoded card pool

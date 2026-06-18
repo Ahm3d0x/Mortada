@@ -4,7 +4,7 @@
  */
 
 import React from "react";
-import { PontoCard } from "../types";
+import { BoosterCard } from "../types";
 
 interface DrawDecksDashboardProps {
   phase: string;
@@ -15,7 +15,7 @@ interface DrawDecksDashboardProps {
   selectedHandCardId: string | null;
   selectedPitchSlotIdx: number | null;
   burningCardCount: number;
-  currentPonto: PontoCard | null;
+  currentBooster: BoosterCard | null;
   maxDrawsPerTurn?: number;
 
   onDrawCard: (deckType: "player" | "special") => void;
@@ -30,7 +30,7 @@ export default function DrawDecksDashboard({
   selectedHandCardId,
   selectedPitchSlotIdx,
   burningCardCount,
-  currentPonto,
+  currentBooster,
   onDrawCard,
   maxDrawsPerTurn = 2
 }: DrawDecksDashboardProps) {
