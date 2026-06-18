@@ -451,11 +451,280 @@ export async function getPackageStats(packageId: string): Promise<PackageStats> 
 // GAME INTEGRATION
 // ═══════════════════════════════════════════════════════════
 
+function getMockPlayerCards(packageIds?: string[]): PlayerCard[] {
+  const pkgs = packageIds && packageIds.length > 0 ? packageIds : ["pkg_egypt", "pkg_legends", "pkg_europe"];
+  const list: PlayerCard[] = [];
+
+  const ROLE_LABELS_MAP: Record<string, string> = {
+    attacker: "رأس حربة", midfielder: "خط وسط",
+    defender: "مدافع", goalkeeper: "حارس مرمى",
+  };
+  const LEGEND_ROLE_MAP: Record<string, string> = {
+    attacker: "أسطورة هجوم", midfielder: "أسطورة خط وسط",
+    defender: "أسطورة دفاع", goalkeeper: "أسطورة حراسة مرمى",
+  };
+
+  if (pkgs.includes("pkg_egypt")) {
+    const egyptNames = [
+      'M. El Shenawy', 'Ahmed Hegazi', 'Mohamed Salah', 'Mohamed Elneny', 'Trezeguet', 
+      'Mostafa Mohamed', 'Omar Marmoush', 'Ahmed Sayed Zizo', 'Mohamed Magdy Afsha', 'Hamdi Fathi', 
+      'Emam Ashour', 'Marwan Attia', 'Mohamed Abdelmonem', 'Yasser Ibrahim', 'Mohamed Hany', 
+      'Omar Kamal', 'Ahmed Fatouh', 'M. Abou Gabal', 'Mostafa Shobeir', 'Ramy Rabia', 
+      'Mohamed Sherif', 'Mahmoud Kahraba', 'Ahmed Hassan Koka', 'Mahmoud Shikabala', 'Abdallah Said', 
+      'Tarek Hamed', 'Amr Elsolia', 'Ramadan Sobhi', 'Mostafa Fathi', 'Mohamed Ibrahim'
+    ];
+
+    egyptNames.forEach((name, i) => {
+      const idx = i + 1;
+      let role = "attacker";
+      let roleArabic = "مهاجم سريع";
+      let att = Math.floor(Math.random() * 5) + 10;
+      let def = Math.floor(Math.random() * 4) + 3;
+      let avatar = "⚡";
+      let isLegend = false;
+
+      if ([1, 18, 19].includes(idx)) {
+        role = "goalkeeper";
+        roleArabic = "حارس مرمى";
+        att = Math.floor(Math.random() * 3) + 1;
+        def = Math.floor(Math.random() * 4) + 11;
+        avatar = "🧤";
+      } else if ([2, 13, 14, 15, 16, 17, 20].includes(idx)) {
+        role = "defender";
+        roleArabic = "مدافع صلب";
+        att = Math.floor(Math.random() * 4) + 2;
+        def = Math.floor(Math.random() * 5) + 10;
+        avatar = "🛡️";
+      } else if ([4, 9, 10, 11, 12, 25, 26, 27].includes(idx)) {
+        role = "midfielder";
+        roleArabic = "لاعب وسط";
+        att = Math.floor(Math.random() * 5) + 6;
+        def = Math.floor(Math.random() * 5) + 7;
+        avatar = "🏃";
+      }
+
+      if ([3, 5, 8, 11, 25].includes(idx)) {
+        isLegend = true;
+        att = 15;
+        avatar = "👑";
+        roleArabic = LEGEND_ROLE_MAP[role] || `أسطورة ${roleArabic}`;
+      } else {
+        roleArabic = ROLE_LABELS_MAP[role] || roleArabic;
+      }
+
+      list.push({
+        id: `mock_egypt_${idx}`,
+        name,
+        type: "player",
+        isLegend,
+        attack: att,
+        defense: def,
+        role: role as any,
+        roleArabic,
+        description: "لاعب منتخب مصر الفراعنة للمباريات المحلية.",
+        team: "مصر",
+        avatar,
+      });
+    });
+  }
+
+  if (pkgs.includes("pkg_legends")) {
+    const legendNames = [
+      'Cristiano Ronaldo', 'Lionel Messi', 'Zinedine Zidane', 'Paolo Maldini', 'Gianluigi Buffon', 
+      'Ronaldinho', 'Pele', 'Diego Maradona', 'Johan Cruyff', 'Ronaldo Nazario', 
+      'Thierry Henry', 'David Beckham', 'Andrea Pirlo', 'Xavi Hernandez', 'Andres Iniesta', 
+      'Steven Gerrard', 'Frank Lampard', 'Roberto Carlos', 'Carles Puyol', 'Alessandro Nesta', 
+      'Fabio Cannavaro', 'Iker Casillas', 'Oliver Kahn', 'Zlatan Ibrahimovic', 'Wayne Rooney', 
+      'Luis Figo', 'Kaka', 'Luka Modric', 'Karim Benzema', 'Neymar Jr'
+    ];
+
+    legendNames.forEach((name, i) => {
+      const idx = i + 1;
+      let role = "attacker";
+      let roleArabic = "مهاجم أسطوري خارق";
+      let att = 15;
+      let def = Math.floor(Math.random() * 3) + 3;
+      let avatar = "👑";
+
+      if ([5, 22, 23].includes(idx)) {
+        role = "goalkeeper";
+        roleArabic = "أسطورة حراسة المرمى";
+        att = 1;
+        def = 15;
+      } else if ([4, 18, 19, 20, 21].includes(idx)) {
+        role = "defender";
+        roleArabic = "أسطورة دفاعية صلبة";
+        att = Math.floor(Math.random() * 3) + 3;
+        def = 15;
+      } else if ([3, 13, 14, 15, 16, 17, 28].includes(idx)) {
+        role = "midfielder";
+        roleArabic = "مايسترو خط الوسط";
+        att = Math.floor(Math.random() * 3) + 12;
+        def = Math.floor(Math.random() * 3) + 9;
+      }
+
+      list.push({
+        id: `mock_legend_${idx}`,
+        name,
+        type: "player",
+        isLegend: true,
+        attack: att,
+        defense: def,
+        role: role as any,
+        roleArabic,
+        description: "من أعظم أساطير كرة القدم في التاريخ.",
+        team: "الأساطير",
+        avatar,
+      });
+    });
+  }
+
+  if (pkgs.includes("pkg_europe")) {
+    const europeNames = [
+      'Haaland', 'Mbappe', 'De Bruyne', 'Salah', 'Vinicius Jr', 
+      'Bellingham', 'Kane', 'Rodri', 'Saka', 'Musiala', 
+      'Wirtz', 'Van Dijk', 'Ruben Dias', 'Courtois', 'Alisson', 
+      'Ter Stegen', 'Kimmich', 'Bernardo Silva', 'Bruno Fernandes', 'Griezmann', 
+      'Lewandowski', 'Son Heung-min', 'Foden', 'Rice', 'Saliba', 
+      'Alexander-Arnold', 'Robertson', 'Carvajal', 'Rudiger', 'Lamine Yamal'
+    ];
+
+    europeNames.forEach((name, i) => {
+      const idx = i + 1;
+      let role = "attacker";
+      let roleArabic = "مهاجم سريع";
+      let att = Math.floor(Math.random() * 5) + 10;
+      let def = Math.floor(Math.random() * 4) + 3;
+      let avatar = "⚽";
+      let isLegend = false;
+
+      if ([14, 15, 16].includes(idx)) {
+        role = "goalkeeper";
+        roleArabic = "حارس مرمى";
+        att = Math.floor(Math.random() * 3) + 1;
+        def = Math.floor(Math.random() * 4) + 11;
+        avatar = "🧤";
+      } else if ([12, 13, 25, 26, 27, 28, 29].includes(idx)) {
+        role = "defender";
+        roleArabic = "مدافع صلب";
+        att = Math.floor(Math.random() * 4) + 2;
+        def = Math.floor(Math.random() * 5) + 10;
+        avatar = "🛡️";
+      } else if ([3, 6, 8, 10, 11, 17, 18, 19, 24].includes(idx)) {
+        role = "midfielder";
+        roleArabic = "لاعب وسط";
+        att = Math.floor(Math.random() * 5) + 6;
+        def = Math.floor(Math.random() * 5) + 7;
+        avatar = "🏃";
+      }
+
+      if ([1, 2, 3, 6].includes(idx)) { // Haaland, Mbappe, De Bruyne, Salah
+        isLegend = true;
+        att = 15;
+        avatar = "👑";
+        roleArabic = LEGEND_ROLE_MAP[role] || `أسطورة ${roleArabic}`;
+      } else {
+        roleArabic = ROLE_LABELS_MAP[role] || roleArabic;
+      }
+
+      list.push({
+        id: `mock_europe_${idx}`,
+        name,
+        type: "player",
+        isLegend,
+        attack: att,
+        defense: def,
+        role: role as any,
+        roleArabic,
+        description: "أحد نجوم الصف الأول بالأندية الأوروبية الكبرى.",
+        team: "أوروبا",
+        avatar,
+      });
+    });
+  }
+
+  return list;
+}
+
+function getMockSpecialCards(packageIds?: string[]): SpecialCard[] {
+  const pkgs = packageIds && packageIds.length > 0 ? packageIds : ["pkg_tactics_classic", "pkg_tactics_modern"];
+  const list: SpecialCard[] = [];
+
+  if (pkgs.includes("pkg_tactics_classic")) {
+    list.push(
+      {
+        id: "mock_spec_offside",
+        name: "مصيدة التسلل 🚩",
+        type: "special",
+        effect: "offside",
+        effectArabic: "مصيدة تسلل دفاعية",
+        description: "تفعيل مصيدة التسلل لقطع هجمة الخصم المندفعة.",
+        icon: "🚩",
+      },
+      {
+        id: "mock_spec_bus",
+        name: "ركن الحافلة 🚌",
+        type: "special",
+        effect: "park_the_bus",
+        effectArabic: "تأمين دفاعي مكثف",
+        description: "التراجع الكامل للدفاع وتأمين المرمى لمنع استقبال أهداف.",
+        icon: "🚌",
+      },
+      {
+        id: "mock_spec_fans",
+        name: "هتاف الجماهير 🗣️",
+        type: "special",
+        effect: "fans",
+        effectArabic: "حماس جماهيري كبير",
+        description: "حماس الجماهير يزيد طاقة هجومك ودفاعك لدور كامل.",
+        icon: "🗣️",
+      }
+    );
+  }
+
+  if (pkgs.includes("pkg_tactics_modern")) {
+    list.push(
+      {
+        id: "mock_spec_red_card",
+        name: "بطاقة حمراء 🟥",
+        type: "special",
+        effect: "red_card",
+        effectArabic: "بطاقة حمراء طرد",
+        description: "طرد لاعب من تشكيلة الخصم فوراً لتقليل قوته.",
+        icon: "🟥",
+      },
+      {
+        id: "mock_spec_counter",
+        name: "المرتدة السريعة ⚡",
+        type: "special",
+        effect: "counter_attack",
+        effectArabic: "مرتدة خاطفة هجومية",
+        description: "شن هجوم مرتد سريع ومفاجئ يربك دفاعات الخصم.",
+        icon: "⚡",
+      },
+      {
+        id: "mock_spec_wet",
+        name: "أرضية رطبة 🌧️",
+        type: "special",
+        effect: "wet_pitch",
+        effectArabic: "تأثير المطر على الملعب",
+        description: "الطقس الماطر يقلل سرعة ودفاع كلا الفريقين لدورين.",
+        icon: "🌧️",
+      }
+    );
+  }
+
+  return list;
+}
+
 /**
  * Convert admin player cards into game-ready PlayerCard[] format.
  * Called by WelcomeMenu/App logic to load player packages.
  */
 export async function getCardsForGame(packageIds?: string[]): Promise<PlayerCard[]> {
+  if (!isSupabaseConfigured) {
+    return getMockPlayerCards(packageIds);
+  }
   checkSupabase();
   let query = supabase!.from("package_cards").select(`
     cards (
@@ -521,6 +790,9 @@ export async function getCardsForGame(packageIds?: string[]): Promise<PlayerCard
  * Called by WelcomeMenu/App logic to load tactical packages.
  */
 export async function getSpecialCardsForGame(packageIds?: string[]): Promise<SpecialCard[]> {
+  if (!isSupabaseConfigured) {
+    return getMockSpecialCards(packageIds);
+  }
   checkSupabase();
   let query = supabase!.from("package_special_cards").select(`
     special_cards (
@@ -574,6 +846,9 @@ export async function getSpecialCardsForGame(packageIds?: string[]): Promise<Spe
  * Check if there are any admin-created packages with cards.
  */
 export async function hasAdminCards(): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    return true; // Mock data is always available
+  }
   checkSupabase();
   const { count: cardCount, error: cardError } = await supabase!
     .from("cards")

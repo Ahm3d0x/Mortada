@@ -50,8 +50,8 @@ const parseDetailedLog = (text: string) => {
   // Stadium line starts with 🏟️
   const stadium = lines.find(l => l.startsWith("🏟️")) || "";
   
-  // Title starts with ⚽️ or 🛡️
-  const title = lines.find(l => l.startsWith("⚽️") || l.startsWith("🛡️") || l.startsWith("🚫")) || "";
+  // Title starts with ⚽️ or 🛡️ or 🚫 or 🧤
+  const title = lines.find(l => l.startsWith("⚽️") || l.startsWith("🛡️") || l.startsWith("🚫") || l.startsWith("🧤")) || "";
   
   // Status line starts with 👉
   const statusLine = lines.find(l => l.startsWith("👉")) || "";
@@ -62,8 +62,26 @@ const parseDetailedLog = (text: string) => {
   const defenseTotalLine = lines.find(l => l.includes("قوة الدفاع الإجمالية")) || "";
   
   // Extract numbers from totals
-  const attackVal = attackTotalLine.match(/\d+/)?.[0] || "0";
-  const defenseVal = defenseTotalLine.match(/\d+/)?.[0] || "0";
+  let attackVal = attackTotalLine.match(/\d+/)?.[0] || "";
+  let defenseVal = defenseTotalLine.match(/\d+/)?.[0] || "";
+
+  // Fallback: if totals are not in their standard lines, try to find them in the title line
+  if (!attackVal || !defenseVal) {
+    const comparisonLine = lines.find(l => l.includes("دفاع الخصم") || l.includes("دفاعك") || l.includes("هجومك") || l.includes("هجوم الخصم")) || "";
+    if (comparisonLine) {
+      const defMatch = comparisonLine.match(/(?:دفاع الخصم|دفاعك)\s*\(?(\d+)\)?/);
+      const attMatch = comparisonLine.match(/(?:هجومك|هجوم الخصم)\s*\(?(\d+)\)?/);
+      if (defMatch) {
+        defenseVal = defenseVal || defMatch[1];
+      }
+      if (attMatch) {
+        attackVal = attackVal || attMatch[1];
+      }
+    }
+  }
+
+  attackVal = attackVal || "0";
+  defenseVal = defenseVal || "0";
   
   // Extract breakdown sections
   let attackBreakdown: string[] = [];
@@ -881,6 +899,7 @@ export default function App() {
   const [playerMovesLeft, setPlayerMovesLeft] = useState(3);
   const [aiMovesLeft, setAiMovesLeft] = useState(3);
   const [cardsDrawnThisTurn, setCardsDrawnThisTurn] = useState(0);
+  const [aiCardsDrawnThisTurn, setAiCardsDrawnThisTurn] = useState(0);
   const [turnCount, setTurnCount] = useState(1);
 
   // Selection states
@@ -1558,6 +1577,7 @@ export default function App() {
       setAiDeck(aiPitchInit.remainingDeck);
       setSpecialDeck(sDeck);
       setBoosterDeck(poDeck);
+      setAiCardsDrawnThisTurn(0);
 
       // Statistics & Scores reset
       setPlayerScore(0);
@@ -2082,6 +2102,9 @@ export default function App() {
           setAiDeck(currentAiDeck);
           setSpecialDeck(currentSpecialDeck);
           setAiHand((prevHand) => [...prevHand, ...added]);
+          if (!isPlayerOwned) {
+            setAiCardsDrawnThisTurn((prev) => prev + added.length);
+          }
           
           added.forEach((c) => {
             if (c.type === "player") {
@@ -3779,6 +3802,7 @@ export default function App() {
         setPlayerMovesLeft(maxMovesPerTurn);
         setHasScoredThisTurn(false);
         setCardsDrawnThisTurn(0);
+        setAiCardsDrawnThisTurn(0);
         setMaxDrawsPerTurn(defaultMaxDrawsPerTurn);
         setIsHandExpanded(true);
         setTurnCount((prev) => prev + 1);
@@ -3848,6 +3872,7 @@ export default function App() {
     phaseRef.current = "ai_turn";
     setPhase("ai_turn");
     setAiMovesLeft(maxMovesPerTurn); // Reset AI moves count to the match setting!
+    setAiCardsDrawnThisTurn(0); // Reset AI draws for this turn!
     addLog(`🏁 الآن ينتقل دور التوجيه واللعب للخصم: ${formatNameWithTitle(aiCoachName, "المدرب")}.`, "info");
 
     setTimeout(() => {
@@ -3855,19 +3880,23 @@ export default function App() {
       let updatedAiDeck = [...aiDeck];
       let updatedAiSpecial = [...specialDeck];
       let newAiHand = [...aiHand];
+      let drawnCount = 0;
 
       if (updatedAiDeck.length > 0) {
         newAiHand.push(updatedAiDeck[0]);
         updatedAiDeck = updatedAiDeck.slice(1);
+        drawnCount++;
       }
       if (updatedAiSpecial.length > 0) {
         newAiHand.push(updatedAiSpecial[0]);
         updatedAiSpecial = updatedAiSpecial.slice(1);
+        drawnCount++;
       }
 
       setAiDeck(updatedAiDeck);
       setSpecialDeck(updatedAiSpecial);
       setAiHand(newAiHand);
+      setAiCardsDrawnThisTurn(drawnCount);
       addLog(`🤖 الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} يسحب كارتين مميزين ليده التكتيكية.`, "neutral");
 
       // AI Moves execution
@@ -4384,6 +4413,7 @@ export default function App() {
     setShowConfetti(false);
     setLogs([]);
     setMatchRounds([]);
+    setAiCardsDrawnThisTurn(0);
   };
 
   // Dynamic Scoreboard Offensive/Defensive Statistics - requested by user
@@ -5040,29 +5070,33 @@ export default function App() {
                 </div>
 
                 {/* Status Counters pills */}
-                <div className="flex items-center gap-0.5 md:gap-1 shrink-0 scale-[0.82] md:scale-95 origin-center">
-                  {phase === "ai_attacking" ? (
-                    // Defensive phase: show played and remaining moves, hide draws counter
-                    <div className="bg-amber-50/10 text-amber-300 border border-amber-500/25 px-1 py-0.5 rounded text-[6.5px] md:text-[8px] font-black font-sans leading-none">
-                      حركات الدفاع: {maxMovesPerTurn - defenseMovesLeft} لعبت | {defenseMovesLeft} متبقي
-                    </div>
-                  ) : (
-                    <>
-                      <div className="bg-amber-50/10 text-amber-300 border border-amber-500/25 px-0.5 py-0.5 rounded text-[6.5px] md:text-[8px] font-black font-sans leading-none">
-                        حركة {playerMovesLeft} / {maxMovesPerTurn}
-                      </div>
-                      {phase !== "warmup" && (
-                        <div className="bg-[#10b981]/10 text-emerald-400 border border-emerald-500/25 px-0.5 py-0.5 rounded text-[6.5px] md:text-[8px] font-black font-sans leading-none">
-                          سحب {cardsDrawnThisTurn} / {maxDrawsPerTurn}
-                        </div>
-                      )}
-                      {phase === "warmup" && (
-                        <div className="bg-[#10b981]/10 text-emerald-400 border border-emerald-500/25 px-0.5 py-0.5 rounded text-[6.5px] md:text-[8px] font-black font-sans leading-none">
-                          لاعبين {playerSlots.filter(s => s.card !== null).length} / {initialCardsCount}
-                        </div>
-                      )}
-                    </>
-                  )}
+                <div className="flex items-center gap-1.5 md:gap-2 shrink-0 scale-[0.82] md:scale-95 origin-center font-sans font-black text-[6.5px] md:text-[8px] leading-none">
+                  {/* Opponent Pill (Rose Red Theme) */}
+                  <div className="bg-rose-950/20 text-rose-400 border border-rose-500/25 px-1.5 py-0.5 rounded-lg flex items-center gap-1">
+                    <span>حركات {maxMovesPerTurn - aiMovesLeft}/{maxMovesPerTurn}</span>
+                    <span className="text-rose-550/30">|</span>
+                    <span>سحب {aiCardsDrawnThisTurn}/{maxDrawsPerTurn}</span>
+                  </div>
+
+                  {/* Symmetrical Divider */}
+                  <div className="border-l border-white/10 h-3" />
+
+                  {/* Player Pill (Emerald Green Theme) */}
+                  <div className="bg-emerald-950/20 text-emerald-400 border border-emerald-500/25 px-1.5 py-0.5 rounded-lg flex items-center gap-1">
+                    {phase === "warmup" ? (
+                      <>
+                        <span>حركات 0/{maxMovesPerTurn}</span>
+                        <span className="text-emerald-550/30">|</span>
+                        <span>سحب {playerSlots.filter(s => s.card !== null).length}/{initialCardsCount}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>حركات {phase === "ai_attacking" ? (maxMovesPerTurn - defenseMovesLeft) : (maxMovesPerTurn - playerMovesLeft)}/{maxMovesPerTurn}</span>
+                        <span className="text-emerald-550/30">|</span>
+                        <span>سحب {cardsDrawnThisTurn}/{maxDrawsPerTurn}</span>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* Actionable Buttons depending on phase */}

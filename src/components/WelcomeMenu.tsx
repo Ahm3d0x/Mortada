@@ -38,6 +38,14 @@ const TEAM_VIBES = [
   { name: "الملكي", color: "from-indigo-600 to-violet-850", desc: "شخصية البطل العريقة", emoji: "👑" }
 ];
 
+const MOCK_PACKAGES = [
+  { id: "pkg_egypt", name: "باقة نجوم أفريقيا 🇪🇬", description: "باقة تشتمل على كروت لاعبي الدوري المصري والمحترفين", image: "🦁", type: "player" },
+  { id: "pkg_europe", name: "باقة عمالقة أوروبا 🇪🇺", description: "باقة تشتمل على لاعبي الأندية الكبرى والدوري الإنجليزي", image: "🏆", type: "player" },
+  { id: "pkg_legends", name: "باقة كلاسيكيات كرة القدم 👑", description: "باقة تشتمل على نجوم الزمن الجميل والأساطير التاريخية", image: "👑", type: "player" },
+  { id: "pkg_tactics_classic", name: "التكتيكات الكلاسيكية 🚌", description: "باقة الكروت التكتيكية الكلاسيكية الأساسية للعب", image: "🚌", type: "special" },
+  { id: "pkg_tactics_modern", name: "التكتيكات الهجومية الحديثة 🔥", description: "باقة الكروت التكتيكية الحديثة لأسلوب الضغط العالي", image: "🔥", type: "special" }
+];
+
 export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: WelcomeMenuProps) {
   // Navigation Tabs State
   const [activeTab, setActiveTab] = useState<"home" | "play" | "decks" | "rules" | "settings">("home");
@@ -67,23 +75,66 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
   const [dbLoading, setDbLoading] = useState(false);
   const [selectedPlayerPkgs, setSelectedPlayerPkgs] = useState<string[]>([]);
   const [selectedSpecialPkgs, setSelectedSpecialPkgs] = useState<string[]>([]);
+  const [allowMultiplePkgs, setAllowMultiplePkgs] = useState(false);
   const [playerSearch, setPlayerSearch] = useState("");
   const [specialSearch, setSpecialSearch] = useState("");
 
   useEffect(() => {
+    const selectDefaults = (pkgs: any[]) => {
+      const firstPlayer = pkgs.find(p => p.type === "player" || !p.type);
+      const firstSpecial = pkgs.find(p => p.type === "special");
+      if (firstPlayer) setSelectedPlayerPkgs([firstPlayer.id]);
+      if (firstSpecial) setSelectedSpecialPkgs([firstSpecial.id]);
+    };
+
     if (isSupabaseConfigured) {
       setDbLoading(true);
       getPackages()
         .then((pkgs) => {
-          setDbPackages(pkgs);
+          const finalPkgs = pkgs.length > 0 ? pkgs : MOCK_PACKAGES;
+          setDbPackages(finalPkgs);
+          selectDefaults(finalPkgs);
           setDbLoading(false);
         })
         .catch((err) => {
           console.error("Failed to load packages in WelcomeMenu:", err);
+          setDbPackages(MOCK_PACKAGES);
+          selectDefaults(MOCK_PACKAGES);
           setDbLoading(false);
         });
+    } else {
+      setDbPackages(MOCK_PACKAGES);
+      selectDefaults(MOCK_PACKAGES);
     }
   }, []);
+
+  const handleSelectPlayerPkg = (pkgId: string) => {
+    SoundEffects.playCardDraw();
+    if (allowMultiplePkgs) {
+      setSelectedPlayerPkgs(prev => {
+        const exists = prev.includes(pkgId);
+        if (exists) {
+          if (prev.length === 1) return prev;
+          return prev.filter(id => id !== pkgId);
+        }
+        return [...prev, pkgId];
+      });
+    } else {
+      setSelectedPlayerPkgs([pkgId]);
+    }
+  };
+
+  const handleSelectSpecialPkg = (pkgId: string) => {
+    SoundEffects.playCardDraw();
+    if (allowMultiplePkgs) {
+      setSelectedSpecialPkgs(prev => {
+        const exists = prev.includes(pkgId);
+        return exists ? prev.filter(id => id !== pkgId) : [...prev, pkgId];
+      });
+    } else {
+      setSelectedSpecialPkgs(prev => prev.includes(pkgId) ? [] : [pkgId]);
+    }
+  };
 
   const toggleMute = () => {
     SoundEffects.isMuted = !SoundEffects.isMuted;
@@ -314,54 +365,122 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                   <motion.div
                     initial={{ opacity: 0, x: 15 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="space-y-3"
+                    className="space-y-3 w-full"
                   >
                     <div className="text-right border-b border-white/5 pb-1.5 mb-2">
                       <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">مرحلة 2 من 3: باقات كروت اللعب</span>
                       <h3 className="text-sm font-black text-white">اختر باقات اللعيبة والكروت التكتيكية للمباراة</h3>
                     </div>
 
-                    <div className="max-h-[120px] overflow-y-auto space-y-2 pr-1.5 scrollbar-thin scrollbar-thumb-emerald-500/20 text-right">
-                      {!isSupabaseConfigured ? (
-                        <div className="p-2 bg-amber-950/20 border border-amber-500/30 rounded-lg text-right">
-                          <p className="text-[9px] text-amber-450 font-bold">⚠️ وضع المحاكاة المحلي نشّط</p>
-                          <p className="text-[8px] text-slate-400 mt-0.5 leading-normal">
-                            قاعدة البيانات غير متصلة. ستعمل اللعبة تلقائياً بالباقات والكرات التكتيكية الافتراضية المدمجة باللعبة.
-                          </p>
-                        </div>
-                      ) : dbLoading ? (
-                        <div className="text-center py-4 text-slate-500 text-[10px]">⏳ جاري تحميل الباقات من السيرفر...</div>
-                      ) : (
-                        <div className="space-y-2">
-                          {/* Search inputs and list items simplified to fit */}
-                          <div className="text-[9px] text-emerald-450">باقات اللاعبين المتاحة: {dbPackages.length}</div>
-                          {dbPackages.map((pkg) => {
-                            const isChecked = selectedPlayerPkgs.includes(pkg.id) || selectedSpecialPkgs.includes(pkg.id);
-                            const isPlayer = pkg.type === "player" || !pkg.type;
-                            return (
-                              <button
-                                key={pkg.id}
-                                type="button"
-                                onClick={() => {
-                                  SoundEffects.playCardDraw();
-                                  if (isPlayer) {
-                                    setSelectedPlayerPkgs(prev => isChecked ? prev.filter(id => id !== pkg.id) : [...prev, pkg.id]);
-                                  } else {
-                                    setSelectedSpecialPkgs(prev => isChecked ? prev.filter(id => id !== pkg.id) : [...prev, pkg.id]);
-                                  }
-                                }}
-                                className={`w-full p-1.5 rounded-lg border flex items-center justify-between text-right cursor-pointer text-[9px] ${
-                                  isChecked ? "border-emerald-500 bg-emerald-950/15" : "border-white/5 bg-black/25 text-slate-400"
-                                }`}
-                              >
-                                <span className="text-[8px] text-slate-500">{pkg.type === "special" ? "تكتيك" : "لاعبين"}</span>
-                                <span className="font-extrabold">{pkg.name} {pkg.image}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
+                    {/* Toggle Multiple Selection */}
+                    <div className="flex items-center justify-between bg-black/45 border border-white/5 rounded-xl p-2 mb-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          SoundEffects.playCardDraw();
+                          const nextVal = !allowMultiplePkgs;
+                          setAllowMultiplePkgs(nextVal);
+                          if (!nextVal) {
+                            setSelectedPlayerPkgs(prev => prev.slice(0, 1));
+                            setSelectedSpecialPkgs(prev => prev.slice(0, 1));
+                          }
+                        }}
+                        className={`px-2 py-0.5 rounded-lg text-[9px] font-black transition-all cursor-pointer ${
+                          allowMultiplePkgs 
+                            ? "bg-emerald-500 text-black shadow-[0_0_8px_rgba(16,185,129,0.3)]" 
+                            : "bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10"
+                        }`}
+                      >
+                        {allowMultiplePkgs ? "مفعّل (دمج الباقات) 🔓" : "مغلق (باقة واحدة) 🔒"}
+                      </button>
+                      <div className="text-right">
+                        <span className="text-[9.5px] font-black text-white block">دمج الباقات والفرق</span>
+                        <span className="text-[8px] text-slate-500 block mt-0.5">تفعيل اختيار أكثر من باقة للعب بها معاً</span>
+                      </div>
                     </div>
+
+                    {!isSupabaseConfigured && (
+                      <div className="p-1.5 bg-amber-950/20 border border-amber-500/30 rounded-lg text-right mb-1">
+                        <p className="text-[8.5px] text-amber-450 font-bold">⚠️ وضع اللعب المحلي بدون سيرفر نشّط</p>
+                        <p className="text-[7.5px] text-slate-400 leading-normal">
+                          قاعدة البيانات غير متصلة. تم تفعيل الباقات الافتراضية أدناه لتتمكن من اختيارها واختبارها محلياً!
+                        </p>
+                      </div>
+                    )}
+
+                    {dbLoading ? (
+                      <div className="text-center py-4 text-slate-500 text-[10px]">⏳ جاري تحميل الباقات من السيرفر...</div>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Player Packages Track */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center text-[9px]">
+                            <span className="text-[8px] text-slate-500">تم اختيار: {selectedPlayerPkgs.length}</span>
+                            <span className="font-black text-emerald-400">باقات اللاعبين والفرق ⚽</span>
+                          </div>
+                          <div className="flex flex-row overflow-x-auto gap-2 py-1 w-full scrollbar-thin scrollbar-thumb-emerald-500/20 scrollbar-track-transparent snap-x scroll-smooth">
+                            {dbPackages.filter(p => p.type === "player" || !p.type).map((pkg) => {
+                              const isSelected = selectedPlayerPkgs.includes(pkg.id);
+                              return (
+                                <button
+                                  key={pkg.id}
+                                  type="button"
+                                  onClick={() => handleSelectPlayerPkg(pkg.id)}
+                                  className={`flex flex-col items-center justify-between p-2 rounded-xl border text-center transition-all cursor-pointer min-w-[110px] max-w-[110px] h-[100px] shrink-0 snap-center relative ${
+                                    isSelected 
+                                      ? "border-emerald-500 bg-emerald-950/20 text-white shadow-[0_0_12px_rgba(16,185,129,0.15)]" 
+                                      : "border-white/5 bg-black/40 text-slate-450 hover:border-white/10 hover:text-white"
+                                  }`}
+                                >
+                                  <div className="text-xl my-1">{pkg.image || "⚽"}</div>
+                                  <div className="font-extrabold text-[9px] truncate w-full">{pkg.name}</div>
+                                  <div className="text-[7.5px] text-slate-500 line-clamp-2 leading-tight w-full mt-0.5">{pkg.description || "باقة لاعبين"}</div>
+                                  {isSelected && (
+                                    <div className="absolute top-1 right-1 bg-emerald-500 text-black w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7.5px] font-black">
+                                      ✓
+                                    </div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Tactical Packages Track */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center text-[9px]">
+                            <span className="text-[8px] text-slate-500">تم اختيار: {selectedSpecialPkgs.length} {selectedSpecialPkgs.length === 0 && "(لا يوجد تكتيكات)"}</span>
+                            <span className="font-black text-amber-400">باقات الكروت التكتيكية 🃏</span>
+                          </div>
+                          <div className="flex flex-row overflow-x-auto gap-2 py-1 w-full scrollbar-thin scrollbar-thumb-amber-500/20 scrollbar-track-transparent snap-x scroll-smooth">
+                            {dbPackages.filter(p => p.type === "special" || p.type === "tactical").map((pkg) => {
+                              const isSelected = selectedSpecialPkgs.includes(pkg.id);
+                              return (
+                                <button
+                                  key={pkg.id}
+                                  type="button"
+                                  onClick={() => handleSelectSpecialPkg(pkg.id)}
+                                  className={`flex flex-col items-center justify-between p-2 rounded-xl border text-center transition-all cursor-pointer min-w-[110px] max-w-[110px] h-[100px] shrink-0 snap-center relative ${
+                                    isSelected 
+                                      ? "border-amber-500 bg-amber-950/20 text-white shadow-[0_0_12px_rgba(245,158,11,0.15)]" 
+                                      : "border-white/5 bg-black/40 text-slate-450 hover:border-white/10 hover:text-white"
+                                  }`}
+                                >
+                                  <div className="text-xl my-1">{pkg.image || "🃏"}</div>
+                                  <div className="font-extrabold text-[9px] truncate w-full">{pkg.name}</div>
+                                  <div className="text-[7.5px] text-slate-500 line-clamp-2 leading-tight w-full mt-0.5">{pkg.description || "باقة تكتيكات"}</div>
+                                  {isSelected && (
+                                    <div className="absolute top-1 right-1 bg-amber-500 text-black w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7.5px] font-black">
+                                      ✓
+                                    </div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between border-t border-white/5 pt-2 mt-3">
                       <button
@@ -373,8 +492,13 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                       </button>
                       <button
                         type="button"
+                        disabled={selectedPlayerPkgs.length === 0}
                         onClick={() => { SoundEffects.playCardDraw(); setPlayStep("match"); }}
-                        className="px-5 py-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[9px] rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                        className={`px-5 py-1 bg-emerald-500 text-black font-black text-[9px] rounded-lg flex items-center gap-1 transition-all ${
+                          selectedPlayerPkgs.length === 0 
+                            ? "opacity-50 cursor-not-allowed" 
+                            : "hover:bg-emerald-400 cursor-pointer"
+                        }`}
                       >
                         <span>التالي: صعوبة المباراة</span>
                         <ArrowLeft className="w-3 h-3" />
@@ -395,62 +519,65 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                       <h3 className="text-sm font-black text-white">اختر صعوبة مدرب الخصم وإعدادات زمن المباراة</h3>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-right">
-                      {/* Left Column: Sliders */}
-                      <div className="space-y-2 bg-black/20 p-2 border border-white/5 rounded-xl">
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-[8px] text-emerald-400">
-                            <span>{Math.floor(matchDuration / 60)} د</span>
-                            <span className="font-bold">وقت المباراة:</span>
-                          </div>
-                          <input
-                            type="range"
-                            min={300}
-                            max={1800}
-                            step={60}
-                            value={matchDuration}
-                            onChange={(e) => setMatchDuration(Number(e.target.value))}
-                            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
-                          />
+                    {/* Difficulty Row */}
+                    <div className="flex flex-row gap-1.5 w-full bg-black/20 p-1.5 border border-white/5 rounded-xl">
+                      {[
+                        { id: "normal", label: "مدرب ناشئ", color: "border-emerald-500 text-emerald-400 bg-emerald-950/15" },
+                        { id: "tactical", label: "مدرب محترف", color: "border-amber-500 text-amber-400 bg-amber-950/15" },
+                        { id: "legend", label: "جوارديولا (ذكي)", color: "border-rose-500 text-rose-450 bg-rose-950/15" }
+                      ].map((lvl) => {
+                        const isSelected = difficulty === lvl.id;
+                        return (
+                          <button
+                            key={lvl.id}
+                            type="button"
+                            onClick={() => { SoundEffects.playCardDraw(); setDifficulty(lvl.id as any); }}
+                            className={`flex-1 py-1 rounded-lg border text-center font-extrabold text-[9.5px] cursor-pointer transition-all ${
+                              isSelected ? lvl.color : "border-white/5 bg-transparent text-slate-500 hover:text-white"
+                            }`}
+                          >
+                            {lvl.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 bg-black/20 p-2 border border-white/5 rounded-xl">
+                      {/* Left: Duration Select dropdown */}
+                      <div className="space-y-1 text-right">
+                        <div className="flex items-center justify-between text-[8px] text-emerald-400">
+                          <span>{matchDuration === 0 ? "بدون وقت" : `${Math.floor(matchDuration / 60)} د`}</span>
+                          <span className="font-bold">وقت المباراة:</span>
                         </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-[8px] text-amber-400">
-                            <span>{legendPercentage}%</span>
-                            <span className="font-bold">نسبة الأساطير:</span>
-                          </div>
-                          <input
-                            type="range"
-                            min={0}
-                            max={100}
-                            step={10}
-                            value={legendPercentage}
-                            onChange={(e) => setLegendPercentage(Number(e.target.value))}
-                            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-amber-500"
-                          />
-                        </div>
+                        <select
+                          value={matchDuration}
+                          onChange={(e) => setMatchDuration(Number(e.target.value))}
+                          className="w-full bg-black/60 border border-white/10 rounded-lg p-1 text-[9px] text-[#e0e0e0] font-bold text-right cursor-pointer"
+                        >
+                          <option value={180}>3 دقائق</option>
+                          <option value={300}>5 دقائق</option>
+                          <option value={600}>10 دقائق</option>
+                          <option value={900}>15 دقيقة</option>
+                          <option value={1200}>20 دقيقة</option>
+                          <option value={1800}>30 دقيقة</option>
+                        </select>
                       </div>
 
-                      {/* Right Column: Difficulty selection */}
-                      <div className="space-y-1 flex flex-col justify-between">
-                        {[
-                          { id: "normal", label: "مدرب ناشئ", color: "border-emerald-500 text-emerald-400 bg-emerald-950/15" },
-                          { id: "tactical", label: "مدرب محترف", color: "border-amber-500 text-amber-400 bg-amber-950/15" },
-                          { id: "legend", label: "جوارديولا (ذكي)", color: "border-rose-500 text-rose-450 bg-rose-950/15" }
-                        ].map((lvl) => {
-                          const isSelected = difficulty === lvl.id;
-                          return (
-                            <button
-                              key={lvl.id}
-                              type="button"
-                              onClick={() => { SoundEffects.playCardDraw(); setDifficulty(lvl.id as any); }}
-                              className={`w-full p-1 px-2.5 rounded-lg border text-right font-extrabold text-[9.5px] cursor-pointer transition-all ${
-                                isSelected ? lvl.color : "border-white/5 bg-transparent text-slate-500 hover:text-white"
-                              }`}
-                            >
-                              {lvl.label}
-                            </button>
-                          );
-                        })}
+                      {/* Right: Legend card percentage */}
+                      <div className="space-y-1 text-right">
+                        <div className="flex items-center justify-between text-[8px] text-amber-400">
+                          <span>{legendPercentage}%</span>
+                          <span className="font-bold">نسبة الأساطير:</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={legendPercentage}
+                          onChange={(e) => setLegendPercentage(Number(e.target.value))}
+                          className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-amber-500 mt-2"
+                        />
                       </div>
                     </div>
 
@@ -496,7 +623,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                           <input
                             type="range"
                             min={3}
-                            max={5}
+                            max={7}
                             step={1}
                             value={initialCardsCount}
                             onChange={(e) => setInitialCardsCount(Number(e.target.value))}
@@ -509,12 +636,12 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                       <div className="space-y-1.5 flex flex-col justify-center">
                         <div className="space-y-1">
                           <div className="flex items-center justify-between text-amber-400 text-[8px]">
-                            <span className="font-extrabold text-amber-400">{legendBurnLimit === 0 ? "مجاني (0)" : `${legendBurnLimit} كروت`}</span>
+                            <span className="font-extrabold text-amber-400">{legendBurnLimit} كروت</span>
                             <span className="font-black">حرق كروت للأسطورة:</span>
                           </div>
                           <input
                             type="range"
-                            min={0}
+                            min={1}
                             max={4}
                             step={1}
                             value={legendBurnLimit}
@@ -524,13 +651,13 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center justify-between text-emerald-400 text-[8px]">
-                            <span className="font-extrabold text-emerald-400">{maxBonusValue}</span>
+                            <span className="font-extrabold text-emerald-400">{maxBonusValue === 0 ? "بدون معزز (0)" : maxBonusValue}</span>
                             <span className="font-black">أقصى قيمة للمعزز:</span>
                           </div>
                           <input
                             type="range"
-                            min={5}
-                            max={20}
+                            min={0}
+                            max={10}
                             step={1}
                             value={maxBonusValue}
                             onChange={(e) => setMaxBonusValue(Number(e.target.value))}

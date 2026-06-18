@@ -80,8 +80,8 @@ const parseDetailedLog = (text: string) => {
   // Stadium line starts with 🏟️
   const stadium = lines.find(l => l.startsWith("🏟️")) || "";
   
-  // Title starts with ⚽️ or 🛡️
-  const title = lines.find(l => l.startsWith("⚽️") || l.startsWith("🛡️") || l.startsWith("🚫")) || "";
+  // Title starts with ⚽️ or 🛡️ or 🚫 or 🧤
+  const title = lines.find(l => l.startsWith("⚽️") || l.startsWith("🛡️") || l.startsWith("🚫") || l.startsWith("🧤")) || "";
   
   // Status line starts with 👉
   const statusLine = lines.find(l => l.startsWith("👉")) || "";
@@ -92,8 +92,26 @@ const parseDetailedLog = (text: string) => {
   const defenseTotalLine = lines.find(l => l.includes("قوة الدفاع الإجمالية")) || "";
   
   // Extract numbers from totals
-  const attackVal = attackTotalLine.match(/\d+/)?.[0] || "0";
-  const defenseVal = defenseTotalLine.match(/\d+/)?.[0] || "0";
+  let attackVal = attackTotalLine.match(/\d+/)?.[0] || "";
+  let defenseVal = defenseTotalLine.match(/\d+/)?.[0] || "";
+
+  // Fallback: if totals are not in their standard lines, try to find them in the title line
+  if (!attackVal || !defenseVal) {
+    const comparisonLine = lines.find(l => l.includes("دفاع الخصم") || l.includes("دفاعك") || l.includes("هجومك") || l.includes("هجوم الخصم")) || "";
+    if (comparisonLine) {
+      const defMatch = comparisonLine.match(/(?:دفاع الخصم|دفاعك)\s*\(?(\d+)\)?/);
+      const attMatch = comparisonLine.match(/(?:هجومك|هجوم الخصم)\s*\(?(\d+)\)?/);
+      if (defMatch) {
+        defenseVal = defenseVal || defMatch[1];
+      }
+      if (attMatch) {
+        attackVal = attackVal || attMatch[1];
+      }
+    }
+  }
+
+  attackVal = attackVal || "0";
+  defenseVal = defenseVal || "0";
   
   // Extract breakdown sections
   let attackBreakdown: string[] = [];
