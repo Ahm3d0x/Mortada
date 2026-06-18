@@ -502,29 +502,8 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                         </div>
                       </div>
 
-                      {/* Left: Defense draws & Legend burn limit */}
-                      <div className="space-y-1.5">
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-[#e0e0e0]/70 text-[8px]">
-                            <span className="font-extrabold text-teal-400">{defenseDrawsLimit} سحبات</span>
-                            <span className="font-black flex items-center gap-0.5">
-                              <span>سحبات التدعيم (الدفاع):</span>
-                              <span className="cursor-help text-teal-400 font-extrabold" title="عدد الكروت الأقصى التي يُسمح لك بسحبها للدفاع عند هجوم الخصم وقبل لعب كروت الصد">ℹ️</span>
-                            </span>
-                          </div>
-                          <input
-                            type="range"
-                            min={0}
-                            max={5}
-                            step={1}
-                            value={defenseDrawsLimit}
-                            onChange={(e) => setDefenseDrawsLimit(Number(e.target.value))}
-                            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-teal-500"
-                          />
-                          <p className="text-[7px] text-zinc-500 leading-tight">
-                            (السحبات المسموحة لك لتعويض يدك عندما يهاجمك الخصم وقبل الصد)
-                          </p>
-                        </div>
+                      {/* Left: Legend burn limit */}
+                      <div className="space-y-1.5 flex flex-col justify-center">
                         <div className="space-y-1">
                           <div className="flex items-center justify-between text-amber-400 text-[8px]">
                             <span className="font-extrabold text-amber-400">{legendBurnLimit === 0 ? "مجاني (0)" : `${legendBurnLimit} كروت`}</span>

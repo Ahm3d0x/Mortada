@@ -254,11 +254,28 @@ export function generateUniqueDecks(
     return { playerDeck: [], aiDeck: [] };
   }
 
-  // Separate legends and normals
-  const legendCards = pool.filter(c => c.isLegend).sort(() => Math.random() - 0.5);
-  const normalCards = pool.filter(c => !c.isLegend).sort(() => Math.random() - 0.5);
+  // Deduplicate pool by name to prevent player duplicates across the game
+  const seenNames = new Set<string>();
+  const uniquePool: PlayerCard[] = [];
+  pool.forEach((card) => {
+    if (card && card.name) {
+      const normalizedName = card.name.trim().toLowerCase();
+      if (!seenNames.has(normalizedName)) {
+        seenNames.add(normalizedName);
+        uniquePool.push(card);
+      }
+    }
+  });
 
-  const targetSizePerDeck = Math.max(20, Math.floor(pool.length / 2));
+  if (uniquePool.length === 0) {
+    return { playerDeck: [], aiDeck: [] };
+  }
+
+  // Separate legends and normals
+  const legendCards = uniquePool.filter(c => c.isLegend).sort(() => Math.random() - 0.5);
+  const normalCards = uniquePool.filter(c => !c.isLegend).sort(() => Math.random() - 0.5);
+
+  const targetSizePerDeck = Math.max(20, Math.floor(uniquePool.length / 2));
   const numLegendsPerDeck = Math.min(
     Math.floor(legendCards.length / 2),
     Math.max(0, Math.round((legendRatio / 100) * targetSizePerDeck))
@@ -435,3 +452,49 @@ export function generatePontoDeck(): PontoCard[] {
     id: `ponto_${idx}_${Math.random().toString(36).substr(2, 9)}`
   } as PontoCard)).sort(() => Math.random() - 0.5);
 }
+
+// Generates disjoint decks for host/player and guest/AI from the admin or hardcoded card pool
+export function generateUniquePlayerDecks(legendRatio: number = 30): { playerDeck: PlayerCard[]; aiDeck: PlayerCard[] } {
+  let pool: PlayerCard[] = [];
+  try {
+    const raw = localStorage.getItem("mortada_admin_cards");
+    if (raw) {
+      const adminCardsRaw = JSON.parse(raw);
+      if (Array.isArray(adminCardsRaw) && adminCardsRaw.length > 0) {
+        const ROLE_LABELS_MAP: Record<string, string> = {
+          attacker: "رأس حربة", midfielder: "خط وسط",
+          defender: "مدافع", goalkeeper: "حارس مرمى",
+        };
+        const LEGEND_ROLE_MAP: Record<string, string> = {
+          attacker: "أسطورة هجوم", midfielder: "أسطورة خط وسط",
+          defender: "أسطورة دفاع", goalkeeper: "أسطورة حراسة مرمى",
+        };
+        pool = adminCardsRaw.map((c: any, idx: number) => ({
+          id: `admin_${c.id || idx}_${Math.random().toString(36).substr(2, 6)}`,
+          name: c.name,
+          type: "player" as const,
+          isLegend: !!c.isLegend,
+          attack: c.attack ?? 5,
+          defense: c.defense ?? 5,
+          role: c.role || "midfielder",
+          roleArabic: c.isLegend ? (LEGEND_ROLE_MAP[c.role] || "أسطورة") : (ROLE_LABELS_MAP[c.role] || "لاعب"),
+          description: c.description || "",
+          team: c.team || "",
+          avatar: c.avatar || "⚽",
+        }));
+      }
+    }
+  } catch {}
+  
+  if (pool.length === 0) {
+    // Fallback to hardcoded pool if admin pool empty
+    pool = INITIAL_PLAYER_CARDS.map((card, idx) => ({
+      ...card,
+      id: `play_${idx}_${Math.random().toString(36).substr(2, 9)}`,
+      type: "player" as const
+    } as PlayerCard));
+  }
+
+  return generateUniqueDecks(pool, legendRatio);
+}
+

@@ -97,6 +97,7 @@ export default function TacticalPitch({
     const isSelected = phase === "attacking" && currentAttackerIdx === idx;
     const isSpent = !!slot.spent;
     const isActiveInPlay = !!slot.revealedInAttack;
+    const isOpponentCardRevealed = !!(slot.revealedInAttack || slot.spent || (slot as any).revealedByAbility);
     
     return (
       <div key={`ai_pitch_${idx}`} className={`flex flex-col items-center gap-1 w-full ${isMobile ? 'max-w-[75px] xs:max-w-[85px] sm:max-w-[100px]' : 'max-w-[120px]'}`} id={`ai_slot_pos_${idx}`}>
@@ -120,10 +121,10 @@ export default function TacticalPitch({
             <div className="relative w-full h-full">
               <GameCard
                 card={slot.card}
-                isRevealed={slot.isRevealed}
+                isRevealed={isOpponentCardRevealed}
                 size="pitch"
                 disabled={!selectable}
-                onInspect={() => slot.isRevealed && onInspectCard && onInspectCard(slot.card)}
+                onInspect={() => isOpponentCardRevealed && onInspectCard && onInspectCard(slot.card)}
                 isActive={isActiveInPlay}
                 activeColor="rose"
                 className={`${isSelected ? "border-rose-500 ring-4 ring-rose-500/30" : ""} ${isSpent ? "pointer-events-none" : ""}`}
@@ -147,11 +148,11 @@ export default function TacticalPitch({
             <div className={`absolute -top-1.5 -left-1.5 px-1 py-0.5 rounded text-[7px] font-bold shadow-md z-20 ${
               isSpent
                 ? "bg-slate-700 text-slate-400 border border-slate-600"
-                : (slot.isRevealed 
+                : (isOpponentCardRevealed 
                     ? "bg-amber-500 text-black border border-amber-300/30" 
                     : "bg-[#1a1c1a] text-[#e0e0e0]/70 border border-white/5")
             }`}>
-              {isSpent ? "مستهلك" : (slot.isRevealed ? "مكشوف" : "مخفي")}
+              {isSpent ? "مستهلك" : (isOpponentCardRevealed ? "مكشوف" : "مخفي")}
             </div>
           )}
         </div>
