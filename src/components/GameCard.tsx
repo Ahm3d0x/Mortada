@@ -21,7 +21,7 @@ interface GameCardProps {
   className?: string;
   onInspect?: () => void;
   isActive?: boolean;
-  activeColor?: "emerald" | "rose";
+  activeColor?: "emerald" | "rose" | "attack" | "defense";
 }
 
 const getShortRole = (role: string) => {
@@ -173,15 +173,25 @@ export default function GameCard({
             height: "100%",
             transform: "rotateY(180deg)"
           }}
-          className={`rounded-2xl overflow-hidden select-none w-full h-full shadow-lg transition-all ${
+          className={`${hasImage ? "" : "rounded-2xl overflow-hidden shadow-lg"} select-none w-full h-full transition-all ${
             isActive
-              ? activeColor === "rose"
+              ? activeColor === "attack"
+                ? hasImage
+                  ? "animate-attack-glow"
+                  : "ring-4 ring-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.7)] border-red-400 animate-pulse"
+                : activeColor === "defense"
+                ? hasImage
+                  ? "animate-defense-glow"
+                  : "ring-4 ring-blue-500/80 shadow-[0_0_20px_rgba(59,130,246,0.7)] border-blue-400 animate-pulse"
+                : activeColor === "rose"
                 ? "ring-4 ring-rose-500/80 shadow-[0_0_20px_rgba(244,63,94,0.7)] border-rose-400 animate-pulse"
                 : "ring-4 ring-emerald-500/80 shadow-[0_0_20px_rgba(16,185,129,0.7)] border-emerald-400 animate-pulse"
               : ""
           } ${
             isSelected
-              ? "ring-4 ring-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)]"
+              ? hasImage
+                ? "filter drop-shadow-[0_0_12px_rgba(245,158,11,0.9)]"
+                : "ring-4 ring-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)]"
               : ""
           } ${disabled ? "opacity-70 cursor-not-allowed" : ""}`}
         >
@@ -200,23 +210,33 @@ export default function GameCard({
             height: "100%",
             transform: "rotateY(0deg)"
           }}
-          className={`rounded-2xl overflow-hidden select-none flex flex-col justify-between ${getPaddingClasses()} ${
+          className={`${hasImage ? "" : "rounded-2xl overflow-hidden border border-white/5 shadow-xl"} select-none flex flex-col justify-between ${getPaddingClasses()} ${
             hasImage
-              ? "border-none bg-transparent shadow-none"
+              ? "bg-transparent shadow-none"
               : isLegend
-              ? "border border-amber-500/35 bg-gradient-to-br from-[#241d11] via-[#0f0e0b] to-black text-[#e0e0e0] shadow-[0_5px_15px_rgba(245,158,11,0.18)]"
+              ? "border-amber-500/35 bg-gradient-to-br from-[#241d11] via-[#0f0e0b] to-black text-[#e0e0e0] shadow-[0_5px_15px_rgba(245,158,11,0.18)]"
               : isSpecial
-              ? "border border-teal-500/20 bg-gradient-to-br from-[#0b1b19] via-[#090e0c] to-black text-teal-100 shadow-[0_5px_15px_rgba(20,184,166,0.18)]"
-              : "border border-white/5 bg-gradient-to-b from-[#131413] to-black text-[#e0e0e0] shadow-xl"
+              ? "border-teal-500/20 bg-gradient-to-br from-[#0b1b19] via-[#090e0c] to-black text-teal-100 shadow-[0_5px_15px_rgba(20,184,166,0.18)]"
+              : "bg-gradient-to-b from-[#131413] to-black text-[#e0e0e0]"
           } ${
             isActive
-              ? activeColor === "rose"
+              ? activeColor === "attack"
+                ? hasImage
+                  ? "animate-attack-glow z-45"
+                  : "ring-4 ring-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.7)] border-red-400 z-45 animate-pulse"
+                : activeColor === "defense"
+                ? hasImage
+                  ? "animate-defense-glow z-45"
+                  : "ring-4 ring-blue-500/80 shadow-[0_0_20px_rgba(59,130,246,0.7)] border-blue-400 z-45 animate-pulse"
+                : activeColor === "rose"
                 ? "ring-4 ring-rose-500/80 shadow-[0_0_20px_rgba(244,63,94,0.7)] border-rose-400 z-45 animate-pulse"
                 : "ring-4 ring-emerald-500/80 shadow-[0_0_20px_rgba(16,185,129,0.7)] border-emerald-400 z-45 animate-pulse"
               : ""
           } ${
             isSelected
-              ? "ring-4 ring-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)]"
+              ? hasImage
+                ? "filter drop-shadow-[0_0_12px_rgba(245,158,11,0.9)]"
+                : "ring-4 ring-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)]"
               : ""
           } ${
             isBurning
@@ -226,7 +246,7 @@ export default function GameCard({
         >
           {/* Status Overlay Indicators */}
           {isFrozen && (
-            <div className="absolute inset-0 bg-blue-500/25 backdrop-blur-[1px] flex flex-col items-center justify-center z-30 rounded-2xl border border-blue-400/40">
+            <div className={`absolute inset-0 bg-blue-500/25 backdrop-blur-[1px] flex flex-col items-center justify-center z-30 ${hasImage ? "" : "rounded-2xl"} border border-blue-400/40`}>
               <span className="text-2xl animate-pulse">❄️</span>
               {size !== "sm" && size !== "pitch" && (
                 <span className="text-[10px] text-blue-200 mt-1 font-bold">مجمد</span>
@@ -235,7 +255,7 @@ export default function GameCard({
           )}
 
           {isStunned && (
-            <div className="absolute inset-0 bg-amber-500/20 backdrop-blur-[0.5px] flex flex-col items-center justify-center z-30 rounded-2xl border border-amber-400/30">
+            <div className={`absolute inset-0 bg-amber-500/20 backdrop-blur-[0.5px] flex flex-col items-center justify-center z-30 ${hasImage ? "" : "rounded-2xl"} border border-amber-400/30`}>
               <span className="text-2xl animate-spin" style={{ animationDuration: '4s' }}>💫</span>
               {size !== "sm" && size !== "pitch" && (
                 <span className="text-[10px] text-amber-200 mt-1 font-bold">مصدوم</span>
@@ -244,13 +264,14 @@ export default function GameCard({
           )}
 
           {isSilenced && (
-            <div className="absolute inset-0 bg-red-500/15 backdrop-blur-[0.5px] flex flex-col items-center justify-center z-30 rounded-2xl border border-red-400/35">
+            <div className={`absolute inset-0 bg-red-500/15 backdrop-blur-[0.5px] flex flex-col items-center justify-center z-30 ${hasImage ? "" : "rounded-2xl"} border border-red-400/35`}>
               <span className="text-2xl animate-bounce">🔇</span>
               {size !== "sm" && size !== "pitch" && (
                 <span className="text-[10px] text-red-200 mt-1 font-bold font-sans">صامت</span>
               )}
             </div>
           )}
+
 
           {/* If there's a card image URL, render the full-size image as the card's front face */}
           {hasImage ? (

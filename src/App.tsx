@@ -134,24 +134,25 @@ const renderDetailedLog = (log: { id: string; timestamp: string; text: string; t
   return (
     <div 
       key={log.id} 
-      className="bg-black/60 border border-white/10 rounded-lg p-2.5 flex flex-col gap-2 text-right text-[9.5px] font-sans text-slate-200 shadow-inner"
+      className="bg-black/60 border border-white/10 rounded-lg p-1.5 flex flex-col gap-1.5 text-right text-[8.5px] font-sans text-slate-200 shadow-inner"
       dir="rtl"
     >
-      {/* Stadium & Time */}
-      <div className="flex items-center justify-between text-[8px] text-slate-400 border-b border-white/5 pb-1">
-        <span>⏱️ {log.timestamp}</span>
-        {parsed.stadium && <span className="text-teal-400 font-bold">{parsed.stadium}</span>}
-      </div>
+      {/* Stadium Info */}
+      {parsed.stadium && (
+        <div className="flex items-center justify-end text-[7.5px] text-slate-400 border-b border-white/5 pb-0.5">
+          <span className="text-teal-400 font-bold">{parsed.stadium}</span>
+        </div>
+      )}
 
       {/* Commentary Title & Description */}
       <div className="flex flex-col gap-0.5">
-        {parsed.title && <div className="font-extrabold text-white text-[10.5px]">{parsed.title}</div>}
-        {parsed.description && <div className="text-slate-400 italic font-medium">{parsed.description}</div>}
+        {parsed.title && <div className="font-extrabold text-white text-[9.5px]">{parsed.title}</div>}
+        {parsed.description && <div className="text-slate-400 italic font-medium text-[8px]">{parsed.description}</div>}
       </div>
 
       {/* Status banner */}
       {parsed.statusText && (
-        <div className={`p-1.5 rounded text-[10px] font-bold leading-normal ${
+        <div className={`p-1 rounded text-[9px] font-bold leading-normal ${
           isGoal ? "bg-emerald-950/50 text-emerald-300 border border-emerald-500/20" : "bg-blue-950/50 text-blue-300 border border-blue-500/20"
         }`}>
           👉 {parsed.statusText}
@@ -159,24 +160,23 @@ const renderDetailedLog = (log: { id: string; timestamp: string; text: string; t
       )}
 
       {/* Versus Comparison Bar */}
-      <div className="grid grid-cols-2 gap-1.5 bg-black/35 p-1 rounded border border-white/5 text-[9px] font-bold text-center">
-        <div className="flex items-center justify-center gap-1.5 border-l border-white/5">
+      <div className="grid grid-cols-2 gap-1 bg-black/35 p-0.5 rounded border border-white/5 text-[8px] font-bold text-center">
+        <div className="flex items-center justify-center gap-1 border-l border-white/5">
           <span className="text-red-400">⚔️ الهجوم:</span>
-          <span className="font-mono text-[10px] text-white bg-red-950 px-1.5 rounded font-black">{parsed.attackVal}</span>
+          <span className="font-mono text-[9px] text-white bg-red-950 px-1 rounded font-black">{parsed.attackVal}</span>
         </div>
-        <div className="flex items-center justify-center gap-1.5">
+        <div className="flex items-center justify-center gap-1">
           <span className="text-blue-400">🛡️ الدفاع:</span>
-          <span className="font-mono text-[10px] text-white bg-blue-950 px-1.5 rounded font-black">{parsed.defenseVal}</span>
+          <span className="font-mono text-[9px] text-white bg-blue-950 px-1 rounded font-black">{parsed.defenseVal}</span>
         </div>
       </div>
 
       {/* Technical Breakdown */}
-      <div className="flex flex-col gap-1.5 border-t border-white/5 pt-1.5">
-        
+      <div className="flex flex-col gap-1 border-t border-white/5 pt-1">
         {/* Attack detail */}
         {parsed.attackBreakdown.length > 0 && (
-          <div className="flex flex-col gap-1 bg-red-950/10 p-1.5 rounded border border-red-500/10">
-            <span className="text-[8.5px] text-red-300 font-bold mb-0.5 border-b border-red-500/10 pb-0.5 text-right">⚔️ تفاصيل الهجوم:</span>
+          <div className="flex flex-col gap-0.5 bg-red-950/10 p-1 rounded border border-red-500/10">
+            <span className="text-[8px] text-red-300 font-bold mb-0.5 border-b border-red-500/10 pb-0.5 text-right">⚔️ تفاصيل الهجوم:</span>
             {parsed.attackBreakdown.map((line, i) => {
               const clean = line.replace(/^[●\s\-]+/, "").trim();
               if (!clean) return null;
@@ -185,14 +185,14 @@ const renderDetailedLog = (log: { id: string; timestamp: string; text: string; t
                 const name = clean.replace(/\(\d+\)/, "").trim();
                 const score = clean.match(/\(\d+\)/)?.[0].replace(/[()]/g, "") || "0";
                 return (
-                  <div key={i} className="flex items-center justify-between text-[9px]" dir="ltr">
-                    <span className="text-slate-300 font-medium">{name}</span>
-                    <span className="font-mono text-[9px] text-red-400 bg-red-950/50 px-1 rounded font-black">+{score}</span>
+                  <div key={i} className="flex items-center justify-between text-[8px]" dir="ltr">
+                    <span className="text-slate-350 font-medium">{name}</span>
+                    <span className="font-mono text-[8px] text-red-400 bg-red-950/50 px-1 rounded font-black">+{score}</span>
                   </div>
                 );
               }
               return (
-                <div key={i} className="text-right text-[8.5px] text-amber-200/90 leading-normal" dir="rtl">
+                <div key={i} className="text-right text-[8px] text-amber-200/90 leading-normal" dir="rtl">
                   {clean}
                 </div>
               );
@@ -202,8 +202,8 @@ const renderDetailedLog = (log: { id: string; timestamp: string; text: string; t
 
         {/* Defense detail */}
         {parsed.defenseBreakdown.length > 0 && (
-          <div className="flex flex-col gap-1 bg-blue-950/10 p-1.5 rounded border border-blue-500/10">
-            <span className="text-[8.5px] text-blue-300 font-bold mb-0.5 border-b border-blue-500/10 pb-0.5 text-right">🛡️ تفاصيل الدفاع:</span>
+          <div className="flex flex-col gap-0.5 bg-blue-950/10 p-1 rounded border border-blue-500/10">
+            <span className="text-[8px] text-blue-300 font-bold mb-0.5 border-b border-blue-500/10 pb-0.5 text-right">🛡️ تفاصيل الدفاع:</span>
             {parsed.defenseBreakdown.map((line, i) => {
               const clean = line.replace(/^[●\s\-]+/, "").trim();
               if (!clean) return null;
@@ -212,14 +212,14 @@ const renderDetailedLog = (log: { id: string; timestamp: string; text: string; t
                 const name = clean.replace(/\(\d+\)/, "").trim();
                 const score = clean.match(/\(\d+\)/)?.[0].replace(/[()]/g, "") || "0";
                 return (
-                  <div key={i} className="flex items-center justify-between text-[9px]" dir="ltr">
-                    <span className="text-slate-300 font-medium">{name}</span>
-                    <span className="font-mono text-[9px] text-blue-400 bg-blue-950/50 px-1 rounded font-black">+{score}</span>
+                  <div key={i} className="flex items-center justify-between text-[8px]" dir="ltr">
+                    <span className="text-slate-350 font-medium">{name}</span>
+                    <span className="font-mono text-[8px] text-blue-400 bg-blue-950/50 px-1 rounded font-black">+{score}</span>
                   </div>
                 );
               }
               return (
-                <div key={i} className="text-right text-[8.5px] text-amber-200/90 leading-normal" dir="rtl">
+                <div key={i} className="text-right text-[8px] text-amber-200/90 leading-normal" dir="rtl">
                   {clean}
                 </div>
               );
@@ -236,6 +236,41 @@ const renderDetailedLog = (log: { id: string; timestamp: string; text: string; t
       )}
     </div>
   );
+};
+
+const groupLogsByTurns = (logsList: any[]) => {
+  const groups: { title: string; type: "player" | "ai" | "system"; logs: any[] }[] = [];
+  let currentGroup: { title: string; type: "player" | "ai" | "system"; logs: any[] } | null = null;
+
+  logsList.forEach((log) => {
+    const text = log.text;
+    
+    // Check if this log marks a turn transition
+    const isPlayerTurnStart = text.includes("عدنا لدورك") || text.includes("متابعة دور الماتش");
+    const isAiTurnStart = text.includes("ينتقل دور التوجيه واللعب للخصم");
+    const isWarmupOrKickoff = text.includes("صافرة ركلة البداية") || text.includes("مرحلة التسخين");
+
+    if (isPlayerTurnStart) {
+      const turnMatch = text.match(/الدور\s*(\d+)/);
+      const title = turnMatch ? `الدور التكتيكي الخاص بك (الدور ${turnMatch[1]})` : "دورتك التكتيكية الجديدة";
+      currentGroup = { title, type: "player", logs: [log] };
+      groups.push(currentGroup);
+    } else if (isAiTurnStart) {
+      currentGroup = { title: "دور المدرب الغريم (تكتيك روبوت)", type: "ai", logs: [log] };
+      groups.push(currentGroup);
+    } else if (isWarmupOrKickoff) {
+      currentGroup = { title: "بداية اللقاء والتسخين", type: "system", logs: [log] };
+      groups.push(currentGroup);
+    } else {
+      if (!currentGroup) {
+        currentGroup = { title: "بداية اللعب", type: "system", logs: [] };
+        groups.push(currentGroup);
+      }
+      currentGroup.logs.push(log);
+    }
+  });
+
+  return groups;
 };
 
 const getFormattedTime = () => {
@@ -4550,24 +4585,73 @@ export default function App() {
                       <span>جرى التحضير... ابدأ بتحريك خطوطك! 🏃‍♂️</span>
                     </div>
                   ) : (
-                    logs.map((log) => {
-                      const isDetailed = log.text.includes("تفاصيل الحسبة الفنية:");
-                      if (isDetailed) {
-                        return renderDetailedLog(log);
+                    groupLogsByTurns(logs).map((group, groupIdx) => {
+                      let borderClass = "border-blue-500/15";
+                      let bgClass = "bg-linear-to-b from-blue-950/10 to-[#050a06]";
+                      let badgeColor = "bg-blue-500/5 text-blue-400 border-blue-500/15";
+                      let badgeText = "مباراة";
+                      let titleColor = "text-blue-400";
+                      
+                      if (group.type === "player") {
+                        borderClass = "border-emerald-500/20";
+                        bgClass = "bg-linear-to-b from-emerald-950/15 to-[#050a06]";
+                        badgeColor = "bg-emerald-500/5 text-emerald-400 border-emerald-500/15";
+                        badgeText = "دورك";
+                        titleColor = "text-emerald-400";
+                      } else if (group.type === "ai") {
+                        borderClass = "border-rose-500/15";
+                        bgClass = "bg-linear-to-b from-rose-950/10 to-[#050a06]";
+                        badgeColor = "bg-rose-500/5 text-rose-400 border-rose-500/15";
+                        badgeText = "الخصم";
+                        titleColor = "text-rose-400";
                       }
                       
-                      const isDanger = log.type === "danger";
-                      const isSuccess = log.type === "success";
-                      const isWarning = log.type === "warning";
-                      let colorClass = "text-white/70";
-                      if (isDanger) colorClass = "text-[#ff4c4c]";
-                      else if (isSuccess) colorClass = "text-[#00ff77] font-semibold";
-                      else if (isWarning) colorClass = "text-amber-400";
+                      const groupTime = group.logs[0]?.timestamp || "";
                       
                       return (
-                        <div key={log.id} className="text-[9px] leading-snug border-b border-white/5 pb-0.5 flex items-start gap-1 justify-end font-sans">
-                          <span className={`${colorClass} flex-1 text-right whitespace-pre-line`}>{log.text}</span>
-                          <span className="text-emerald-500/60 font-black shrink-0">-</span>
+                        <div 
+                          key={`commentary-group-${groupIdx}`} 
+                          className={`border ${borderClass} ${bgClass} rounded-lg p-1 px-1.5 flex flex-col gap-1 transition-all mb-1.5`}
+                        >
+                          {/* Group Header */}
+                          <div className="flex items-center justify-between flex-row-reverse border-b border-white/5 pb-0.5 text-[8px] font-bold">
+                            <span className={`${titleColor}`}>{group.title}</span>
+                            <div className="flex items-center gap-1 flex-row">
+                              {groupTime && (
+                                <span className="text-slate-400 font-mono text-[7px] bg-white/5 px-1 py-0.2 rounded border border-white/5">
+                                  ⏱ {groupTime}
+                                </span>
+                              )}
+                              <span className={`px-1 py-0.2 rounded text-[7px] border font-sans font-black ${badgeColor}`}>
+                                {badgeText}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Group Logs */}
+                          <div className="flex flex-col gap-0.5">
+                            {group.logs.map((log) => {
+                              const isDetailed = log.text.includes("تفاصيل الحسبة الفنية:");
+                              if (isDetailed) {
+                                return renderDetailedLog(log);
+                              }
+                              
+                              const isDanger = log.type === "danger";
+                              const isSuccess = log.type === "success";
+                              const isWarning = log.type === "warning";
+                              let colorClass = "text-white/70";
+                              if (isDanger) colorClass = "text-[#ff6b6b]";
+                              else if (isSuccess) colorClass = "text-[#00ff88] font-semibold";
+                              else if (isWarning) colorClass = "text-amber-400";
+                              
+                              return (
+                                <div key={log.id} className="text-[8.5px] leading-snug border-b border-white/5 last:border-0 pb-0.5 last:pb-0 flex items-start gap-1 justify-end font-sans">
+                                  <span className={`${colorClass} flex-1 text-right whitespace-pre-line`}>{log.text}</span>
+                                  <span className="text-emerald-500/40 shrink-0 self-center text-[7px]">•</span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })
@@ -4705,21 +4789,33 @@ export default function App() {
                     const isSelectable = isSlotSelectable(idx, true);
                     const isChosenToAttack = currentAttackerIdx === idx && phase !== "player_turn";
                     const isSpent = slot.spent;
-                    const isActiveInAttack = slot.card && slot.revealedInAttack;
+                    const isActiveInAttack = !!(slot.card && slot.revealedInAttack);
                     const isOpponentCardRevealed = !!(slot.revealedInAttack || slot.spent || (slot as any).revealedByAbility);
+                    const hasImage = slot.card ? !!((slot.card as any).imageUrl || (slot.card as any).image_url || (slot.card as any).image) : false;
+
+                    const isAttacker = phase === "ai_attacking";
+                    const isDefender = phase === "attacking";
                     
+                    const activeTransformClass = isActiveInAttack
+                      ? isAttacker
+                        ? "translate-y-16 scale-110 z-40"
+                        : "translate-y-10 scale-105 z-30"
+                      : "";
+
+                    const activeCardColor = isAttacker ? "attack" : "defense";
+
                     return (
                       <div 
                         key={`ai-pitch-slot-${idx}`}
-                        className={`relative rounded-2xl overflow-hidden aspect-[2/3] ${isRotated ? 'max-h-[30vw] max-w-[20vw]' : 'max-h-[28vh] md:max-h-[30vh] max-w-[18.6vh] md:max-w-[20vh]'} w-full mx-auto transition-all flex flex-col justify-between ${
-                          isSelectable 
-                            ? "ring-2 ring-rose-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103" 
-                            : ""
+                        className={`relative aspect-[2/3] ${isRotated ? 'max-h-[30vw] max-w-[20vw]' : 'max-h-[28vh] md:max-h-[30vh] max-w-[18.6vh] md:max-w-[20vh]'} w-full mx-auto transition-all flex flex-col justify-between ${
+                          slot.card && hasImage ? "" : "rounded-2xl overflow-hidden"
                         } ${
-                          isActiveInAttack 
-                            ? "ring-4 ring-rose-500 ring-offset-1 ring-offset-black shadow-[0_0_15px_rgba(244,63,94,0.65)] scale-[1.02] border-rose-400 z-10" 
+                          isSelectable 
+                            ? slot.card
+                              ? "cursor-pointer filter drop-shadow-[0_0_8px_rgba(239,68,68,0.7)]"
+                              : "ring-2 ring-rose-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103" 
                             : ""
-                        }`}
+                        } ${activeTransformClass}`}
                       >
                         {slot.card ? (
                           <div 
@@ -4730,8 +4826,24 @@ export default function App() {
                               card={slot.card}
                               isRevealed={isOpponentCardRevealed}
                               size="pitch"
+                              isActive={isActiveInAttack}
+                              activeColor={activeCardColor}
                               onInspect={() => setInspectedCard(slot.card)}
+                              className={`${isSpent ? "pointer-events-none" : ""}`}
                             />
+                            
+                            {/* Active attack/defense tactical badge */}
+                            {isActiveInAttack && (
+                              <div className={`absolute -bottom-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider shadow-lg z-30 flex items-center gap-0.5 animate-bounce ${
+                                isAttacker 
+                                  ? "bg-red-650 text-white border border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.7)]" 
+                                  : "bg-blue-650 text-white border border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.7)]"
+                              }`}>
+                                <span>{isAttacker ? "🔥" : "🛡️"}</span>
+                                <span>{isAttacker ? "هجوم" : "دفاع"}</span>
+                              </div>
+                            )}
+
                             {isSpent && (
                               <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-2xl pointer-events-none z-20">
                                 <span className="text-[8px] text-yellow-500 font-extrabold uppercase bg-black/85 px-1 py-0.2 rounded border border-yellow-500/20">منتهي</span>
@@ -4755,6 +4867,7 @@ export default function App() {
                             <span className="text-[7px] font-bold text-white/15 tracking-wider">شاغر</span>
                           </div>
                         )}
+
 
                         {/* Chosen Attacker Marker glow */}
                         {isChosenToAttack && (
@@ -5001,15 +5114,38 @@ export default function App() {
                     const isSelectable = isSlotSelectable(idx, false);
                     const isSelected = selectedPitchSlotIdx === idx;
                     const isSpent = slot.spent;
+                    const isActiveInAttack = !!(slot.card && slot.revealedInAttack);
+                    const hasImage = slot.card ? !!((slot.card as any).imageUrl || (slot.card as any).image_url || (slot.card as any).image) : false;
+
+                    const isAttacker = phase === "attacking";
+                    const isDefender = phase === "ai_attacking";
                     
+                    const activeTransformClass = isActiveInAttack
+                      ? isAttacker
+                        ? "-translate-y-16 scale-110 z-40"
+                        : "-translate-y-10 scale-105 z-30"
+                      : "";
+
+                    const activeCardColor = isAttacker ? "attack" : "defense";
+
                     return (
                       <div 
                         key={`player-pitch-slot-${idx}`}
-                        className={`relative rounded-2xl overflow-hidden aspect-[2/3] ${isRotated ? 'max-h-[30vw] max-w-[20vw]' : 'max-h-[28vh] md:max-h-[30vh] max-w-[18.6vh] md:max-w-[20vh]'} w-full mx-auto transition-all flex flex-col justify-between ${
+                        className={`relative aspect-[2/3] ${isRotated ? 'max-h-[30vw] max-w-[20vw]' : 'max-h-[28vh] md:max-h-[30vh] max-w-[18.6vh] md:max-w-[20vh]'} w-full mx-auto transition-all flex flex-col justify-between ${
+                          slot.card && hasImage ? "" : "rounded-2xl overflow-hidden"
+                        } ${
                           isSelectable 
-                            ? "ring-2 ring-emerald-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103 animate-pulse" 
+                            ? slot.card
+                              ? "cursor-pointer filter drop-shadow-[0_0_8px_rgba(16,185,129,0.7)]"
+                              : "ring-2 ring-emerald-400 ring-offset-1 ring-offset-black cursor-pointer hover:scale-103 animate-pulse" 
                             : ""
-                        } ${isSelected ? "ring-2 ring-amber-400 ring-offset-1 ring-offset-black scale-102" : ""}`}
+                        } ${
+                          isSelected 
+                            ? slot.card
+                              ? "filter drop-shadow-[0_0_10px_rgba(245,158,11,0.85)] scale-[1.02]"
+                              : "ring-2 ring-amber-400 ring-offset-1 ring-offset-black scale-102" 
+                            : ""
+                        } ${activeTransformClass}`}
                       >
                         {slot.card ? (
                           <div className="relative w-full h-full cursor-pointer" onClick={() => activeTargetingCard ? (isSelectable && handleSelectPitchSlot(idx, false)) : handleSelectPitchSlot(idx, false)}>
@@ -5017,10 +5153,27 @@ export default function App() {
                               card={slot.card}
                               isRevealed={true}
                               size="pitch"
+                              isSelected={isSelected}
+                              isActive={isActiveInAttack}
+                              activeColor={activeCardColor}
                               onInspect={() => setInspectedCard(slot.card)}
+                              className={`${isSpent ? "pointer-events-none" : ""}`}
                             />
+                            
+                            {/* Active attack/defense tactical badge */}
+                            {isActiveInAttack && (
+                              <div className={`absolute -bottom-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider shadow-lg z-30 flex items-center gap-0.5 animate-bounce ${
+                                isAttacker 
+                                  ? "bg-red-650 text-white border border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.7)]" 
+                                  : "bg-blue-650 text-white border border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.7)]"
+                              }`}>
+                                <span>{isAttacker ? "🔥" : "🛡️"}</span>
+                                <span>{isAttacker ? "هجوم" : "دفاع"}</span>
+                              </div>
+                            )}
+
                             {isSpent && (
-                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-2xl pointer-events-none">
+                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-2xl pointer-events-none z-20">
                                 <span className="text-[8px] text-yellow-500 font-extrabold uppercase bg-black/85 px-1 py-0.2 rounded border border-yellow-500/20">منتهي</span>
                               </div>
                             )}
@@ -5039,6 +5192,7 @@ export default function App() {
                     );
                   })}
                 </div>
+
               </div>
 
               {/* Player lineup and slots loaded dynamically */}

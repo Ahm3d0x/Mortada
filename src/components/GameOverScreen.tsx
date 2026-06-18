@@ -73,6 +73,236 @@ const formatNameWithTitle = (name: string, defaultTitle: string = "الكابت�
   return `${defaultTitle} ${trimmed}`;
 };
 
+// Structured log parser for Goal & Block calculation details
+const parseDetailedLog = (text: string) => {
+  const lines = text.split("\n").map(l => l.trim());
+  
+  // Stadium line starts with 🏟️
+  const stadium = lines.find(l => l.startsWith("🏟️")) || "";
+  
+  // Title starts with ⚽️ or 🛡️
+  const title = lines.find(l => l.startsWith("⚽️") || l.startsWith("🛡️") || l.startsWith("🚫")) || "";
+  
+  // Status line starts with 👉
+  const statusLine = lines.find(l => l.startsWith("👉")) || "";
+  const statusText = statusLine.replace("👉", "").trim();
+  
+  // Find total values
+  const attackTotalLine = lines.find(l => l.includes("قوة الهجوم الإجمالية")) || "";
+  const defenseTotalLine = lines.find(l => l.includes("قوة الدفاع الإجمالية")) || "";
+  
+  // Extract numbers from totals
+  const attackVal = attackTotalLine.match(/\d+/)?.[0] || "0";
+  const defenseVal = defenseTotalLine.match(/\d+/)?.[0] || "0";
+  
+  // Extract breakdown sections
+  let attackBreakdown: string[] = [];
+  let defenseBreakdown: string[] = [];
+  
+  let currentSection: "none" | "attack" | "defense" = "none";
+  
+  for (const line of lines) {
+    if (line.includes("[قوة الهجوم ⚔️]:")) {
+      currentSection = "attack";
+      continue;
+    }
+    if (line.includes("[قوة الدفاع 🛡️]:")) {
+      currentSection = "defense";
+      continue;
+    }
+    if (line.startsWith("----------------") && currentSection === "defense") {
+      currentSection = "none";
+      continue;
+    }
+    
+    if (currentSection === "attack") {
+      if (line && !line.startsWith("----------------") && !line.includes("[قوة")) {
+        attackBreakdown.push(line.replace(/^●\s*/, "").trim());
+      }
+    } else if (currentSection === "defense") {
+      if (line && !line.startsWith("----------------") && !line.includes("[قوة")) {
+        defenseBreakdown.push(line.replace(/^●\s*/, "").trim());
+      }
+    }
+  }
+  
+  const scoreLine = lines.find(l => l.startsWith("🏆") || l.startsWith("🚫") || l.includes("النتيجة")) || "";
+  
+  // Find atmospheric description
+  const description = lines.find(l => 
+    l && 
+    !l.startsWith("🏟️") && 
+    !l.startsWith("⚽️") && 
+    !l.startsWith("🛡️") && 
+    !l.startsWith("👉") && 
+    !l.startsWith("---") && 
+    !l.includes("الإجمالية") && 
+    !l.includes("تفاصيل") && 
+    !l.includes("[قوة") && 
+    !l.startsWith("●") && 
+    !l.startsWith("🏆") && 
+    !l.startsWith("🚫")
+  ) || "";
+
+  return {
+    stadium,
+    title,
+    description,
+    statusText,
+    attackVal,
+    defenseVal,
+    attackBreakdown,
+    defenseBreakdown,
+    scoreText: scoreLine.replace(/🏆|🚫/, "").trim()
+  };
+};
+
+const renderDetailedLog = (log: ActionLog) => {
+  const parsed = parseDetailedLog(log.text);
+  const isGoal = log.text.includes("⚽️") || log.text.includes("جــوووول");
+  
+  return (
+    <div 
+      key={log.id} 
+      className="bg-black/60 border border-white/10 rounded-lg p-1.5 flex flex-col gap-1.5 text-right text-[8.5px] font-sans text-slate-200 shadow-inner"
+      dir="rtl"
+    >
+      {/* Stadium Info */}
+      {parsed.stadium && (
+        <div className="flex items-center justify-end text-[7.5px] text-slate-400 border-b border-white/5 pb-0.5">
+          <span className="text-teal-400 font-bold">{parsed.stadium}</span>
+        </div>
+      )}
+
+      {/* Commentary Title & Description */}
+      <div className="flex flex-col gap-0.5">
+        {parsed.title && <div className="font-extrabold text-white text-[9.5px]">{parsed.title}</div>}
+        {parsed.description && <div className="text-slate-400 italic font-medium text-[8px]">{parsed.description}</div>}
+      </div>
+
+      {/* Status banner */}
+      {parsed.statusText && (
+        <div className={`p-1 rounded text-[9px] font-bold leading-normal ${
+          isGoal ? "bg-emerald-950/50 text-emerald-300 border border-emerald-500/20" : "bg-blue-950/50 text-blue-300 border border-blue-500/20"
+        }`}>
+          👉 {parsed.statusText}
+        </div>
+      )}
+
+      {/* Versus Comparison Bar */}
+      <div className="grid grid-cols-2 gap-1 bg-black/35 p-0.5 rounded border border-white/5 text-[8px] font-bold text-center">
+        <div className="flex items-center justify-center gap-1 border-l border-white/5">
+          <span className="text-red-400">⚔️ الهجوم:</span>
+          <span className="font-mono text-[9px] text-white bg-red-950 px-1 rounded font-black">{parsed.attackVal}</span>
+        </div>
+        <div className="flex items-center justify-center gap-1">
+          <span className="text-blue-400">🛡️ الدفاع:</span>
+          <span className="font-mono text-[9px] text-white bg-blue-950 px-1 rounded font-black">{parsed.defenseVal}</span>
+        </div>
+      </div>
+
+      {/* Technical Breakdown */}
+      <div className="flex flex-col gap-1 border-t border-white/5 pt-1">
+        {/* Attack detail */}
+        {parsed.attackBreakdown.length > 0 && (
+          <div className="flex flex-col gap-0.5 bg-red-950/10 p-1 rounded border border-red-500/10">
+            <span className="text-[8px] text-red-300 font-bold mb-0.5 border-b border-red-500/10 pb-0.5 text-right">⚔️ تفاصيل الهجوم:</span>
+            {parsed.attackBreakdown.map((line, i) => {
+              const clean = line.replace(/^[●\s\-]+/, "").trim();
+              if (!clean) return null;
+              const isPlayer = /^[a-zA-Z].*?\(\d+\)/.test(clean);
+              if (isPlayer) {
+                const name = clean.replace(/\(\d+\)/, "").trim();
+                const score = clean.match(/\(\d+\)/)?.[0].replace(/[()]/g, "") || "0";
+                return (
+                  <div key={i} className="flex items-center justify-between text-[8px]" dir="ltr">
+                    <span className="text-slate-350 font-medium">{name}</span>
+                    <span className="font-mono text-[8px] text-red-400 bg-red-950/50 px-1 rounded font-black">+{score}</span>
+                  </div>
+                );
+              }
+              return (
+                <div key={i} className="text-right text-[8px] text-amber-200/90 leading-normal" dir="rtl">
+                  {clean}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Defense detail */}
+        {parsed.defenseBreakdown.length > 0 && (
+          <div className="flex flex-col gap-0.5 bg-blue-950/10 p-1 rounded border border-blue-500/10">
+            <span className="text-[8px] text-blue-300 font-bold mb-0.5 border-b border-blue-500/10 pb-0.5 text-right">🛡️ تفاصيل الدفاع:</span>
+            {parsed.defenseBreakdown.map((line, i) => {
+              const clean = line.replace(/^[●\s\-]+/, "").trim();
+              if (!clean) return null;
+              const isPlayer = /^[a-zA-Z].*?\(\d+\)/.test(clean);
+              if (isPlayer) {
+                const name = clean.replace(/\(\d+\)/, "").trim();
+                const score = clean.match(/\(\d+\)/)?.[0].replace(/[()]/g, "") || "0";
+                return (
+                  <div key={i} className="flex items-center justify-between text-[8px]" dir="ltr">
+                    <span className="text-slate-350 font-medium">{name}</span>
+                    <span className="font-mono text-[8px] text-blue-400 bg-blue-950/50 px-1 rounded font-black">+{score}</span>
+                  </div>
+                );
+              }
+              return (
+                <div key={i} className="text-right text-[8px] text-amber-200/90 leading-normal" dir="rtl">
+                  {clean}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Outcome Score Banner */}
+      {parsed.scoreText && (
+        <div className="bg-amber-950/35 border border-amber-500/20 rounded p-0.5 text-center font-black text-amber-300 text-[8.5px]">
+          🏆 {parsed.scoreText}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const groupLogsByTurns = (logsList: ActionLog[]) => {
+  const groups: { title: string; type: "player" | "ai" | "system"; logs: ActionLog[] }[] = [];
+  let currentGroup: { title: string; type: "player" | "ai" | "system"; logs: ActionLog[] } | null = null;
+
+  logsList.forEach((log) => {
+    const text = log.text;
+    
+    // Check if this log marks a turn transition
+    const isPlayerTurnStart = text.includes("عدنا لدورك") || text.includes("متابعة دور الماتش");
+    const isAiTurnStart = text.includes("ينتقل دور التوجيه واللعب للخصم");
+    const isWarmupOrKickoff = text.includes("صافرة ركلة البداية") || text.includes("مرحلة التسخين");
+
+    if (isPlayerTurnStart) {
+      const turnMatch = text.match(/الدور\s*(\d+)/);
+      const title = turnMatch ? `الدور التكتيكي الخاص بك (الدور ${turnMatch[1]})` : "دورتك التكتيكية الجديدة";
+      currentGroup = { title, type: "player", logs: [log] };
+      groups.push(currentGroup);
+    } else if (isAiTurnStart) {
+      currentGroup = { title: "دور المدرب الغريم (تكتيك روبوت)", type: "ai", logs: [log] };
+      groups.push(currentGroup);
+    } else if (isWarmupOrKickoff) {
+      currentGroup = { title: "بداية اللقاء والتسخين", type: "system", logs: [log] };
+      groups.push(currentGroup);
+    } else {
+      if (!currentGroup) {
+        currentGroup = { title: "بداية اللعب", type: "system", logs: [] };
+        groups.push(currentGroup);
+      }
+      currentGroup.logs.push(log);
+    }
+  });
+
+  return groups;
+};
+
 export default function GameOverScreen({
   playerScore,
   aiScore,
@@ -491,21 +721,73 @@ export default function GameOverScreen({
                           <p className="text-xs">سجل الأحداث فارغ بالكامل.</p>
                         </div>
                       ) : (
-                        logs.map((log) => {
-                          let badgeColor = "bg-slate-950/45 text-slate-400 border-white/5";
-                          if (log.type === "success") badgeColor = "bg-emerald-950/20 text-emerald-300 border-emerald-500/10 shadow-inner";
-                          if (log.type === "danger") badgeColor = "bg-rose-950/25 text-[#fca5a5] border-rose-500/10 shadow-inner";
-                          if (log.type === "warning") badgeColor = "bg-amber-950/20 text-amber-300 border-amber-500/10 shadow-inner";
+                        groupLogsByTurns(logs).map((group, groupIdx) => {
+                          let borderClass = "border-blue-500/15";
+                          let bgClass = "bg-linear-to-b from-blue-950/10 to-black/35";
+                          let badgeColor = "bg-blue-500/5 text-blue-400 border-blue-500/15";
+                          let badgeText = "مباراة";
+                          let titleColor = "text-blue-400";
+                          
+                          if (group.type === "player") {
+                            borderClass = "border-emerald-500/20";
+                            bgClass = "bg-linear-to-b from-emerald-950/15 to-black/35";
+                            badgeColor = "bg-emerald-500/5 text-emerald-400 border-emerald-500/15";
+                            badgeText = "دورك";
+                            titleColor = "text-emerald-400";
+                          } else if (group.type === "ai") {
+                            borderClass = "border-rose-500/15";
+                            bgClass = "bg-linear-to-b from-rose-950/10 to-black/35";
+                            badgeColor = "bg-rose-500/5 text-rose-400 border-rose-500/15";
+                            badgeText = "الخصم";
+                            titleColor = "text-rose-400";
+                          }
+                          
+                          const groupTime = group.logs[0]?.timestamp || "";
                           
                           return (
-                            <div
-                              key={log.id}
-                              className={`p-2 rounded-lg border text-right text-[11px] leading-relaxed flex items-start justify-between gap-3 transition-all ${badgeColor}`}
+                            <div 
+                              key={`gameover-commentary-group-${groupIdx}`} 
+                              className={`border ${borderClass} ${bgClass} rounded-xl p-1.5 px-2 flex flex-col gap-1 transition-all mb-2`}
                             >
-                              <span className="text-[8px] font-mono text-slate-500 shrink-0 self-start mt-0.5 bg-black/35 px-1 py-0.2 rounded border border-white/5">
-                                {log.timestamp}
-                              </span>
-                              <span className="font-semibold flex-1 leading-normal">{log.text}</span>
+                              {/* Group Header */}
+                              <div className="flex items-center justify-between flex-row-reverse border-b border-white/5 pb-0.5 text-[8px] font-bold">
+                                <span className={`${titleColor}`}>{group.title}</span>
+                                <div className="flex items-center gap-1 flex-row">
+                                  {groupTime && (
+                                    <span className="text-slate-450 font-mono text-[7px] bg-white/5 px-1 py-0.2 rounded border border-white/5">
+                                      ⏱ {groupTime}
+                                    </span>
+                                  )}
+                                  <span className={`px-1 py-0.2 rounded text-[7px] border font-sans font-black ${badgeColor}`}>
+                                    {badgeText}
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              {/* Group Logs */}
+                              <div className="flex flex-col gap-1">
+                                {group.logs.map((log) => {
+                                  const isDetailed = log.text.includes("تفاصيل الحسبة الفنية:");
+                                  if (isDetailed) {
+                                    return renderDetailedLog(log);
+                                  }
+                                  
+                                  const isDanger = log.type === "danger";
+                                  const isSuccess = log.type === "success";
+                                  const isWarning = log.type === "warning";
+                                  let colorClass = "text-slate-300";
+                                  if (isDanger) colorClass = "text-[#ff6b6b]";
+                                  else if (isSuccess) colorClass = "text-[#00ff88] font-semibold";
+                                  else if (isWarning) colorClass = "text-amber-400";
+                                  
+                                  return (
+                                    <div key={log.id} className="text-[8.5px] leading-snug border-b border-white/5 last:border-0 pb-0.5 last:pb-0 flex items-start gap-1 justify-end font-sans">
+                                      <span className={`${colorClass} flex-1 text-right whitespace-pre-line leading-normal`}>{log.text}</span>
+                                      <span className="text-emerald-500/40 shrink-0 self-center text-[7px]">•</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
                           );
                         })

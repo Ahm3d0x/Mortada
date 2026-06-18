@@ -99,23 +99,33 @@ export default function TacticalPitch({
     const isActiveInPlay = !!slot.revealedInAttack;
     const isOpponentCardRevealed = !!(slot.revealedInAttack || slot.spent || (slot as any).revealedByAbility);
     
+    // Determine active role in the current attack/defense
+    const isAttacker = phase === "ai_attacking";
+    const isDefender = phase === "attacking";
+    
+    const activeTransformClass = isActiveInPlay
+      ? isAttacker
+        ? "translate-y-16 scale-110 z-40"
+        : "translate-y-10 scale-105 z-30"
+      : "";
+      
+    const activeCardColor = isAttacker ? "attack" : "defense";
+
     return (
       <div key={`ai_pitch_${idx}`} className={`flex flex-col items-center gap-1 w-full ${isMobile ? 'max-w-[75px] xs:max-w-[85px] sm:max-w-[100px]' : 'max-w-[120px]'}`} id={`ai_slot_pos_${idx}`}>
         <div
           onClick={() => selectable && onSelectSlot(idx)}
-          className={`relative w-full aspect-[2/3] rounded-xl border flex flex-col items-center justify-center transition-all duration-300 ${
+          className={`relative w-full aspect-[2/3] flex flex-col items-center justify-center transition-all duration-300 ${
             slot.card 
-              ? "bg-transparent border-transparent" 
-              : "bg-black/35 border-white/5 shadow-inner"
+              ? "bg-transparent border-none" 
+              : "bg-black/35 border border-white/5 rounded-xl shadow-inner"
           } ${
             selectable 
-              ? "cursor-pointer ring-2 ring-emerald-500/70 shadow-[0_0_12px_rgba(16,185,129,0.5)] scale-[1.02] animate-pulse" 
+              ? slot.card
+                ? "cursor-pointer scale-[1.02] filter drop-shadow-[0_0_8px_rgba(16,185,129,0.7)]"
+                : "cursor-pointer ring-2 ring-emerald-500/70 shadow-[0_0_12px_rgba(16,185,129,0.5)] scale-[1.02] animate-pulse rounded-xl border border-transparent" 
               : "opacity-95"
-          } ${isSpent ? "opacity-50 grayscale-[50%] scale-[0.98]" : ""} ${
-            isActiveInPlay 
-              ? "translate-y-3.5 scale-105 z-30 border-rose-500 ring-4 ring-rose-500/60 shadow-[0_0_25px_rgba(239,68,68,0.9)] animate-pulse"
-              : ""
-          }`}
+          } ${isSpent ? "opacity-50 grayscale-[50%] scale-[0.98]" : ""} ${activeTransformClass}`}
         >
           {slot.card ? (
             <div className="relative w-full h-full">
@@ -126,11 +136,24 @@ export default function TacticalPitch({
                 disabled={!selectable}
                 onInspect={() => isOpponentCardRevealed && onInspectCard && onInspectCard(slot.card)}
                 isActive={isActiveInPlay}
-                activeColor="rose"
-                className={`${isSelected ? "border-rose-500 ring-4 ring-rose-500/30" : ""} ${isSpent ? "pointer-events-none" : ""}`}
+                activeColor={activeCardColor}
+                className={`${isSpent ? "pointer-events-none" : ""}`}
               />
+              
+              {/* Active attack/defense tactical badge */}
+              {isActiveInPlay && (
+                <div className={`absolute -bottom-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider shadow-lg z-30 flex items-center gap-0.5 animate-bounce ${
+                  isAttacker 
+                    ? "bg-red-650 text-white border border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.7)]" 
+                    : "bg-blue-650 text-white border border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.7)]"
+                }`}>
+                  <span>{isAttacker ? "🔥" : "🛡️"}</span>
+                  <span>{isAttacker ? "هجوم" : "دفاع"}</span>
+                </div>
+              )}
+
               {isSpent && (
-                <div className="absolute inset-0 bg-black/10 rounded-xl pointer-events-none flex items-center justify-center">
+                <div className="absolute inset-0 bg-black/10 rounded-xl pointer-events-none flex items-center justify-center z-25">
                   <span className="bg-black/85 text-rose-300 text-[8px] font-bold px-2 py-0.5 rounded border border-rose-500/20 shadow-md">
                     مستهلك ❌
                   </span>
@@ -172,27 +195,39 @@ export default function TacticalPitch({
 
     const peekingThisCard = isPeekMode && !slot.isRevealed;
 
+    // Determine active role in the current attack/defense
+    const isAttacker = phase === "attacking";
+    const isDefender = phase === "ai_attacking";
+    
+    const activeTransformClass = isActiveInPlay
+      ? isAttacker
+        ? "-translate-y-16 scale-110 z-40"
+        : "-translate-y-10 scale-105 z-30"
+      : "";
+      
+    const activeCardColor = isAttacker ? "attack" : "defense";
+
     return (
       <div key={`player_pitch_${idx}`} className={`flex flex-col items-center gap-1 w-full ${isMobile ? 'max-w-[75px] xs:max-w-[85px] sm:max-w-[100px]' : 'max-w-[120px]'}`} id={`player_slot_pos_${idx}`}>
         <div
           onClick={() => selectable && onSelectSlot(idx)}
-          className={`relative w-full aspect-[2/3] rounded-xl border flex flex-col items-center justify-center transition-all duration-300 ${
+          className={`relative w-full aspect-[2/3] flex flex-col items-center justify-center transition-all duration-300 ${
             slot.card 
-              ? "bg-transparent border-transparent" 
-              : "bg-black/35 border-white/5 cursor-pointer hover:border-emerald-500/20 shadow-inner"
+              ? "bg-transparent border-none" 
+              : "bg-black/35 border border-white/5 cursor-pointer hover:border-emerald-500/20 shadow-inner rounded-xl"
           } ${
             isSelected 
-              ? "border-amber-400 ring-2 ring-amber-400 shadow-md scale-[1.02]" 
+              ? slot.card
+                ? "filter drop-shadow-[0_0_10px_rgba(245,158,11,0.85)] scale-[1.02]"
+                : "border border-amber-400 ring-2 ring-amber-400 shadow-md scale-[1.02] rounded-xl" 
               : ""
           } ${
             selectable 
-              ? "cursor-pointer ring-2 ring-emerald-500/70 shadow-[0_0_12px_rgba(16,185,129,0.5)] scale-[1.02] animate-pulse" 
+              ? slot.card
+                ? "cursor-pointer scale-[1.02] filter drop-shadow-[0_0_8px_rgba(16,185,129,0.7)]"
+                : "cursor-pointer ring-2 ring-emerald-500/70 shadow-[0_0_12px_rgba(16,185,129,0.5)] scale-[1.02] animate-pulse border border-transparent rounded-xl" 
               : ""
-          } ${isSpent ? "opacity-50 grayscale-[50%] scale-[0.98]" : ""} ${
-            isActiveInPlay 
-              ? "-translate-y-3.5 scale-105 z-30 border-emerald-500 ring-4 ring-emerald-500/60 shadow-[0_0_25px_rgba(16,185,129,0.9)] animate-pulse"
-              : ""
-          }`}
+          } ${isSpent ? "opacity-50 grayscale-[50%] scale-[0.98]" : ""} ${activeTransformClass}`}
         >
           {slot.card ? (
             <div className="relative w-full h-full">
@@ -204,16 +239,29 @@ export default function TacticalPitch({
                 disabled={!selectable}
                 onInspect={() => onInspectCard && onInspectCard(slot.card)}
                 isActive={isActiveInPlay}
-                activeColor="emerald"
-                className={`${isActiveAttacker ? "border-emerald-400 ring-4 ring-emerald-500/40" : ""} ${isSpent ? "pointer-events-none" : ""}`}
+                activeColor={activeCardColor}
+                className={`${isSpent ? "pointer-events-none" : ""}`}
               />
+              
+              {/* Active attack/defense tactical badge */}
+              {isActiveInPlay && (
+                <div className={`absolute -bottom-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider shadow-lg z-30 flex items-center gap-0.5 animate-bounce ${
+                  isAttacker 
+                    ? "bg-red-650 text-white border border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.7)]" 
+                    : "bg-blue-650 text-white border border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.7)]"
+                }`}>
+                  <span>{isAttacker ? "🔥" : "🛡️"}</span>
+                  <span>{isAttacker ? "هجوم" : "دفاع"}</span>
+                </div>
+              )}
+
               {peekingThisCard && (
                 <div className="absolute top-0 right-0 bg-amber-500 text-black text-[7px] font-black px-1.5 py-0.5 rounded-bl rounded-tr-xl z-30 shadow animate-pulse pointer-events-none select-none">
                   👁️ معاينة
                 </div>
               )}
               {isSpent && (
-                <div className="absolute inset-0 bg-black/10 rounded-xl pointer-events-none flex items-center justify-center">
+                <div className="absolute inset-0 bg-black/10 rounded-xl pointer-events-none flex items-center justify-center z-25">
                   <span className="bg-black/85 text-emerald-300 text-[8px] font-bold px-2 py-0.5 rounded border border-emerald-500/20 shadow-md">
                     مستهلك ❌
                   </span>
@@ -242,6 +290,7 @@ export default function TacticalPitch({
       </div>
     );
   };
+
 
   return (
     <div className="w-full bg-linear-to-b from-[#0c2a16] via-[#071d0e] to-[#041208] rounded-2xl p-4 md:p-6 border border-emerald-500/35 shadow-[0_16px_48px_rgba(0,0,0,0.65)] overflow-hidden relative">
