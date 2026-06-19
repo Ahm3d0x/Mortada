@@ -312,11 +312,51 @@ export const supabaseService = {
   },
 
   async updateRoomState(roomId: string, updates: Partial<MatchRoom>): Promise<void> {
+    let finalUpdates = { ...updates };
+
     if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: currentRoom } = await supabase
+          .from("rooms")
+          .select("game_state")
+          .eq("id", roomId)
+          .single();
+
+        if (currentRoom && currentRoom.game_state && updates.game_state) {
+          const currentGS = currentRoom.game_state;
+          const newGS = updates.game_state;
+          const updater = newGS.last_updated_by;
+          const mergedGS = { ...newGS };
+
+          if (updater === "host") {
+            if (currentGS.opponent_slots !== undefined) mergedGS.opponent_slots = currentGS.opponent_slots;
+            if (currentGS.opponent_hand !== undefined) mergedGS.opponent_hand = currentGS.opponent_hand;
+            if (currentGS.active_specials_opponent !== undefined) mergedGS.active_specials_opponent = currentGS.active_specials_opponent;
+            if (currentGS.opponent_player_deck !== undefined) mergedGS.opponent_player_deck = currentGS.opponent_player_deck;
+            if (currentGS.opponent_moves !== undefined) mergedGS.opponent_moves = currentGS.opponent_moves;
+            if (currentGS.phase === "attacking" && currentGS.defense_moves_left !== undefined) {
+              mergedGS.defense_moves_left = currentGS.defense_moves_left;
+            }
+          } else if (updater === "opponent") {
+            if (currentGS.host_slots !== undefined) mergedGS.host_slots = currentGS.host_slots;
+            if (currentGS.host_hand !== undefined) mergedGS.host_hand = currentGS.host_hand;
+            if (currentGS.active_specials_host !== undefined) mergedGS.active_specials_host = currentGS.active_specials_host;
+            if (currentGS.host_player_deck !== undefined) mergedGS.host_player_deck = currentGS.host_player_deck;
+            if (currentGS.host_moves !== undefined) mergedGS.host_moves = currentGS.host_moves;
+            if (currentGS.phase === "ai_attacking" && currentGS.defense_moves_left !== undefined) {
+              mergedGS.defense_moves_left = currentGS.defense_moves_left;
+            }
+          }
+          finalUpdates.game_state = mergedGS;
+        }
+      } catch (err) {
+        console.error("Error merging game state in updateRoomState:", err);
+      }
+
       await supabase
         .from("rooms")
         .update({
-          ...updates,
+          ...finalUpdates,
           last_activity: Date.now()
         })
         .eq("id", roomId);
@@ -326,16 +366,43 @@ export const supabaseService = {
     const rooms = getFallbackRooms();
     const idx = rooms.findIndex((r) => r.id === roomId);
     if (idx !== -1) {
+      let mergedGameState = updates.game_state;
+      if (updates.game_state && rooms[idx].game_state) {
+        const currentGS = rooms[idx].game_state;
+        const newGS = updates.game_state;
+        const updater = newGS.last_updated_by;
+        mergedGameState = { ...newGS };
+        if (updater === "host") {
+          if (currentGS.opponent_slots !== undefined) mergedGameState.opponent_slots = currentGS.opponent_slots;
+          if (currentGS.opponent_hand !== undefined) mergedGameState.opponent_hand = currentGS.opponent_hand;
+          if (currentGS.active_specials_opponent !== undefined) mergedGameState.active_specials_opponent = currentGS.active_specials_opponent;
+          if (currentGS.opponent_player_deck !== undefined) mergedGameState.opponent_player_deck = currentGS.opponent_player_deck;
+          if (currentGS.opponent_moves !== undefined) mergedGameState.opponent_moves = currentGS.opponent_moves;
+          if (currentGS.phase === "attacking" && currentGS.defense_moves_left !== undefined) {
+            mergedGameState.defense_moves_left = currentGS.defense_moves_left;
+          }
+        } else if (updater === "opponent") {
+          if (currentGS.host_slots !== undefined) mergedGameState.host_slots = currentGS.host_slots;
+          if (currentGS.host_hand !== undefined) mergedGameState.host_hand = currentGS.host_hand;
+          if (currentGS.active_specials_host !== undefined) mergedGameState.active_specials_host = currentGS.active_specials_host;
+          if (currentGS.host_player_deck !== undefined) mergedGameState.host_player_deck = currentGS.host_player_deck;
+          if (currentGS.host_moves !== undefined) mergedGameState.host_moves = currentGS.host_moves;
+          if (currentGS.phase === "ai_attacking" && currentGS.defense_moves_left !== undefined) {
+            mergedGameState.defense_moves_left = currentGS.defense_moves_left;
+          }
+        }
+      }
       rooms[idx] = {
         ...rooms[idx],
         ...updates,
+        game_state: mergedGameState,
         last_activity: Date.now()
       };
       saveFallbackRooms(rooms);
     }
 
     if (localBroadcast) {
-      localBroadcast.postMessage({ type: "state_updated", roomId, updates });
+      localBroadcast.postMessage({ type: "state_updated", roomId, updates: finalUpdates });
     }
   },
 

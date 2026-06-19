@@ -923,6 +923,7 @@ export default function App() {
 
   // Lists of logs
   const [logs, setLogs] = useState<ActionLog[]>([]);
+  const [tempPhaseLogs, setTempPhaseLogs] = useState<ActionLog[]>([]);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const [showCommentary, setShowCommentary] = useState(false);
   const [showTips, setShowTips] = useState(false);
@@ -1501,7 +1502,11 @@ export default function App() {
       text,
       type
     };
-    setLogs((prev) => [...prev, newLog]);
+    if ((phaseRef.current === "attacking" || phaseRef.current === "ai_attacking") && type !== "warning" && type !== "danger") {
+      setTempPhaseLogs((prev) => [...prev, newLog]);
+    } else {
+      setLogs((prev) => [...prev, newLog]);
+    }
   };
 
   // KICK START GAME FROM MENU
@@ -1656,6 +1661,7 @@ export default function App() {
 
   // CONFIRM WARMUP LINEUP
   const handleConfirmLineup = () => {
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     // Audit check: must have all pitch slots filled to begin the match!
     const emptySlots = playerSlots.some((s) => s.card === null);
     if (emptySlots) {
@@ -1736,6 +1742,7 @@ export default function App() {
 
   // DRAW CARDS ACTION IN PLAYER TURN
   const handleDrawCard = (deckType: "player" | "special") => {
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (phase === "ai_attacking") {
       addLog("لا يمكنك سحب كروت إضافية أثناء مرحلة الدفاع! يمكنك فقط اللعب بالكروت المتاحة معك في الملعب أو يدك.", "warning");
       return;
@@ -2174,6 +2181,7 @@ export default function App() {
 
   // HANDLE CARD CLICK SELECTIONS
   const handleSelectHandCard = (id: string) => {
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (phase === "ai_turn" || phase === "resolution") return;
 
     const card = playerHand.find((c) => c.id === id);
@@ -2469,6 +2477,7 @@ export default function App() {
 
   // PLAY TACTICAL SPECIAL CARD
   const handlePlaySpecialCard = (id: string) => {
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (phase === "warmup") {
       addLog("خطأ: لا يمكن تفعيل الكروت التكتيكية أثناء فترة الإحماء والتسخين!", "danger");
       return;
@@ -2586,14 +2595,17 @@ export default function App() {
       SoundEffects.playGoalCelebration();
     } else {
       // Append to active specials list
-      if (phase === "ai_attacking") {
-        setPlayerActiveSpecial((prev) => [...prev, card]);
-      } else {
-        setPlayerActiveSpecial((prev) => [...prev, card]);
-        if (phase === "player_turn") {
-          addLog(`⚔️ تكتيك هجومي: قمت بلعب [ ${card.name} ] لغزو مرمى المنافس! (استهلكت حركة واحدة)`, "success");
-        }
+      setPlayerActiveSpecial((prev) => [...prev, card]);
+      
+      let logMsg = "";
+      if (phase === "player_turn") {
+        logMsg = `✨ تكتيك عام: قمت بتفعيل كارت التكتيك [ ${card.name} ] (استهلكت حركة واحدة)`;
+      } else if (phase === "attacking") {
+        logMsg = `⚔️ تعزيز الهجوم: قمت بتفعيل كارت التكتيك [ ${card.name} ] لتعزيز الهجمة! (استهلكت حركة واحدة)`;
+      } else if (phase === "ai_attacking") {
+        logMsg = `🛡️ تعزيز الدفاع: قمت بتفعيل كارت التكتيك [ ${card.name} ] لصد الهجوم! (استهلكت حركة واحدة)`;
       }
+      if (logMsg) addLog(logMsg, "success");
     }
 
     setSelectedHandCardId(null);
@@ -2641,6 +2653,7 @@ export default function App() {
 
   // CO-ORDINATE CLICK ON PITCH SLOT
   const handleSelectPitchSlot = (idx: number, isAi: boolean = false) => {
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     // 0. Handle active targeting card plays
     if (activeTargetingCard) {
       if (!isValidTargetForCard(activeTargetingCard, idx, isAi)) {
@@ -2828,14 +2841,14 @@ export default function App() {
           const burnLogText = legendBurnLimit > 0 ? `تم حرق ${legendBurnLimit} كروت و` : "تم ";
           if (targetSlot.card) {
             if (targetSlot.isRevealed) {
-              addLog(`🔥 التضحية الفائقة: ${burnLogText}عزل اللاعب المكشوف في المركز [ ${idx + 1} ] خارج الماتش، ليدخل مكانه لاعب أسطوري جديد مقلوباً.`, "success");
+              addLog(`🔥 🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز [ ${idx + 1} ] (تضحية فائقة - استهلكت حركة واحدة). ${burnLogText}عزل اللاعب المكشوف خارج الماتش ونزول لاعب جديد مقلوباً.`, "success");
             } else {
               // Face down, returns to hand
               setPlayerHand((prev) => [...prev, targetSlot.card!]);
-              addLog(`🔥 التضحية الفائقة: ${burnLogText}استرجاع لاعب مقلوب في المركز [ ${idx + 1} ] إلى يدك، ونزول لاعب أسطوري جديد مقلوباً بالملعب.`, "success");
+              addLog(`🔥 🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز [ ${idx + 1} ] (تضحية فائقة - استهلكت حركة واحدة). ${burnLogText}استرجاع اللاعب المقلوب ليدك ونزول لاعب جديد مقلوباً.`, "success");
             }
           } else {
-            addLog(`🔥 تم إنزال لاعب أسطوري ذهبي في المركز [ ${idx + 1} ] مقلوباً بنجاح!`, "success");
+            addLog(`🔥 🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز الخالي [ ${idx + 1} ] (تنزيل لاعب - استهلكت حركة واحدة). ${burnLogText}نزول لاعب جديد مقلوباً.`, "success");
           }
 
           setPlayerMovesLeft((prev) => prev - 1);
@@ -2859,14 +2872,14 @@ export default function App() {
           if (currentPitchItem.isRevealed) {
             // "إذا تبدل لاعب مكشوف يخرج خارج اللعب تماماً" (disappears/burned)
             recyclePlayerCard(currentPitchItem.card);
-            addLog(`استبدال حاسم: تم طرد اللاعب المكشوف في المركز [ ${idx + 1} ] خارج اللعب بالكامل، ودخل مكانه لاعب جديد مقلوباً.`, "warning");
+            addLog(`🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز [ ${idx + 1} ] (استبدال حاسم - استهلكت حركة واحدة). تم طرد اللاعب المكشوف خارج الملعب ونزول لاعب جديد مقلوباً.`, "warning");
           } else {
             // "ترجعه ليدك وتضع الجديد مقلوباً"
             setPlayerHand((prev) => [...prev, currentPitchItem.card!]);
-            addLog(`مبادلة جيدة: تم استبدال كرت مقلوب في المركز [ ${idx + 1} ] بكرت جديد من الدكة مقلوباً.`, "success");
+            addLog(`🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز [ ${idx + 1} ] (مبادلة جيدة - استهلكت حركة واحدة). تم استرجاع اللاعب المقلوب ليدك ونزول لاعب جديد مقلوباً.`, "success");
           }
         } else {
-          addLog(`تنزيل صامت: قمت بوضع لاعب جديد مقلوباً في المركز الخالي [ ${idx + 1} ] لتعزيز كتيبتك.`, "info");
+          addLog(`🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز الخالي [ ${idx + 1} ] (تنزيل صامت - استهلكت حركة واحدة). وضع لاعب جديد مقلوباً.`, "info");
         }
 
         setPlayerMovesLeft((prev) => prev - 1);
@@ -2908,6 +2921,10 @@ export default function App() {
           newSlots[idx] = { ...clickedSlot, isRevealed: false, revealedInAttack: false };
           setPlayerSlots(newSlots);
           setDefenseMovesLeft((prev) => Math.min(maxMovesPerTurn, prev + 1));
+          
+          // Remove the reveal log for this defender from tempPhaseLogs
+          setTempPhaseLogs((prev) => prev.filter(l => !l.text.includes(`[ ${clickedSlot.card!.name} ]`)));
+
           SoundEffects.playCardDraw();
           syncMultiplayerIfActive();
         }
@@ -2932,6 +2949,7 @@ export default function App() {
       newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
       setPlayerSlots(newSlots);
       setDefenseMovesLeft((prev) => prev - 1);
+      addLog(`🛡️ تم كشف المدافع [ ${clickedSlot.card.name} ] لصد الهجوم! (استهلكت حركة واحدة)`, "success");
       SoundEffects.playCardDraw();
       syncMultiplayerIfActive();
 
@@ -2968,12 +2986,18 @@ export default function App() {
               addLog("🚫 خطأ تكتيكي: لا يمكنك إلغاء الهجمة بعد بدء محاولة التسديد وإعلان الهجوم! يجب عليك إكمال الهجمة وتسديد الكرة.", "warning");
               return;
             }
-            // Cancel whole attack declaration
-            const newSlots = [...playerSlots];
-            newSlots[idx] = { ...clickedSlot, isRevealed: false, revealedInAttack: false };
+            // Cancel whole attack declaration and all supporting reveals
+            let refundedMoves = 0;
+            const newSlots = playerSlots.map((s) => {
+              if (s.revealedInAttack) {
+                refundedMoves++;
+                return { ...s, isRevealed: false, revealedInAttack: false };
+              }
+              return s;
+            });
             setPlayerSlots(newSlots);
 
-            const movesAfterCancel = playerMovesLeft + 1;
+            const movesAfterCancel = Math.min(maxMovesPerTurn, playerMovesLeft + refundedMoves);
             setPlayerMovesLeft(movesAfterCancel);
 
             const finalBoosterDeck = currentBooster ? [currentBooster, ...boosterDeck] : boosterDeck;
@@ -2985,6 +3009,7 @@ export default function App() {
             phaseRef.current = "player_turn";
             setPhase("player_turn");
             setCurrentAttackerIdx(null);
+            setTempPhaseLogs([]); // Clear any deferred commentaries
 
             SoundEffects.playCardDraw();
 
@@ -3026,6 +3051,9 @@ export default function App() {
             setPlayerSlots(newSlots);
             setPlayerMovesLeft((prev) => Math.min(maxMovesPerTurn, prev + 1));
 
+            // Remove the reveal log for this striker from tempPhaseLogs
+            setTempPhaseLogs((prev) => prev.filter(l => !l.text.includes(`[ ${clickedSlot.card!.name} ]`)));
+
             SoundEffects.playCardDraw();
             syncMultiplayerIfActive();
           }
@@ -3051,6 +3079,7 @@ export default function App() {
       newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
       setPlayerSlots(newSlots);
       setPlayerMovesLeft((prev) => prev - 1);
+      addLog(`⚔️ تم كشف المهاجم الداعم [ ${clickedSlot.card.name} ] لتعزيز الهجمة! (استهلكت حركة واحدة)`, "success");
       SoundEffects.playCardDraw();
       syncMultiplayerIfActive();
 
@@ -3110,6 +3139,7 @@ export default function App() {
 
   // DECLARE PLAYER ATTACK
   const handleDeclareAttack = () => {
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (isAttackBlockedFor(true)) {
       const blockingLegendSlot = aiSlots.find(
         (s) =>
@@ -3215,16 +3245,6 @@ export default function App() {
 
     if (isMultiplayer) {
       setAttackerRole(multiplayerRole);
-      // Let's build updated logs representation
-      const newDeclareLog: ActionLog = {
-        id: Math.random().toString(36).substr(2, 9),
-        timestamp: getFormattedTime(),
-        text: `⚔️ تم بدء الهجمة بقيادة المهاجم [ ${attacker.name} ] بقوة هجوم أساسية ${attacker.attack}، وسحبت معزز [ ${drawnBooster.text} ] (+${drawnBooster.value}).`,
-        type: "info"
-      };
-      const updatedLogs = [...logs, newDeclareLog];
-      setLogs(updatedLogs);
-
       setTimeout(() => {
         syncToSupabaseInstance(
           "attacking",
@@ -3236,7 +3256,7 @@ export default function App() {
           undefined,
           movesAfterDeclare,
           undefined,
-          updatedLogs,
+          logs, // Keep existing logs unchanged
           drawnBooster,
           targetIdx,
           undefined,
@@ -3251,10 +3271,7 @@ export default function App() {
         );
       }, 50);
     } else {
-      // We DO NOT trigger the AI defense reaction instantly.
-      // This is a strategic enhancement: the AI will now only declare its defense reaction AFTER the player finalized their attack and clicked "تسديدة حاسمة ⚽"!
-      addLog(`⚔️ تم بدء الهجمة بقيادة المهاجم [ ${attacker.name} ] بقوة هجوم أساسية ${attacker.attack}، وسحبت معزز [ ${drawnBooster.text} ] (+${drawnBooster.value}).`, "info");
-      addLog(`🛡️ الخصم يدرس التمريرات ويتماسك دفاعياً بانتظار تسديدتك الحاسمة ليرى تشكيلتك كاملة...`, "neutral");
+      // Offline mode starting attack is silent. Logs will be written on click of "Resolve Attack".
     }
   };
 
@@ -3308,7 +3325,7 @@ export default function App() {
         aiSpecialsPlayed.push(chosenSpecial);
         remainingDefSpecials = remainingDefSpecials.filter((c) => c.id !== chosenSpecial.id);
         aiMoves--;
-        addLog(`🤖 الخصم يرمي ورقة تكتيكية من حقيبته: [ ${chosenSpecial.name} ] لعرقلة الهجوم!`, "danger");
+        addLog(`🤖 الخصم يلعب كارت التكتيك [ ${chosenSpecial.name} ] لعرقلة الهجوم! (استهلك حركة واحدة)`, "danger");
 
         // Apply targeted effect to player's active attacker if chosenSpecial has a targeting action
         const action = chosenSpecial.ability?.actions[0];
@@ -3472,7 +3489,7 @@ export default function App() {
             updatedAiSlots[item.idx].revealedInTurn = turnCount;
             updatedAiSlots[item.idx].revealedInAttack = true;
             aiMoves--;
-            addLog(`🛡️ الخصم تيقظ تكتيكياً وكشف صخرته الدفاعية [ ${updatedAiSlots[item.idx].card?.name} ] محرزاً +${item.defense} نقاط صد!`, "info");
+            addLog(`🛡️ الخصم تيقظ تكتيكياً وكشف صخرته الدفاعية [ ${updatedAiSlots[item.idx].card?.name} ] محرزاً +${item.defense} نقاط صد! (استهلك حركة واحدة)`, "info");
           });
 
           // Show AI ability reveal if any has it
@@ -3511,6 +3528,7 @@ export default function App() {
 
   // MAIN RESOLUTION OF ACTIVE PLAYER ATTACK
   const handleResolveAttack = () => {
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (isResolvingRef.current || phaseRef.current !== "attacking") return;
     isResolvingRef.current = true;
 
@@ -3669,6 +3687,7 @@ export default function App() {
   };
 
   const handleForceEndAttack = () => {
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (isResolvingRef.current) return;
     isResolvingRef.current = true;
     phaseRef.current = "resolution";
@@ -3713,15 +3732,19 @@ export default function App() {
 
   // CONFIRM ACTION OVER TO START NEXT ACTIONS
   const handleAcknowledgeResolution = () => {
-    if (phaseRef.current !== "resolution") return;
+    if (phaseRef.current !== "resolution" && phaseRef.current !== "game_over") return;
     isResolvingRef.current = false;
 
     setCelebrationMessage(null);
     setSelectedPitchSlotIdx(null);
     setCurrentAttackerIdx(null);
     setCurrentBooster(null);
-    setShowConfetti(false);
+    setShowConfetti(phaseRef.current === "game_over" ? showConfetti : false);
     setIsShotDeclared(false);
+
+    if (phaseRef.current === "game_over") {
+      return;
+    }
 
     // Helper to decrement slot durations
     const decrementSlotDurations = (slots: typeof playerSlots) => {
@@ -3899,6 +3922,7 @@ export default function App() {
 
   // END YOUR TURN MANUALLY
   const handleEndPlayerTurn = () => {
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (phaseRef.current !== "player_turn") return;
     phaseRef.current = "ai_turn";
     setPhase("ai_turn");
@@ -4053,12 +4077,12 @@ export default function App() {
             handPlayerCards.sort((a, b) => (b.attack + b.defense) - (a.attack + a.defense));
             const bestPlayer = handPlayerCards[0];
             
-            currentAiSlots[emptySlotIdx] = { card: bestPlayer, isRevealed: false };
+            currentAiSlots[emptySlotIdx] = { card: bestPlayer, isRevealed: false, spent: false };
             newAiHand = newAiHand.filter((c) => c.id !== bestPlayer.id);
             handPlayerCards = handPlayerCards.filter((c) => c.id !== bestPlayer.id);
             
             aiMoves--;
-            addLog(`🤖 الخصم يدعم صفوفه وينزل لاعباً جديداً من الدكة في المركز الفارغ [ ${emptySlotIdx + 1} ].`, "success");
+            addLog(`🤖 🔄 تم استبدال لاعب من الدكة بلاعب من الملعب في المركز الفارغ [ ${emptySlotIdx + 1} ] (استهلك حركة واحدة).`, "success");
             triggerAiHandCardPlayed(bestPlayer);
           } else if (spentSlotIdx !== -1) {
             // Find best available hand player card to replace the spent card
@@ -4076,7 +4100,7 @@ export default function App() {
             handPlayerCards = handPlayerCards.filter((c) => c.id !== bestPlayer.id);
             
             aiMoves--;
-            addLog(`🤖 الخصم يستبدل لاعباً مستهلكاً في المركز [ ${spentSlotIdx + 1} ] بلاعب جديد من الدكة تعزيزاً لخطوطه المخفية.`, "success");
+            addLog(`🤖 🔄 تم استبدال لاعب من الدكة بلاعب من الملعب في المركز [ ${spentSlotIdx + 1} ] (استهلك حركة واحدة). تم استبدال لاعب مستهلك بلاعب جديد مقلوباً.`, "success");
             triggerAiHandCardPlayed(bestPlayer);
           } else {
             // No empty or spent slots. Assess swapping any weak unrevealed card
@@ -4090,13 +4114,13 @@ export default function App() {
               const bestPlayer = handPlayerCards[0];
 
               if ((bestPlayer.attack + bestPlayer.defense) > (weakCard.attack + weakCard.defense) + 2) {
-                currentAiSlots[weakSlotIdx] = { card: bestPlayer, isRevealed: false };
+                currentAiSlots[weakSlotIdx] = { card: bestPlayer, isRevealed: false, spent: false };
                 newAiHand = newAiHand.filter((c) => c.id !== bestPlayer.id);
                 newAiHand.push(weakCard); // Reclaimed back to hand
                 handPlayerCards = handPlayerCards.filter((c) => c.id !== bestPlayer.id);
                 
                 aiMoves--;
-                addLog(`🤖 الخصم يعيد ترتيب خطته ويستبدل لاعباً مقلوباً في المركز [ ${weakSlotIdx + 1} ] بلاعب آخر من الدكة.`, "info");
+                addLog(`🤖 🔄 تم استبدال لاعب من الدكة بلاعب من الملعب في المركز [ ${weakSlotIdx + 1} ] (استهلك حركة واحدة). تم مبادلة لاعب مقلوب بلاعب آخر من الدكة.`, "info");
                 triggerAiHandCardPlayed(bestPlayer);
               } else {
                 break;
@@ -4186,22 +4210,22 @@ export default function App() {
               // Log success
               let aiMsg = "";
               if (actType === "DestroyCard") {
-                aiMsg = `🤖 الخصم يلعب [ ${spec.name} ] 🟥 ويطرد نجمك المكشوف [ ${targetCard.name} ] خارج الملعب تماماً!`;
+                aiMsg = `🤖 الخصم يلعب [ ${spec.name} ] 🟥 ويطرد نجمك المكشوف [ ${targetCard.name} ] خارج الملعب تماماً! (استهلك حركة واحدة)`;
                 SoundEffects.playWhistle();
               } else if (actType === "FreezeCard") {
-                aiMsg = `🤖 الخصم يلعب [ ${spec.name} ] ❄️ ويجمد نجمك [ ${targetCard.name} ] لمدة ${durationTurns} أدوار!`;
+                aiMsg = `🤖 الخصم يلعب [ ${spec.name} ] ❄️ ويجمد نجمك [ ${targetCard.name} ] لمدة ${durationTurns} أدوار! (استهلك حركة واحدة)`;
                 SoundEffects.playTackleBlock();
               } else if (actType === "SilenceCard") {
-                aiMsg = `🤖 الخصم يلعب [ ${spec.name} ] 🔇 ويكتم قدرة نجمك [ ${targetCard.name} ] لمدة ${durationTurns} أدوار!`;
+                aiMsg = `🤖 الخصم يلعب [ ${spec.name} ] 🔇 ويكتم قدرة نجمك [ ${targetCard.name} ] لمدة ${durationTurns} أدوار! (استهلك حركة واحدة)`;
                 SoundEffects.playTackleBlock();
               } else if (actType === "StunCard") {
-                aiMsg = `🤖 الخصم يلعب [ ${spec.name} ] 💫 ويصدم نجمك [ ${targetCard.name} ] لمدة ${durationTurns} أدوار!`;
+                aiMsg = `🤖 الخصم يلعب [ ${spec.name} ] 💫 ويصدم نجمك [ ${targetCard.name} ] لمدة ${durationTurns} أدوار! (استهلك حركة واحدة)`;
                 SoundEffects.playTackleBlock();
               } else if (actType === "ReturnToHand") {
-                aiMsg = `🤖 الخصم يلعب [ ${spec.name} ] 🔄 ويعيد نجمك [ ${targetCard.name} ] إلى يدك!`;
+                aiMsg = `🤖 الخصم يلعب [ ${spec.name} ] 🔄 ويعيد نجمك [ ${targetCard.name} ] إلى يدك! (استهلك حركة واحدة)`;
                 SoundEffects.playCardDraw();
               } else if (actType === "RevealCard") {
-                aiMsg = `🤖 الخصم يلعب [ ${spec.name} ] 👁️ ويكشف ورقتك [ ${targetCard.name} ]!`;
+                aiMsg = `🤖 الخصم يلعب [ ${spec.name} ] 👁️ ويكشف ورقتك [ ${targetCard.name} ]! (استهلك حركة واحدة)`;
                 SoundEffects.playCardDraw();
               }
               addLog(aiMsg, "danger");
@@ -4233,7 +4257,7 @@ export default function App() {
               }
               newAiHand = [...newAiHand.filter(c => c.id !== spec.id), ...added];
               aiMoves--;
-              addLog(`🤖 الخصم يلعب [ ${spec.name} ] 🏆 ويسحب ${cardsToDraw} كروت إضافية إلى يده!`, "success");
+              addLog(`🤖 الخصم يلعب [ ${spec.name} ] 🏆 ويسحب ${cardsToDraw} كروت إضافية إلى يده! (استهلك حركة واحدة)`, "success");
               SoundEffects.playGoalCelebration();
             }
           }
@@ -4296,7 +4320,7 @@ export default function App() {
           setPhase("ai_attacking");
           setDefenseMovesLeft(maxMovesPerTurn); // Player gets 3 defense moves!
 
-          addLog(`⚠️ هجوم عدواني باغت! الخصم يكشف مهاجمه الأساسي [ ${aiAttacker.name} ] بقوة هجوم: ${aiAttacker.attack}.`, "danger");
+          addLog(`⚠️ هجوم عدواني باغت! الخصم يكشف مهاجمه الأساسي [ ${aiAttacker.name} ] بقوة هجوم: ${aiAttacker.attack}! (استهلك حركة واحدة)`, "danger");
           addLog(`⚠️ الخصم سحب كارت معزز المرتدة عشوائي [ ${drawnBooster.text} ] بقوة +${drawnBooster.value}!`, "warning");
           SoundEffects.playWhistle();
 
@@ -4328,6 +4352,7 @@ export default function App() {
 
   // PLAY CONFIRM DEFENSIVE ACTION RESULT
   const handleConfirmDefense = () => {
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (phaseRef.current !== "ai_attacking") return;
     phaseRef.current = "resolution";
     setPhase("resolution");
@@ -4382,7 +4407,7 @@ export default function App() {
         newLogs.push({
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
-          text: `🤖 الخصم يلعب كارت تكتيكي هجومي من يده: [ ${chosenSpecial.name} ] لتعزيز الهجوم!`,
+          text: `🤖 الخصم يلعب كارت تكتيكي هجومي من يده: [ ${chosenSpecial.name} ] لتعزيز الهجوم! (استهلك حركة واحدة)`,
           type: "danger" as const
         });
 
@@ -4462,7 +4487,7 @@ export default function App() {
         newLogs.push({
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
-          text: `🚨 الخصم يدفع بنجم الهجوم [ ${bestNominee.s.card!.name} ] لمضاعفة الضغط بـ +${bestNominee.s.card!.attack}!`,
+          text: `🚨 الخصم يدفع بنجم الهجوم [ ${bestNominee.s.card!.name} ] لمضاعفة الضغط بـ +${bestNominee.s.card!.attack}! (استهلك حركة واحدة)`,
           type: "warning" as const
         });
         addLog(`🛡️ الخصم يواصل ضغطه هجومياً! يمكنك البقاء وإضافة مدافعين جدد ثم النقر على "تأكيد الدفاع" مجدداً لصد التعزيز!`, "info");
@@ -4523,6 +4548,52 @@ export default function App() {
     setMatchRounds([]);
     setAiCardsDrawnThisTurn(0);
     setIsShotDeclared(false);
+  };
+
+  // FORFEIT/WITHDRAW FROM THE MATCH
+  const handleForfeitMatch = async () => {
+    const confirmForfeit = window.confirm("هل أنت متأكد من الانسحاب من المباراة؟ سيتم اعتبار الفريق الآخر فائزاً بالعلامة الكاملة (5 أهداف).");
+    if (!confirmForfeit) return;
+
+    SoundEffects.playWhistle();
+
+    const finalPlayerScore = playerScore;
+    const finalAiScore = 5;
+
+    const opponentTeamName = isMultiplayer ? opponentName : aiTeam;
+    const forfeitMsg = `🏳️ انسحاب! قام الكابتن ${formatNameWithTitle(coachName, "الكابتن")} بالانسحاب من المباراة. يعتبر الفريق المنافس [${opponentTeamName}] هو الفائز بالعلامة الكاملة 5 - ${playerScore}!`;
+    
+    const updatedLogs: ActionLog[] = [
+      { id: Date.now().toString(), timestamp: getFormattedTime(), text: forfeitMsg, type: "danger" },
+      ...logs
+    ];
+
+    setLogs(updatedLogs);
+    setAiScore(5);
+    setPhase("game_over");
+
+    if (isMultiplayer && currentRoomId) {
+      await syncToSupabaseInstance(
+        "game_over",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        finalPlayerScore,
+        5,
+        undefined,
+        undefined,
+        updatedLogs
+      );
+
+      try {
+        await supabaseService.updateRoomState(currentRoomId, {
+          status: "finished"
+        });
+      } catch (e) {
+        console.error("Failed to sync forfeit room state:", e);
+      }
+    }
   };
 
   // Dynamic Scoreboard Offensive/Defensive Statistics - requested by user
@@ -4646,13 +4717,13 @@ export default function App() {
                 </button>
 
                 <button
-                  onClick={handleResetGame}
-                  id="reset_game_sidebar_button"
+                  onClick={handleForfeitMatch}
+                  id="forfeit_match_sidebar_button"
                   className="py-1 px-1 bg-rose-950/20 hover:bg-rose-900/30 text-rose-350 hover:text-rose-200 border border-rose-500/20 rounded-lg text-[9px] font-black flex items-center justify-center gap-1 cursor-pointer transition-colors"
-                  title="الخروج للقائمة الرئيسية"
+                  title="الانسحاب من المباراة"
                 >
                   <RefreshCw className="w-3.5 h-3.5 text-rose-450" />
-                  <span>خروج</span>
+                  <span>انسحاب</span>
                 </button>
               </div>
 
@@ -5529,15 +5600,17 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md pointer-events-none"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md cursor-pointer"
             id="cinematic_ability_overlay"
+            onClick={() => setCinematicEvent(null)}
           >
             <motion.div
               initial={{ scale: 0.6, rotate: -10, y: 100 }}
               animate={{ scale: 1, rotate: 0, y: 0 }}
               exit={{ scale: 0.6, rotate: 10, y: -100 }}
               transition={{ type: "spring", stiffness: 200, damping: 15 }}
-              className={`max-w-sm w-full p-6 text-center rounded-3xl border shadow-2xl relative ${
+              onClick={(e) => e.stopPropagation()}
+              className={`max-w-sm w-full p-6 text-center rounded-3xl border shadow-2xl relative cursor-default ${
                 cinematicEvent.type === "ability"
                   ? "bg-linear-to-b from-[#1c1402] via-[#0c0d0c] to-black border-amber-500/40 shadow-[0_0_50px_rgba(251,191,36,0.25)] text-amber-200"
                   : "bg-linear-to-b from-[#021c17] via-[#0c0d0c] to-black border-teal-500/40 shadow-[0_0_50px_rgba(45,212,191,0.25)] text-teal-200"
