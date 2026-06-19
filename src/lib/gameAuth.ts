@@ -9,6 +9,10 @@ export interface MatchSettings {
   initialCardsCount: number;
   legendBurnLimit: number;
   maxBonusValue: number;
+  gameMode?: "time" | "rounds";
+  winningGoals?: number;
+  totalRounds?: number;
+  halfTimeBreakDuration?: number;
 }
 
 export interface GameUser {
@@ -71,6 +75,11 @@ function saveOfflineUsers(users: any[]) {
   }
 }
 
+// Helper to check if string is a valid UUID
+function isUUID(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
 // Helper to dispatch global auth event
 function notifyAuthChange() {
   if (typeof window !== "undefined") {
@@ -94,7 +103,7 @@ export const gameAuth = {
     const current = this.getCurrentUser();
     if (!current) return null;
 
-    if (isSupabaseConfigured && supabase && !useOfflineFallback) {
+    if (isSupabaseConfigured && supabase && !useOfflineFallback && isUUID(current.id)) {
       try {
         const { data, error, status } = await supabase
           .from("game_users")
@@ -210,6 +219,10 @@ export const gameAuth = {
         initialCardsCount: 5,
         legendBurnLimit: 2,
         maxBonusValue: 10,
+        gameMode: "time",
+        winningGoals: 5,
+        totalRounds: 10,
+        halfTimeBreakDuration: 30,
       };
 
       if (isSupabaseConfigured && supabase && !useOfflineFallback) {
@@ -327,7 +340,7 @@ export const gameAuth = {
       country,
     };
 
-    if (isSupabaseConfigured && supabase && !useOfflineFallback) {
+    if (isSupabaseConfigured && supabase && !useOfflineFallback && isUUID(current.id)) {
       try {
         const { data, error, status } = await supabase
           .from("game_users")
@@ -379,7 +392,7 @@ export const gameAuth = {
     const current = this.getCurrentUser();
     if (!current) return { user: null, error: "لا توجد جلسة مستخدم نشطة ❌" };
 
-    if (isSupabaseConfigured && supabase && !useOfflineFallback) {
+    if (isSupabaseConfigured && supabase && !useOfflineFallback && isUUID(current.id)) {
       try {
         const { data, error, status } = await supabase
           .from("game_users")
@@ -435,7 +448,7 @@ export const gameAuth = {
       const hashedOld = await sha256(oldPass);
       const hashedNew = await sha256(newPass);
 
-      if (isSupabaseConfigured && supabase && !useOfflineFallback) {
+      if (isSupabaseConfigured && supabase && !useOfflineFallback && isUUID(current.id)) {
         try {
           // Verify old password first
           const { data: userRecord, error: fetchErr, status: fetchStatus } = await supabase
@@ -512,7 +525,7 @@ export const gameAuth = {
 
     const newBalance = current.coins + amount;
     try {
-      if (isSupabaseConfigured && supabase && !useOfflineFallback) {
+      if (isSupabaseConfigured && supabase && !useOfflineFallback && isUUID(current.id)) {
         try {
           const { error, status } = await supabase
             .from("game_users")

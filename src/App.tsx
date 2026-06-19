@@ -383,6 +383,40 @@ ${attackBrk}
 🚫 النتيجة مستمرة: ${scoreText}`;
 };
 
+const getTeamFlagAndName = (vibe: string) => {
+  const defaultFlag = "⚽";
+  const defaultName = "راقصو التانغو";
+  
+  const mapping: Record<string, { flag: React.ReactNode, name: string }> = {
+    "الفراعنة": {
+      flag: <img src="https://flagcdn.com/w40/eg.png" className="w-4.5 h-3 object-cover rounded-xs shadow-xs align-middle inline-block" alt="EG" />,
+      name: "الفراعنة"
+    },
+    "أسود الأطلس": {
+      flag: <img src="https://flagcdn.com/w40/ma.png" className="w-4.5 h-3 object-cover rounded-xs shadow-xs align-middle inline-block" alt="MA" />,
+      name: "أسود الأطلس"
+    },
+    "نجوم السامبا": {
+      flag: <img src="https://flagcdn.com/w40/br.png" className="w-4.5 h-3 object-cover rounded-xs shadow-xs align-middle inline-block" alt="BR" />,
+      name: "نجوم السامبا"
+    },
+    "راقصو التانغو": {
+      flag: <img src="https://flagcdn.com/w40/ar.png" className="w-4.5 h-3 object-cover rounded-xs shadow-xs align-middle inline-block" alt="AR" />,
+      name: "راقصو التانغو"
+    },
+    "كتائب الأخضر": {
+      flag: <img src="https://flagcdn.com/w40/sa.png" className="w-4.5 h-3 object-cover rounded-xs shadow-xs align-middle inline-block" alt="SA" />,
+      name: "كتائب الأخضر"
+    },
+    "الملكي": {
+      flag: <span className="leading-none text-[10px] md:text-xs">👑</span>,
+      name: "الملكي"
+    }
+  };
+
+  return mapping[vibe] || { flag: <span className="leading-none text-[10px] md:text-xs">{defaultFlag}</span>, name: vibe || defaultName };
+};
+
 export default function App() {
   const currentUser = gameAuth.getCurrentUser();
   const defaultSettings = currentUser?.default_match_settings;
@@ -958,6 +992,16 @@ export default function App() {
   // Match countdown timer
   const [matchTime, setMatchTime] = useState<number>(defaultSettings?.matchDuration ?? 180);
   const [initialMatchTime, setInitialMatchTime] = useState<number>(defaultSettings?.matchDuration ?? 180);
+  const [gameMode, setGameMode] = useState<"time" | "rounds">(defaultSettings?.gameMode ?? "time");
+  const [winningGoals, setWinningGoals] = useState<number>(defaultSettings?.winningGoals ?? 5);
+  const [totalRounds, setTotalRounds] = useState<number>(defaultSettings?.totalRounds ?? 10);
+  const [halfTimeBreakDuration, setHalfTimeBreakDuration] = useState<number>(defaultSettings?.halfTimeBreakDuration ?? 30);
+  const [completedRounds, setCompletedRounds] = useState<number>(0);
+  const [firstHalfKickoffRole, setFirstHalfKickoffRole] = useState<"player" | "ai">("player");
+  const [secondHalfKickoffRole, setSecondHalfKickoffRole] = useState<"player" | "ai">("ai");
+  const [matchHalf, setMatchHalf] = useState<1 | 2>(1);
+  const [isHalfTimeBreak, setIsHalfTimeBreak] = useState<boolean>(false);
+  const [halfTimeBreakLeft, setHalfTimeBreakLeft] = useState<number>(0);
 
   // Lifted state to control hand bag openness
   const [isHandExpanded, setIsHandExpanded] = useState<boolean>(false);
@@ -1015,7 +1059,19 @@ export default function App() {
     overrideSpecialDeck?: SpecialCard[],
     overrideBoosterDeck?: BoosterCard[],
     overrideAttackerRole?: "host" | "opponent" | null,
-    overrideIsShotDeclared?: boolean
+    overrideIsShotDeclared?: boolean,
+    overrideGameMode?: "time" | "rounds",
+    overrideWinningGoals?: number,
+    overrideTotalRounds?: number,
+    overrideHalfTimeBreakDuration?: number,
+    overrideCompletedRounds?: number,
+    overrideFirstHalfKickoffRole?: "player" | "ai",
+    overrideSecondHalfKickoffRole?: "player" | "ai",
+    overrideMatchHalf?: 1 | 2,
+    overrideIsHalfTimeBreak?: boolean,
+    overrideHalfTimeBreakLeft?: number,
+    overrideMatchTime?: number,
+    overrideInitialMatchTime?: number
   ) => {
     if (!isMultiplayer && !overridePhase) return;
     const resolvedRoomId = currentRoomId;
@@ -1046,6 +1102,29 @@ export default function App() {
     const resolvedBoosterDeck = overrideBoosterDeck !== undefined ? overrideBoosterDeck : boosterDeck;
     const resolvedAttackerRole = overrideAttackerRole !== undefined ? overrideAttackerRole : attackerRole;
     const resolvedIsShotDeclared = overrideIsShotDeclared !== undefined ? overrideIsShotDeclared : isShotDeclared;
+
+    const resolvedGameMode = overrideGameMode !== undefined ? overrideGameMode : gameMode;
+    const resolvedWinningGoals = overrideWinningGoals !== undefined ? overrideWinningGoals : winningGoals;
+    const resolvedTotalRounds = overrideTotalRounds !== undefined ? overrideTotalRounds : totalRounds;
+    const resolvedHalfTimeBreakDuration = overrideHalfTimeBreakDuration !== undefined ? overrideHalfTimeBreakDuration : halfTimeBreakDuration;
+    const resolvedCompletedRounds = overrideCompletedRounds !== undefined ? overrideCompletedRounds : completedRounds;
+    const resolvedMatchHalf = overrideMatchHalf !== undefined ? overrideMatchHalf : matchHalf;
+    const resolvedIsHalfTimeBreak = overrideIsHalfTimeBreak !== undefined ? overrideIsHalfTimeBreak : isHalfTimeBreak;
+    const resolvedHalfTimeBreakLeft = overrideHalfTimeBreakLeft !== undefined ? overrideHalfTimeBreakLeft : halfTimeBreakLeft;
+    const resolvedMatchTime = overrideMatchTime !== undefined ? overrideMatchTime : matchTime;
+    const resolvedInitialMatchTime = overrideInitialMatchTime !== undefined ? overrideInitialMatchTime : initialMatchTime;
+
+    const resolvedFirstKickoff = resolvedRole === "host" 
+      ? (overrideFirstHalfKickoffRole !== undefined ? overrideFirstHalfKickoffRole : firstHalfKickoffRole)
+      : (overrideFirstHalfKickoffRole !== undefined 
+          ? (overrideFirstHalfKickoffRole === "player" ? "ai" : "player") 
+          : (firstHalfKickoffRole === "player" ? "ai" : "player"));
+
+    const resolvedSecondKickoff = resolvedRole === "host" 
+      ? (overrideSecondHalfKickoffRole !== undefined ? overrideSecondHalfKickoffRole : secondHalfKickoffRole)
+      : (overrideSecondHalfKickoffRole !== undefined 
+          ? (overrideSecondHalfKickoffRole === "player" ? "ai" : "player") 
+          : (secondHalfKickoffRole === "player" ? "ai" : "player"));
 
     // Convert from local perspective to Host perspective (canonical)
     const host_slots = resolvedRole === "host" ? resolvedPlayerSlots : resolvedAiSlots;
@@ -1098,7 +1177,19 @@ export default function App() {
       attacker_role: resolvedAttackerRole,
       last_updated_by: resolvedRole,
       max_bonus_value: maxBonusValue,
-      is_shot_declared: resolvedIsShotDeclared
+      is_shot_declared: resolvedIsShotDeclared,
+      game_mode: resolvedGameMode,
+      winning_goals: resolvedWinningGoals,
+      total_rounds: resolvedTotalRounds,
+      half_time_break_duration: resolvedHalfTimeBreakDuration,
+      completed_rounds: resolvedCompletedRounds,
+      first_half_kickoff_role: resolvedFirstKickoff,
+      second_half_kickoff_role: resolvedSecondKickoff,
+      match_half: resolvedMatchHalf,
+      is_half_time_break: resolvedIsHalfTimeBreak,
+      half_time_break_left: resolvedHalfTimeBreakLeft,
+      match_time: resolvedMatchTime,
+      initial_match_time: resolvedInitialMatchTime
     };
 
     try {
@@ -1123,14 +1214,68 @@ export default function App() {
   // Countdown Timer ticking
   useEffect(() => {
     if (phase === "menu" || phase === "game_over") return;
+    if (gameMode === "rounds") return;
+
+    if (isHalfTimeBreak) {
+      const breakTimer = setInterval(() => {
+        setHalfTimeBreakLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(breakTimer);
+            setIsHalfTimeBreak(false);
+            setMatchHalf(2);
+
+            const nextAttackingPlayer = (secondHalfKickoffRole === "player");
+            setIsPlayerAttacker(nextAttackingPlayer);
+            setPhase(nextAttackingPlayer ? "player_turn" : "ai_turn");
+
+            if (nextAttackingPlayer) {
+              setPlayerMovesLeft(maxMovesPerTurn);
+              setAiMovesLeft(0);
+              setCardsDrawnThisTurn(0);
+            } else {
+              setPlayerMovesLeft(0);
+              setAiMovesLeft(maxMovesPerTurn);
+              setAiCardsDrawnThisTurn(0);
+            }
+
+            addLog(`⏱️ بداية الشوط الثاني! ركلة البداية مع ${(secondHalfKickoffRole === "player") ? coachName : aiCoachName}.`, "success");
+            SoundEffects.playWhistle();
+            syncMultiplayerIfActive();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(breakTimer);
+    }
 
     const timer = setInterval(() => {
       setMatchTime((prev) => {
+        const halfTimePoint = Math.floor(initialMatchTime / 2);
+
+        // Transition to half-time break
+        if (matchHalf === 1 && prev <= halfTimePoint) {
+          clearInterval(timer);
+          setIsHalfTimeBreak(true);
+          setHalfTimeBreakLeft(halfTimeBreakDuration);
+
+          // Clear active attack and specials states
+          setCurrentAttackerIdx(null);
+          setCurrentBooster(null);
+          setPlayerActiveSpecial([]);
+          setAiActiveSpecial([]);
+
+          addLog(`⏰ نهاية الشوط الأول! النتيجة الحالية: ${playerScore} - ${aiScore}. استراحة الشوطين لمدة ${halfTimeBreakDuration} ثانية...`, "warning");
+          SoundEffects.playWhistle();
+          syncMultiplayerIfActive();
+          return halfTimePoint;
+        }
+
         if (prev <= 1) {
           clearInterval(timer);
           SoundEffects.playWhistle();
           setPhase("game_over");
-          
+
           // Determine the winner based on goals
           if (playerScore > aiScore) {
             const victoryMsg = `⏰ انتهى وقت المباراة الرسمي! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بالنتيجة ${playerScore} - ${aiScore}! ⚽🏆`;
@@ -1163,7 +1308,7 @@ export default function App() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [phase, playerScore, aiScore, coachName, aiCoachName, isMultiplayer]);
+  }, [phase, playerScore, aiScore, coachName, aiCoachName, isMultiplayer, gameMode, isHalfTimeBreak, matchHalf, initialMatchTime, halfTimeBreakDuration, secondHalfKickoffRole]);
 
   // Automatic transfer turn on completion of draws and moves - Requirement 3
   useEffect(() => {
@@ -1361,6 +1506,13 @@ export default function App() {
       const sDeck = generateSpecialDeck();
       const poDeck = generateBoosterDeck(maxBonusValue);
 
+      // Choose random kickoff roles
+      const randomStart = Math.random() < 0.5;
+      const firstHalfRole = randomStart ? "player" : "ai";
+      const secondHalfRole = randomStart ? "ai" : "player";
+      setFirstHalfKickoffRole(firstHalfRole);
+      setSecondHalfKickoffRole(secondHalfRole);
+
       const prepareInitialPitchSlots = (deck: PlayerCard[]) => {
         const slots: PlayerCard[] = [];
         let remDeck = [...deck];
@@ -1447,7 +1599,21 @@ export default function App() {
         finalPlayerDeck,
         pDeckOpponent,
         finalSpecialDeck,
-        poDeck
+        poDeck,
+        null, // overrideAttackerRole
+        false, // overrideIsShotDeclared
+        undefined, // overrideGameMode
+        undefined, // overrideWinningGoals
+        undefined, // overrideTotalRounds
+        undefined, // overrideHalfTimeBreakDuration
+        0, // overrideCompletedRounds
+        firstHalfRole, // overrideFirstHalfKickoffRole
+        secondHalfRole, // overrideSecondHalfKickoffRole
+        1, // overrideMatchHalf
+        false, // overrideIsHalfTimeBreak
+        0, // overrideHalfTimeBreakLeft
+        matchTime, // overrideMatchTime
+        initialMatchTime // overrideInitialMatchTime
       );
     } else {
       // Opponent is waiting for host to sync
@@ -1527,7 +1693,11 @@ export default function App() {
     selectedSpecialPkgs: string[] = [],
     defenseDraws: number = 3,
     legendBurn: number = 2,
-    customMaxBonusValue: number = 10
+    customMaxBonusValue: number = 10,
+    customGameMode: "time" | "rounds" = "time",
+    customWinningGoals: number = 5,
+    customTotalRounds: number = 10,
+    customHalfTimeBreakDuration: number = 30
   ) => {
     setCoachName(name);
     setTeamVibe(vibe);
@@ -1542,6 +1712,21 @@ export default function App() {
     setLegendBurnLimit(legendBurn);
     setInitialCardsCount(initialCards);
     setMaxBonusValue(customMaxBonusValue);
+    setGameMode(customGameMode);
+    setWinningGoals(customWinningGoals);
+    setTotalRounds(customTotalRounds);
+    setHalfTimeBreakDuration(customHalfTimeBreakDuration);
+    setCompletedRounds(0);
+    setMatchHalf(1);
+    setIsHalfTimeBreak(false);
+    setHalfTimeBreakLeft(0);
+
+    const randomStart = Math.random() < 0.5;
+    const firstHalfRole = randomStart ? "player" : "ai";
+    const secondHalfRole = randomStart ? "ai" : "player";
+    setFirstHalfKickoffRole(firstHalfRole);
+    setSecondHalfKickoffRole(secondHalfRole);
+
     setIsHandExpanded(false);
     setGameLoadError(null);
     setIsGameLoading(true);
@@ -1732,15 +1917,19 @@ export default function App() {
       }
     } else {
       setPlayerSlots((prev) => prev.map((s) => ({ ...s, isRevealed: false })));
-      setPhase("player_turn");
+      const isPlayerStarting = (firstHalfKickoffRole === "player");
+      setIsPlayerAttacker(isPlayerStarting);
+      setPhase(isPlayerStarting ? "player_turn" : "ai_turn");
       setCardsDrawnThisTurn(0);
+      setAiCardsDrawnThisTurn(0);
       setMaxDrawsPerTurn(defaultMaxDrawsPerTurn);
-      setPlayerMovesLeft(maxMovesPerTurn);
+      setPlayerMovesLeft(isPlayerStarting ? maxMovesPerTurn : 0);
+      setAiMovesLeft(isPlayerStarting ? 0 : maxMovesPerTurn);
       setHasScoredThisTurn(false);
-      setIsHandExpanded(true);
-      addLog("صافرة ركلة البداية! تم إنهاء مرحلة التسخين واللوحة جاهزة. دورك الآن كمدرب مهاجم.", "success");
+      setIsHandExpanded(isPlayerStarting);
+      addLog(`صافرة ركلة البداية! تم إنهاء مرحلة التسخين واللوحة جاهزة. ركلة البداية مع ${isPlayerStarting ? "فريقك" : "الخصم"} عشوائياً.`, "success");
       addLog(getRandom(stadiumPhrases), "info");
-      addLog("يمكنك اللعب من يدك مباشرة أو سحب كروت لدعم مهاراتك بشكل مرن.", "info");
+      addLog(isPlayerStarting ? "يمكنك اللعب من يدك مباشرة أو سحب كروت لدعم مهاراتك بشكل مرن." : "انتظر ريثما يبدأ المدرب الخصم خططه الهجومية.", "info");
     }
   };
 
@@ -3884,16 +4073,115 @@ export default function App() {
     setPlayerActiveSpecial(nextPlayerSpecials);
     setAiActiveSpecial(nextAiSpecials);
 
-    // Check if score limit of 5 is attained to win!
-    if (playerScore >= 5) {
+    // Check if score limit is attained to win!
+    if (playerScore >= winningGoals) {
       setPhase("game_over");
-      addLog(`صافرة النهاية للماتش اللذيذ! ${formatNameWithTitle(coachName, "الكابتن")} يحرز اللقب القاري بخمسة أهداف كاملة! تهانينا ومبارك! 🏆🎉`, "success");
+      addLog(`صافرة النهاية للماتش اللذيذ! ${formatNameWithTitle(coachName, "الكابتن")} يحرز اللقب القاري بـ ${winningGoals} أهداف كاملة! تهانينا ومبارك! 🏆🎉`, "success");
       setShowConfetti(true);
       return;
     }
-    if (aiScore >= 5) {
+    if (aiScore >= winningGoals) {
       setPhase("game_over");
-      addLog(`عذراً يا كابتن! الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} تفوق بالحسابات السريعة وأحرز اللقب. حظاً أوفر المرة المقبلة.`, "danger");
+      addLog(`عذراً يا كابتن! الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} تفوق بالحسابات السريعة وأحرز اللقب بـ ${winningGoals} أهداف. حظاً أوفر المرة المقبلة.`, "danger");
+      return;
+    }
+
+    if (gameMode === "rounds") {
+      const nextRounds = completedRounds + 1;
+      setCompletedRounds(nextRounds);
+
+      if (nextRounds >= totalRounds) {
+        setPhase("game_over");
+        if (playerScore > aiScore) {
+          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بنتيجة ${playerScore} - ${aiScore}! ⚽🏆`, "success");
+          setShowConfetti(true);
+        } else if (aiScore > playerScore) {
+          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! للأسف الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`, "danger");
+        } else {
+          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds}) بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}!`, "neutral");
+        }
+        if (isMultiplayer) {
+          syncToSupabaseInstance("game_over");
+        }
+        return;
+      }
+
+      setIsAttackBlocked(false);
+
+      if (isMultiplayer) {
+        const isHost = multiplayerRole === "host";
+        const nextTurnRole = attackerRole === "host" ? "opponent" : "host";
+        const standsAsMe = nextTurnRole === multiplayerRole;
+
+        const nextPhaseState = standsAsMe ? "player_turn" : "ai_turn";
+        setPhase(nextPhaseState as any);
+
+        const nextMoves = standsAsMe ? maxMovesPerTurn : 0;
+        const nextAiMoves = standsAsMe ? 0 : maxMovesPerTurn;
+        const nextTurnCount = turnCount + (standsAsMe ? 1 : 0);
+
+        const roundMsg = `⚽ انتهت جولة الهجوم رقم ${nextRounds}. الدور الآن مع ${standsAsMe ? "فريقك" : "الخصم"}!`;
+        const nextLogs = [
+          ...logs,
+          {
+            id: Math.random().toString(),
+            timestamp: getFormattedTime(),
+            text: roundMsg,
+            type: standsAsMe ? ("success" as const) : ("neutral" as const)
+          }
+        ];
+        setLogs(nextLogs);
+        setCardsDrawnThisTurn(0);
+        setPlayerMovesLeft(nextMoves);
+        setAiMovesLeft(nextAiMoves);
+        setAttackerRole(null);
+
+        setTimeout(() => {
+          syncToSupabaseInstance(
+            nextPhaseState as any,
+            nextPlayerSlots,
+            nextAiSlots,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            nextMoves,
+            nextAiMoves,
+            nextLogs,
+            null,
+            null,
+            nextPlayerSpecials,
+            nextAiSpecials,
+            0,
+            nextTurnCount,
+            maxMovesPerTurn,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            null
+          );
+        }, 50);
+      } else {
+        const wasPlayerAttacker = isPlayerAttacker;
+        setIsPlayerAttacker(!wasPlayerAttacker);
+
+        if (wasPlayerAttacker) {
+          phaseRef.current = "ai_turn";
+          setPhase("ai_turn");
+          setAiMovesLeft(maxMovesPerTurn);
+          setAiCardsDrawnThisTurn(0);
+          addLog(`⚽ انتهت جولة هجومك (جولة رقم ${nextRounds}). دور الخصم الآن ليبدأ الهجوم!`, "neutral");
+        } else {
+          phaseRef.current = "player_turn";
+          setPhase("player_turn");
+          setPlayerMovesLeft(maxMovesPerTurn);
+          setCardsDrawnThisTurn(0);
+          setHasScoredThisTurn(false);
+          setIsHandExpanded(true);
+          addLog(`⚽ انتهت جولة هجوم الخصم (جولة رقم ${nextRounds}). دورك الآن لتبدأ الهجوم!`, "success");
+        }
+      }
       return;
     }
 
@@ -3969,7 +4257,6 @@ export default function App() {
         } else {
           phaseRef.current = "ai_turn";
           setPhase("ai_turn");
-          handleAIPlayTurn();
         }
       } else {
         phaseRef.current = "player_turn";
@@ -3990,6 +4277,78 @@ export default function App() {
   const handleEndPlayerTurn = () => {
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (phaseRef.current !== "player_turn") return;
+
+    if (gameMode === "rounds") {
+      const nextRounds = completedRounds + 1;
+      setCompletedRounds(nextRounds);
+
+      if (nextRounds >= totalRounds) {
+        setPhase("game_over");
+        if (playerScore > aiScore) {
+          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بنتيجة ${playerScore} - ${aiScore}! ⚽🏆`, "success");
+          setShowConfetti(true);
+        } else if (aiScore > playerScore) {
+          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! للأسف الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`, "danger");
+        } else {
+          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds}) بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}!`, "neutral");
+        }
+        if (isMultiplayer) {
+          syncToSupabaseInstance("game_over");
+        }
+        return;
+      }
+
+      setSelectedPitchSlotIdx(null);
+      setSelectedHandCardId(null);
+      setBurningCardIds([]);
+      setIsPlayerAttacker(false);
+
+      if (isMultiplayer) {
+        const nextPhase = "ai_turn";
+        setCardsDrawnThisTurn(0);
+        setPlayerMovesLeft(0);
+        setAiMovesLeft(maxMovesPerTurn);
+
+        const nextLogs = [
+          ...logs,
+          {
+            id: Math.random().toString(),
+            timestamp: getFormattedTime(),
+            text: `🏁 أنهيت جولة هجومك يدوياً بدون هجمات (جولة رقم ${nextRounds}). دور الخصم الآن!`,
+            type: "info" as const
+          }
+        ];
+        setLogs(nextLogs);
+
+        setTimeout(() => {
+          syncToSupabaseInstance(
+            nextPhase as any,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            0,
+            maxMovesPerTurn,
+            nextLogs,
+            null,
+            null,
+            [],
+            [],
+            0,
+            turnCount + 1,
+            maxMovesPerTurn
+          );
+        }, 50);
+      } else {
+        phaseRef.current = "ai_turn";
+        setPhase("ai_turn");
+        addLog(`🏁 أنهيت جولة هجومك يدوياً بدون هجمات (جولة رقم ${nextRounds}). دور الخصم الآن!`, "info");
+      }
+      return;
+    }
+
     phaseRef.current = "ai_turn";
     setPhase("ai_turn");
 
@@ -4036,7 +4395,7 @@ export default function App() {
         );
       }, 50);
     } else {
-      handleAIPlayTurn();
+      // AI turn starts via phase useEffect trigger
     }
   };
 
@@ -4402,6 +4761,35 @@ export default function App() {
         setAiHand(newAiHand);
         setAiMovesLeft(aiMoves); // Synchronize remaining moves to React state!
 
+        if (gameMode === "rounds") {
+          const nextRounds = completedRounds + 1;
+          setCompletedRounds(nextRounds);
+
+          if (nextRounds >= totalRounds) {
+            setPhase("game_over");
+            if (playerScore > aiScore) {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بنتيجة ${playerScore} - ${aiScore}! ⚽🏆`, "success");
+              setShowConfetti(true);
+            } else if (aiScore > playerScore) {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! للأسف الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`, "danger");
+            } else {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds}) بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}!`, "neutral");
+            }
+            isAIExecutingRef.current = false; // RELEASE LOCK!
+            return;
+          }
+
+          setPhase("player_turn");
+          setPlayerMovesLeft(maxMovesPerTurn);
+          setCardsDrawnThisTurn(0);
+          setHasScoredThisTurn(false);
+          setIsHandExpanded(true);
+          setIsPlayerAttacker(true);
+          addLog(`🤖 الخصم أنهى جولته دون هجمات (جولة رقم ${nextRounds}). دورك الآن لتبدأ الهجوم!`, "success");
+          isAIExecutingRef.current = false; // RELEASE LOCK!
+          return;
+        }
+
         setPhase("player_turn");
         setCardsDrawnThisTurn(0);
         setMaxDrawsPerTurn(defaultMaxDrawsPerTurn);
@@ -4415,6 +4803,12 @@ export default function App() {
 
     }, 1200);
   };
+
+  useEffect(() => {
+    if (phase === "ai_turn" && !isMultiplayer) {
+      handleAIPlayTurn();
+    }
+  }, [phase, isMultiplayer]);
 
   // PLAY CONFIRM DEFENSIVE ACTION RESULT
   const handleConfirmDefense = () => {
@@ -4642,16 +5036,16 @@ export default function App() {
 
   // FORFEIT/WITHDRAW FROM THE MATCH
   const handleForfeitMatch = async () => {
-    const confirmForfeit = window.confirm("هل أنت متأكد من الانسحاب من المباراة؟ سيتم اعتبار الفريق الآخر فائزاً بالعلامة الكاملة (5 أهداف).");
+    const confirmForfeit = window.confirm(`هل أنت متأكد من الانسحاب من المباراة؟ سيتم اعتبار الفريق الآخر فائزاً بالعلامة الكاملة (${winningGoals} أهداف).`);
     if (!confirmForfeit) return;
 
     SoundEffects.playWhistle();
 
     const finalPlayerScore = playerScore;
-    const finalAiScore = 5;
+    const finalAiScore = winningGoals;
 
     const opponentTeamName = isMultiplayer ? opponentName : aiTeam;
-    const forfeitMsg = `🏳️ انسحاب! قام الكابتن ${formatNameWithTitle(coachName, "الكابتن")} بالانسحاب من المباراة. يعتبر الفريق المنافس [${opponentTeamName}] هو الفائز بالعلامة الكاملة 5 - ${playerScore}!`;
+    const forfeitMsg = `🏳️ انسحاب! قام الكابتن ${formatNameWithTitle(coachName, "الكابتن")} بالانسحاب من المباراة. يعتبر الفريق المنافس [${opponentTeamName}] هو الفائز بالعلامة الكاملة ${winningGoals} - ${playerScore}!`;
     
     const updatedLogs: ActionLog[] = [
       { id: Date.now().toString(), timestamp: getFormattedTime(), text: forfeitMsg, type: "danger" },
@@ -4659,7 +5053,7 @@ export default function App() {
     ];
 
     setLogs(updatedLogs);
-    setAiScore(5);
+    setAiScore(winningGoals);
     setPhase("game_over");
 
     if (isMultiplayer && currentRoomId) {
@@ -4670,7 +5064,7 @@ export default function App() {
         undefined,
         undefined,
         finalPlayerScore,
-        5,
+        winningGoals,
         undefined,
         undefined,
         updatedLogs
@@ -5167,9 +5561,13 @@ export default function App() {
                 
                 {/* Scoreboard Left Team (User) */}
                 <div className="flex items-center gap-1 md:gap-1.5 text-right flex-1 select-none">
-                  <span className="text-[10px] md:text-base leading-none">🇦🇷</span>
+                  <span className="text-[10px] md:text-base leading-none flex items-center shrink-0">
+                    {getTeamFlagAndName(teamVibe).flag}
+                  </span>
                   <div className="flex flex-col text-right">
-                    <span className="text-[6.5px] md:text-[8px] font-black text-[#e0e0e0]/60 leading-none">راقصو التانغو</span>
+                    <span className="text-[6.5px] md:text-[8px] font-black text-[#e0e0e0]/60 leading-none">
+                      {getTeamFlagAndName(teamVibe).name}
+                    </span>
                   </div>
 
                   {/* Dynamic player Attack/Defense badge - requested by user */}
@@ -5191,16 +5589,37 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Clock Stopwatch in the middle */}
+                {/* Clock Stopwatch / Rounds in the middle */}
                 <div className="flex items-center justify-center gap-1 text-emerald-400 font-mono font-black text-[8.5px] md:text-xs px-1 md:px-2.5 py-0.2 md:py-0.5 bg-black/30 md:bg-transparent rounded-full whitespace-nowrap shrink-0">
-                  <span>⏱️</span>
-                  <span className="tracking-wider md:tracking-widest">
-                    {(() => {
-                      const m = Math.floor(matchTime / 60).toString().padStart(2, "0");
-                      const s = (matchTime % 60).toString().padStart(2, "0");
-                      return `${m}:${s}`;
-                    })()}
-                  </span>
+                  {gameMode === "rounds" ? (
+                    <div className="flex items-center gap-1">
+                      <span>🔁</span>
+                      <span className="tracking-wider">
+                        الجولة {Math.min(completedRounds + 1, totalRounds)}/{totalRounds}
+                      </span>
+                    </div>
+                  ) : isHalfTimeBreak ? (
+                    <div className="flex items-center gap-1 text-amber-400 animate-pulse">
+                      <span>⏸️</span>
+                      <span className="tracking-wider">
+                        استراحة ({halfTimeBreakLeft}ث)
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <span>⏱️</span>
+                      <span className="tracking-wider md:tracking-widest">
+                        {(() => {
+                          const m = Math.floor(matchTime / 60).toString().padStart(2, "0");
+                          const s = (matchTime % 60).toString().padStart(2, "0");
+                          return `${m}:${s}`;
+                        })()}
+                      </span>
+                      <span className="text-[7px] md:text-[9px] px-1 bg-emerald-950/60 border border-emerald-500/20 rounded font-black text-emerald-305">
+                        {matchHalf === 1 ? "ش1" : "ش2"}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Scoreboard Right Team (Opponent) */}
@@ -5224,9 +5643,13 @@ export default function App() {
                   )}
 
                   <div className="flex flex-col text-right ml-0.5 md:ml-1">
-                    <span className="text-[6.5px] md:text-[8px] font-black text-[#e0e0e0]/60 leading-none">كتائب الروبوت</span>
+                    <span className="text-[6.5px] md:text-[8px] font-black text-[#e0e0e0]/60 leading-none">
+                      {isMultiplayer ? getTeamFlagAndName(opponentVibe).name : "كتائب الروبوت"}
+                    </span>
                   </div>
-                  <span className="text-[10px] md:text-sm">🤖</span>
+                  <span className="text-[10px] md:text-sm flex items-center shrink-0">
+                    {isMultiplayer ? getTeamFlagAndName(opponentVibe).flag : "🤖"}
+                  </span>
                 </div>
 
               </div>

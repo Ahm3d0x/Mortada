@@ -70,7 +70,11 @@ interface WelcomeMenuProps {
     selectedSpecialPkgs: string[],
     defenseDrawsLimit?: number,
     legendBurnLimit?: number,
-    maxBonusValue?: number
+    maxBonusValue?: number,
+    gameMode?: "time" | "rounds",
+    winningGoals?: number,
+    totalRounds?: number,
+    halfTimeBreakDuration?: number
   ) => void;
   isMobileLandscape?: boolean;
 }
@@ -100,7 +104,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
   const [activeTab, setActiveTab] = useState<"home" | "play" | "decks" | "rules" | "settings">("home");
 
   // Game Setup States (Wizard under "Play" Tab)
-  const [playStep, setPlayStep] = useState<"coach" | "packages" | "match">("coach");
+  const [playStep, setPlayStep] = useState<"coach" | "packages" | "match">("packages");
   const [coachName, setCoachName] = useState(currentUser?.name || "");
   const [selectedVibe, setSelectedVibe] = useState(() => {
     const userTeam = currentUser?.team_name || "";
@@ -122,6 +126,10 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
   const [defenseDrawsLimit, setDefenseDrawsLimit] = useState<number>(defaultSettings?.maxDrawsPerTurn ? defaultSettings.maxDrawsPerTurn + 1 : 3);
   const [legendBurnLimit, setLegendBurnLimit] = useState<number>(defaultSettings?.legendBurnLimit || 2);
   const [maxBonusValue, setMaxBonusValue] = useState<number>(defaultSettings?.maxBonusValue || 10);
+  const [gameMode, setGameMode] = useState<"time" | "rounds">(defaultSettings?.gameMode || "time");
+  const [winningGoals, setWinningGoals] = useState<number>(defaultSettings?.winningGoals || 5);
+  const [totalRounds, setTotalRounds] = useState<number>(defaultSettings?.totalRounds || 10);
+  const [halfTimeBreakDuration, setHalfTimeBreakDuration] = useState<number>(defaultSettings?.halfTimeBreakDuration || 30);
 
   // Settings Sub-tab Controls
   const [settingsSubTab, setSettingsSubTab] = useState<"profile" | "match" | "password">("profile");
@@ -144,6 +152,10 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
   const [defInitCards, setDefInitCards] = useState<number>(defaultSettings?.initialCardsCount || 5);
   const [defLegendBurn, setDefLegendBurn] = useState<number>(defaultSettings?.legendBurnLimit || 2);
   const [defMaxBonus, setDefMaxBonus] = useState<number>(defaultSettings?.maxBonusValue || 10);
+  const [defGameMode, setDefGameMode] = useState<"time" | "rounds">(defaultSettings?.gameMode || "time");
+  const [defWinningGoals, setDefWinningGoals] = useState<number>(defaultSettings?.winningGoals || 5);
+  const [defTotalRounds, setDefTotalRounds] = useState<number>(defaultSettings?.totalRounds || 10);
+  const [defHalfTimeBreakDuration, setDefHalfTimeBreakDuration] = useState<number>(defaultSettings?.halfTimeBreakDuration || 30);
 
   // Password change fields
   const [oldPassword, setOldPassword] = useState("");
@@ -169,11 +181,36 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
         setDefInitCards(settings.initialCardsCount);
         setDefLegendBurn(settings.legendBurnLimit);
         setDefMaxBonus(settings.maxBonusValue);
+        setDefGameMode(settings.gameMode || "time");
+        setDefWinningGoals(settings.winningGoals || 5);
+        setDefTotalRounds(settings.totalRounds || 10);
+        setDefHalfTimeBreakDuration(settings.halfTimeBreakDuration || 30);
       }
     }
-  }, [activeTab]);
+  }, [activeTab, currentUser?.id]);
 
-  const [showLogoTip, setShowLogoTip] = useState(false);
+  // Load defaults into wizard states when switching to the play tab or when user session loads
+  useEffect(() => {
+    if (activeTab === "play" && currentUser) {
+      const settings = currentUser.default_match_settings;
+      if (settings) {
+        setDifficulty(settings.difficulty);
+        setMatchDuration(settings.matchDuration);
+        setLegendPercentage(settings.legendPercentage);
+        setMaxDrawsPerTurn(settings.maxDrawsPerTurn);
+        setMaxMovesPerTurn(settings.maxMovesPerTurn);
+        setInitialCardsCount(settings.initialCardsCount);
+        setLegendBurnLimit(settings.legendBurnLimit);
+        setMaxBonusValue(settings.maxBonusValue);
+        setGameMode(settings.gameMode || "time");
+        setWinningGoals(settings.winningGoals || 5);
+        setTotalRounds(settings.totalRounds || 10);
+        setHalfTimeBreakDuration(settings.halfTimeBreakDuration || 30);
+      }
+    }
+  }, [activeTab, currentUser?.id]);
+
+  const [showLogoTip, setShowLogoTip] = useState(true);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,6 +265,10 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
       initialCardsCount: defInitCards,
       legendBurnLimit: defLegendBurn,
       maxBonusValue: defMaxBonus,
+      gameMode: defGameMode,
+      winningGoals: defWinningGoals,
+      totalRounds: defTotalRounds,
+      halfTimeBreakDuration: defHalfTimeBreakDuration,
     };
 
     const res = await gameAuth.updateDefaultSettings(settings);
@@ -245,6 +286,10 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
       setInitialCardsCount(defInitCards);
       setLegendBurnLimit(defLegendBurn);
       setMaxBonusValue(defMaxBonus);
+      setGameMode(defGameMode);
+      setWinningGoals(defWinningGoals);
+      setTotalRounds(defTotalRounds);
+      setHalfTimeBreakDuration(defHalfTimeBreakDuration);
     }
   };
 
@@ -559,7 +604,11 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
       selectedSpecialPkgs,
       defenseDrawsLimit,
       legendBurnLimit,
-      maxBonusValue
+      maxBonusValue,
+      gameMode,
+      winningGoals,
+      totalRounds,
+      halfTimeBreakDuration
     );
   };
 
@@ -1008,7 +1057,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                     <div className="flex items-center justify-between border-t border-white/5 pt-2 mt-3">
                       <button
                         type="button"
-                        onClick={() => { SoundEffects.playCardDraw(); setPlayStep("coach"); }}
+                        onClick={() => { SoundEffects.playCardDraw(); setActiveTab("home"); }}
                         className="px-4 py-1 bg-white/5 hover:bg-white/10 text-white font-extrabold text-[9px] rounded-lg transition-colors cursor-pointer"
                       >
                         السابق
@@ -1065,43 +1114,149 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                       })}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 bg-black/20 p-2 border border-white/5 rounded-xl">
-                      {/* Left: Duration Select dropdown */}
-                      <div className="space-y-1 text-right">
-                        <div className="flex items-center justify-between text-[8px] text-emerald-400">
-                          <span>{matchDuration === 0 ? "بدون وقت" : `${Math.floor(matchDuration / 60)} د`}</span>
-                          <span className="font-bold">وقت المباراة:</span>
-                        </div>
-                        <select
-                          value={matchDuration}
-                          onChange={(e) => setMatchDuration(Number(e.target.value))}
-                          className="w-full bg-black/60 border border-white/10 rounded-lg p-1 text-[9px] text-[#e0e0e0] font-bold text-right cursor-pointer"
-                        >
-                          <option value={180}>3 دقائق</option>
-                          <option value={300}>5 دقائق</option>
-                          <option value={600}>10 دقائق</option>
-                          <option value={900}>15 دقيقة</option>
-                          <option value={1200}>20 دقيقة</option>
-                          <option value={1800}>30 دقيقة</option>
-                        </select>
+                    {/* Game Mode Choice */}
+                    <div className="space-y-1 text-right bg-black/20 p-1.5 border border-white/5 rounded-xl">
+                      <label className="block text-[#e0e0e0]/60 font-black text-[9px] mb-1">نظام تحديد وقت ومده المباراة:</label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { id: "time", label: "نظام زمني ⏱️" },
+                          { id: "rounds", label: "نظام جولات 🔁" }
+                        ].map((m) => {
+                          const isSelected = gameMode === m.id;
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => { SoundEffects.playCardDraw(); setGameMode(m.id as any); }}
+                              className={`py-1 rounded-lg border text-center font-extrabold text-[9px] cursor-pointer transition-all ${
+                                isSelected 
+                                  ? "border-emerald-500 text-emerald-450 bg-emerald-950/20" 
+                                  : "border-white/5 bg-black/25 text-slate-400 hover:text-white"
+                              }`}
+                            >
+                              {m.label}
+                            </button>
+                          );
+                        })}
                       </div>
+                    </div>
 
-                      {/* Right: Legend card percentage */}
-                      <div className="space-y-1 text-right">
-                        <div className="flex items-center justify-between text-[8px] text-amber-400">
-                          <span>{legendPercentage}%</span>
-                          <span className="font-bold">نسبة الأساطير:</span>
+                    <div className="grid grid-cols-2 gap-2 bg-black/20 p-2 border border-white/5 rounded-xl">
+                      {/* Winning Goals (Target score) */}
+                      <div className="space-y-1 text-right col-span-2">
+                        <div className="flex items-center justify-between text-[8px] text-emerald-400">
+                          <span>{winningGoals} أهداف</span>
+                          <span className="font-bold">عدد أهداف الفوز:</span>
                         </div>
                         <input
                           type="range"
-                          min={0}
-                          max={100}
-                          step={5}
-                          value={legendPercentage}
-                          onChange={(e) => setLegendPercentage(Number(e.target.value))}
-                          className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-amber-500 mt-2"
+                          min={3}
+                          max={10}
+                          step={1}
+                          value={winningGoals}
+                          onChange={(e) => setWinningGoals(Number(e.target.value))}
+                          className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
                         />
                       </div>
+
+                      {/* Left: game duration option depending on gameMode */}
+                      {gameMode === "time" ? (
+                        <div className="space-y-1 text-right">
+                          <div className="flex items-center justify-between text-[8px] text-emerald-400">
+                            <span>{matchDuration === 0 ? "بدون وقت" : `${Math.floor(matchDuration / 60)} د`}</span>
+                            <span className="font-bold">وقت المباراة:</span>
+                          </div>
+                          <select
+                            value={matchDuration}
+                            onChange={(e) => setMatchDuration(Number(e.target.value))}
+                            className="w-full bg-black/60 border border-white/10 rounded-lg p-1 text-[9px] text-[#e0e0e0] font-bold text-right cursor-pointer"
+                          >
+                            <option value={180}>3 دقائق</option>
+                            <option value={300}>5 دقائق</option>
+                            <option value={600}>10 دقائق</option>
+                            <option value={900}>15 دقيقة</option>
+                            <option value={1200}>20 دقيقة</option>
+                            <option value={1800}>30 دقيقة</option>
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="space-y-1 text-right">
+                          <div className="flex items-center justify-between text-[8px] text-emerald-400">
+                            <span>{totalRounds} جولة ({totalRounds / 2} لكل لاعب)</span>
+                            <span className="font-bold">عدد الجولات (زوجي):</span>
+                          </div>
+                          <select
+                            value={totalRounds}
+                            onChange={(e) => setTotalRounds(Number(e.target.value))}
+                            className="w-full bg-black/60 border border-white/10 rounded-lg p-1 text-[9px] text-[#e0e0e0] font-bold text-right cursor-pointer"
+                          >
+                            <option value={6}>6 جولات</option>
+                            <option value={8}>8 جولات</option>
+                            <option value={10}>10 جولات</option>
+                            <option value={12}>12 جولة</option>
+                            <option value={14}>14 جولة</option>
+                            <option value={16}>16 جولة</option>
+                            <option value={18}>18 جولة</option>
+                            <option value={20}>20 جولة</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Right: break duration (only for time mode) or legends pct (for both) */}
+                      {gameMode === "time" ? (
+                        <div className="space-y-1 text-right">
+                          <div className="flex items-center justify-between text-[8px] text-emerald-400">
+                            <span>{halfTimeBreakDuration} ثانية</span>
+                            <span className="font-bold">استراحة الشوطين:</span>
+                          </div>
+                          <select
+                            value={halfTimeBreakDuration}
+                            onChange={(e) => setHalfTimeBreakDuration(Number(e.target.value))}
+                            className="w-full bg-black/60 border border-white/10 rounded-lg p-1 text-[9px] text-[#e0e0e0] font-bold text-right cursor-pointer"
+                          >
+                            <option value={30}>30 ثانية</option>
+                            <option value={45}>45 ثانية</option>
+                            <option value={60}>دقيقة واحدة</option>
+                            <option value={90}>دقيقة ونصف</option>
+                            <option value={120}>دقيقتين</option>
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="space-y-1 text-right">
+                          <div className="flex items-center justify-between text-[8px] text-amber-400">
+                            <span>{legendPercentage}%</span>
+                            <span className="font-bold">نسبة الأساطير:</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={5}
+                            value={legendPercentage}
+                            onChange={(e) => setLegendPercentage(Number(e.target.value))}
+                            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-amber-500 mt-2"
+                          />
+                        </div>
+                      )}
+
+                      {/* Add legends pct in second row if time mode */}
+                      {gameMode === "time" && (
+                        <div className="space-y-1 text-right col-span-2">
+                          <div className="flex items-center justify-between text-[8px] text-amber-400">
+                            <span>{legendPercentage}%</span>
+                            <span className="font-bold">نسبة الأساطير:</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={5}
+                            value={legendPercentage}
+                            onChange={(e) => setLegendPercentage(Number(e.target.value))}
+                            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-amber-500 mt-2"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* Advanced Match Customization Grid */}
@@ -1159,12 +1314,14 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                       <div className="space-y-1.5 flex flex-col justify-center">
                         <div className="space-y-1">
                           <div className="flex items-center justify-between text-amber-400 text-[8px]">
-                            <span className="font-extrabold text-amber-400">{legendBurnLimit} كروت</span>
+                            <span className="font-extrabold text-amber-400">
+                              {legendBurnLimit === 0 ? "مجاناً (0)" : `${legendBurnLimit} كروت`}
+                            </span>
                             <span className="font-black">حرق كروت للأسطورة:</span>
                           </div>
                           <input
                             type="range"
-                            min={1}
+                            min={0}
                             max={4}
                             step={1}
                             value={legendBurnLimit}
@@ -1460,7 +1617,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                     {showLogoTip && (
                       <div className="bg-black/80 border border-emerald-500/20 rounded-xl p-2 text-right text-[8px] text-slate-355 leading-normal space-y-1">
                         <span className="font-black text-emerald-400 block">💡 احصل على رابط شعارك:</span>
-                        ارفع شعارك على موقع مثل <a href="https://imgbb.com" target="_blank" rel="noreferrer" className="text-white hover:underline">imgbb.com</a> ثم انسخ <strong>"الرابط المباشر" (Direct Link)</strong> الذي ينتهي بـ `.png` أو `.jpg` وضعه بالحقل.
+                        ارفع شعارك على موقع مثل <a href="https://uploadimgur.com/" target="_blank" rel="noreferrer" className="text-white hover:underline">uploadimgur.com</a> ثم انسخ <strong>"الرابط المباشر" (Direct Link)</strong> الذي ينتهي بـ `.png` أو `.jpg` وضعه بالحقل.
                       </div>
                     )}
 
@@ -1536,22 +1693,119 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                         </div>
                       </div>
 
-                      {/* Sliders */}
-                      <div className="space-y-1">
+                      {/* Game Duration System Default */}
+                      <div className="space-y-1 col-span-2">
+                        <label className="block text-[#e0e0e0]/60 font-black text-[9px]">نظام تحديد وقت المباراة الافتراضي:</label>
+                        <div className="grid grid-cols-2 gap-1.5 bg-black/45 p-0.5 border border-white/5 rounded-lg">
+                          {[
+                            { id: "time", label: "نظام زمني ⏱️" },
+                            { id: "rounds", label: "نظام جولات 🔁" }
+                          ].map((m) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => { SoundEffects.playCardDraw(); setDefGameMode(m.id as any); }}
+                              className={`py-1 rounded-md text-[8.5px] font-black text-center cursor-pointer transition-all ${
+                                defGameMode === m.id
+                                  ? "bg-white/10 text-white border border-white/20"
+                                  : "text-slate-500 hover:text-slate-350 border border-transparent"
+                              }`}
+                            >
+                              {m.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Winning goals default */}
+                      <div className="space-y-1 col-span-2">
                         <div className="flex items-center justify-between text-emerald-400 text-[8.5px]">
-                          <span className="font-extrabold">{defDuration} ثانية</span>
-                          <span className="font-black text-[#e0e0e0]/60">وقت المباراة الافتراضي:</span>
+                          <span className="font-extrabold">{defWinningGoals} أهداف</span>
+                          <span className="font-black text-[#e0e0e0]/60">أهداف الفوز الافتراضية:</span>
                         </div>
                         <input
                           type="range"
-                          min={60}
-                          max={300}
-                          step={30}
-                          value={defDuration}
-                          onChange={(e) => setDefDuration(Number(e.target.value))}
+                          min={3}
+                          max={10}
+                          step={1}
+                          value={defWinningGoals}
+                          onChange={(e) => setDefWinningGoals(Number(e.target.value))}
                           className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
                         />
                       </div>
+
+                      {/* Duration/Rounds dependent default */}
+                      {defGameMode === "time" ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-emerald-400 text-[8.5px]">
+                            <span className="font-extrabold">
+                              {defDuration >= 60 
+                                ? `${Math.floor(defDuration / 60)} دقيقة`
+                                : `${defDuration} ثانية`}
+                            </span>
+                            <span className="font-black text-[#e0e0e0]/60">وقت المباراة:</span>
+                          </div>
+                          <select
+                            value={defDuration}
+                            onChange={(e) => setDefDuration(Number(e.target.value))}
+                            className="w-full bg-black/60 border border-white/10 rounded-lg p-1 text-[9px] text-[#e0e0e0] font-bold text-right cursor-pointer"
+                          >
+                            <option value={180}>3 دقائق</option>
+                            <option value={300}>5 دقائق</option>
+                            <option value={600}>10 دقائق</option>
+                            <option value={900}>15 دقيقة</option>
+                            <option value={1200}>20 دقيقة</option>
+                            <option value={1800}>30 دقيقة</option>
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-emerald-400 text-[8.5px]">
+                            <span className="font-extrabold">{defTotalRounds} جولة</span>
+                            <span className="font-black text-[#e0e0e0]/60">عدد الجولات:</span>
+                          </div>
+                          <select
+                            value={defTotalRounds}
+                            onChange={(e) => setDefTotalRounds(Number(e.target.value))}
+                            className="w-full bg-black/60 border border-white/10 rounded-lg p-1 text-[9px] text-[#e0e0e0] font-bold text-right cursor-pointer"
+                          >
+                            <option value={6}>6 جولات</option>
+                            <option value={8}>8 جولات</option>
+                            <option value={10}>10 جولات</option>
+                            <option value={12}>12 جولة</option>
+                            <option value={14}>14 جولة</option>
+                            <option value={16}>16 جولة</option>
+                            <option value={18}>18 جولة</option>
+                            <option value={20}>20 جولة</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Halftime break default (visible only in time mode) */}
+                      {defGameMode === "time" ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-emerald-400 text-[8.5px]">
+                            <span className="font-extrabold">{defHalfTimeBreakDuration} ثانية</span>
+                            <span className="font-black text-[#e0e0e0]/60">استراحة الشوطين:</span>
+                          </div>
+                          <select
+                            value={defHalfTimeBreakDuration}
+                            onChange={(e) => setDefHalfTimeBreakDuration(Number(e.target.value))}
+                            className="w-full bg-black/60 border border-white/10 rounded-lg p-1 text-[9px] text-[#e0e0e0] font-bold text-right cursor-pointer"
+                          >
+                            <option value={30}>30 ثانية</option>
+                            <option value={45}>45 ثانية</option>
+                            <option value={60}>دقيقة واحدة</option>
+                            <option value={90}>دقيقة ونصف</option>
+                            <option value={120}>دقيقتين</option>
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {/* Placeholder to keep layout symmetrical when in rounds mode */}
+                          <div className="h-full w-full opacity-0" />
+                        </div>
+                      )}
 
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-emerald-400 text-[8.5px]">
@@ -1619,7 +1873,9 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
 
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-emerald-400 text-[8.5px]">
-                          <span className="font-extrabold">{defLegendBurn} كروت</span>
+                          <span className="font-extrabold">
+                            {defLegendBurn === 0 ? "مجاناً (0)" : `${defLegendBurn} كروت`}
+                          </span>
                           <span className="font-black text-[#e0e0e0]/60">حرق لإنزال الأسطورة:</span>
                         </div>
                         <input
@@ -1714,37 +1970,18 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
 
               {/* BOTTOM CONTROLS & UTILITIES */}
               <div className="border-t border-white/10 pt-2.5 mt-2 space-y-2">
-                <div className="grid grid-cols-2 gap-2 text-right">
-                  {/* Sound control toggle */}
-                  <button
-                    type="button"
-                    onClick={toggleMute}
-                    className={`py-1.5 rounded-xl text-[9px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 border border-white/5 ${
-                      isMuted 
-                        ? "bg-red-500/10 text-red-400 hover:bg-red-500/25" 
-                        : "bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
-                    }`}
-                  >
-                    <span>{isMuted ? "الصوت مكتوم 🔇" : "الصوت مفعل 🔊"}</span>
-                  </button>
-
-                  {/* Admin console button (only active for admin role) */}
-                  {currentUser?.role === "admin" ? (
-                    <a
-                      href="#/admin"
-                      className="py-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 rounded-xl text-[9px] font-black cursor-pointer transition-colors flex items-center justify-center gap-1 text-center"
-                    >
-                      دخول لوحة التحكم 👑⚙️
-                    </a>
-                  ) : (
-                    <div
-                      className="py-1.5 bg-black/20 text-slate-500 border border-white/5 rounded-xl text-[8.5px] font-bold cursor-not-allowed flex items-center justify-center gap-1 text-center"
-                      title="متاح للمشرفين التكتيكيين فقط ⚠️"
-                    >
-                      لوحة الإدارة مغلقة 🔒
-                    </div>
-                  )}
-                </div>
+                {/* Sound control toggle */}
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  className={`w-full py-1.5 rounded-xl text-[9px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 border border-white/5 ${
+                    isMuted 
+                      ? "bg-red-500/10 text-red-400 hover:bg-red-500/25" 
+                      : "bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                  }`}
+                >
+                  <span>{isMuted ? "الصوت مكتوم 🔇" : "الصوت مفعل 🔊"}</span>
+                </button>
 
                 {/* Logout Button */}
                 <button

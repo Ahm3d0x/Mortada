@@ -43,7 +43,7 @@ export default function AuthScreen() {
   const [role, setRole] = useState<"player" | "admin">("player");
 
   // Guidelines helper open/close
-  const [showLogoTip, setShowLogoTip] = useState(false);
+  const [showLogoTip, setShowLogoTip] = useState(true);
 
   const toggleMode = () => {
     SoundEffects.playCardDraw();
@@ -416,9 +416,9 @@ export default function AuthScreen() {
                     >
                       <h4 className="font-black text-emerald-400">💡 خطوات بسيطة للحصول على رابط مباشر لشعارك:</h4>
                       <ol className="list-decimal list-inside pr-1 space-y-0.5">
-                        <li>اذهب إلى أحد مواقع رفع الصور المجانية مثل <a href="https://imgbb.com" target="_blank" rel="noreferrer" className="text-white hover:underline">imgbb.com</a> أو <a href="https://postimages.org" target="_blank" rel="noreferrer" className="text-white hover:underline">postimages.org</a>.</li>
+                        <li>اذهب إلى موقع رفع الصور المجاني مثل <a href="https://uploadimgur.com/" target="_blank" rel="noreferrer" className="text-white hover:underline">uploadimgur.com</a>.</li>
                         <li>ارفع صورة شعار فريقك المفضلة من جهازك.</li>
-                        <li>بعد الرفع، انسخ خيار <strong>"رابط مباشر" (Direct Link)</strong>.</li>
+                        <li>بعد الرفع، انسخ خيار <strong>"الرابط المباشر" (Direct Link)</strong>.</li>
                         <li>يجب أن ينتهي الرابط بنوع الصورة مثل (`.png`, `.jpg`, `.jpeg`). الصقه في الحقل أعلاه لتشاهد شعارك فوراً بالبطاقة!</li>
                       </ol>
                     </motion.div>
