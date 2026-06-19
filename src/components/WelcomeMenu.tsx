@@ -365,7 +365,7 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
   const focusedPlayer = dbPackages.find(p => p.id === focusedPlayerId);
 
   return (
-    <div className="w-full h-full flex flex-col justify-between select-none relative overflow-hidden bg-[#020503] text-[#e0e0e0] font-sans pb-14">
+    <div className={`w-full h-full flex flex-col justify-between select-none relative overflow-hidden bg-[#020503] text-[#e0e0e0] font-sans ${activeTab === "play" ? "" : "pb-14"}`}>
       
       {/* Background soccer pitch line art */}
       <div className="absolute inset-0 pointer-events-none z-0 opacity-10">
@@ -382,22 +382,24 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
       <div className="absolute bottom-10 left-1/4 w-[300px] h-[300px] bg-teal-500/10 rounded-full blur-[80px] pointer-events-none z-0" />
 
       {/* TOP GLOWING HEADER */}
-      <header className={`relative z-10 w-full flex items-center justify-between px-6 ${isMobileLandscape ? 'py-1.5' : 'py-2.5'} bg-black/40 border-b border-white/5 backdrop-blur-md shrink-0`}>
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <h1 className="text-base font-black tracking-tight bg-clip-text text-transparent bg-linear-to-r from-emerald-400 via-teal-300 to-green-400">
-            مـرتـدة
-          </h1>
-        </div>
-        
-        <button
-          onClick={toggleMute}
-          className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer border border-white/10"
-          title={isMuted ? "تشغيل الصوت" : "كتم الصوت"}
-        >
-          {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
-        </button>
-      </header>
+      {activeTab !== "play" && (
+        <header className={`relative z-10 w-full flex items-center justify-between px-6 ${isMobileLandscape ? 'py-1.5' : 'py-2.5'} bg-black/40 border-b border-white/5 backdrop-blur-md shrink-0`}>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <h1 className="text-base font-black tracking-tight bg-clip-text text-transparent bg-linear-to-r from-emerald-400 via-teal-300 to-green-400">
+              مـرتـدة
+            </h1>
+          </div>
+          
+          <button
+            onClick={toggleMute}
+            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer border border-white/10"
+            title={isMuted ? "تشغيل الصوت" : "كتم الصوت"}
+          >
+            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+          </button>
+        </header>
+      )}
 
       {/* MIDDLE CONTENT WINDOW */}
       <main className="flex-1 relative z-10 w-full overflow-y-auto px-4 py-2 flex flex-col items-center justify-center max-w-lg mx-auto">
@@ -1151,38 +1153,40 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
       </main>
 
       {/* FIXED BOTTOM NAVIGATION BAR */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#060807]/95 border-t border-white/5 h-14 w-full px-2 shrink-0 z-30 backdrop-blur-md flex justify-around items-center">
-        {[
-          { id: "home", label: "الرئيسية", icon: "🏠" },
-          { id: "play", label: "اللعب", icon: "⚔️" },
-          { id: "decks", label: "الباقات", icon: "🎴" },
-          { id: "rules", label: "القوانين", icon: "📜" },
-          { id: "settings", label: "الإعدادات", icon: "⚙️" }
-        ].map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => {
-                SoundEffects.playCardDraw();
-                setActiveTab(tab.id as any);
-              }}
-              className={`flex flex-col items-center justify-center flex-1 h-full py-1 gap-0.5 cursor-pointer relative transition-all ${
-                isActive 
-                  ? "text-emerald-400 font-black scale-105" 
-                  : "text-slate-500 hover:text-slate-400"
-              }`}
-            >
-              <span className="text-lg">{tab.icon}</span>
-              <span className="text-[8.5px] tracking-tight leading-none">{tab.label}</span>
-              {isActive && (
-                <div className="absolute bottom-0 w-8 h-[2.5px] bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {activeTab !== "play" && (
+        <div className="fixed bottom-0 left-0 right-0 bg-[#060807]/95 border-t border-white/5 h-14 w-full px-2 shrink-0 z-30 backdrop-blur-md flex justify-around items-center">
+          {[
+            { id: "home", label: "الرئيسية", icon: "🏠" },
+            { id: "play", label: "اللعب", icon: "⚔️" },
+            { id: "decks", label: "الباقات", icon: "🎴" },
+            { id: "rules", label: "القوانين", icon: "📜" },
+            { id: "settings", label: "الإعدادات", icon: "⚙️" }
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  SoundEffects.playCardDraw();
+                  setActiveTab(tab.id as any);
+                }}
+                className={`flex flex-col items-center justify-center flex-1 h-full py-1 gap-0.5 cursor-pointer relative transition-all ${
+                  isActive 
+                    ? "text-emerald-400 font-black scale-105" 
+                    : "text-slate-500 hover:text-slate-400"
+                }`}
+              >
+                <span className="text-lg">{tab.icon}</span>
+                <span className="text-[8.5px] tracking-tight leading-none">{tab.label}</span>
+                {isActive && (
+                  <div className="absolute bottom-0 w-8 h-[2.5px] bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
     </div>
   );

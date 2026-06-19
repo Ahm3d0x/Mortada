@@ -916,6 +916,7 @@ export default function App() {
 
   // Defense moves left counter (for resolving of other turns)
   const [defenseMovesLeft, setDefenseMovesLeft] = useState(3);
+  const [isShotDeclared, setIsShotDeclared] = useState(false);
   const [isPlayerAttacker, setIsPlayerAttacker] = useState<boolean>(true);
   const [isAttackBlocked, setIsAttackBlocked] = useState<boolean>(false);
   const [hasScoredThisTurn, setHasScoredThisTurn] = useState<boolean>(false);
@@ -1008,7 +1009,8 @@ export default function App() {
     overrideAiDeck?: PlayerCard[],
     overrideSpecialDeck?: SpecialCard[],
     overrideBoosterDeck?: BoosterCard[],
-    overrideAttackerRole?: "host" | "opponent" | null
+    overrideAttackerRole?: "host" | "opponent" | null,
+    overrideIsShotDeclared?: boolean
   ) => {
     if (!isMultiplayer && !overridePhase) return;
     const resolvedRoomId = currentRoomId;
@@ -1038,6 +1040,7 @@ export default function App() {
     const resolvedSpecialDeck = overrideSpecialDeck !== undefined ? overrideSpecialDeck : specialDeck;
     const resolvedBoosterDeck = overrideBoosterDeck !== undefined ? overrideBoosterDeck : boosterDeck;
     const resolvedAttackerRole = overrideAttackerRole !== undefined ? overrideAttackerRole : attackerRole;
+    const resolvedIsShotDeclared = overrideIsShotDeclared !== undefined ? overrideIsShotDeclared : isShotDeclared;
 
     // Convert from local perspective to Host perspective (canonical)
     const host_slots = resolvedRole === "host" ? resolvedPlayerSlots : resolvedAiSlots;
@@ -1089,7 +1092,8 @@ export default function App() {
       special_deck: resolvedSpecialDeck,
       attacker_role: resolvedAttackerRole,
       last_updated_by: resolvedRole,
-      max_bonus_value: maxBonusValue
+      max_bonus_value: maxBonusValue,
+      is_shot_declared: resolvedIsShotDeclared
     };
 
     try {
@@ -1300,14 +1304,24 @@ export default function App() {
       setCardsDrawnThisTurn(gs.cards_drawn !== undefined ? gs.cards_drawn : 0);
       setTurnCount(gs.turn_count !== undefined ? gs.turn_count : 1);
       setDefenseMovesLeft(gs.defense_moves_left !== undefined ? gs.defense_moves_left : 3);
+      setIsShotDeclared(gs.is_shot_declared || false);
       const my_deck = multiplayerRole === "host" ? (gs.host_player_deck || gs.player_deck) : gs.opponent_player_deck;
       const enemy_deck = multiplayerRole === "host" ? gs.opponent_player_deck : (gs.host_player_deck || gs.player_deck);
 
       setPlayerDeck(my_deck || []);
       setAiDeck(enemy_deck || []);
       setSpecialDeck(gs.special_deck || []);
-      setBoosterDeck(gs.booster_deck || gs.ponto_deck || []);
-      setAttackerRole(gs.attacker_role || null);
+      const incomingAttackerRole = gs.attacker_role || null;
+      setAttackerRole(incomingAttackerRole);
+      if (incomingAttackerRole) {
+        setIsPlayerAttacker(incomingAttackerRole === multiplayerRole);
+      } else {
+        if (incomingLocalPhase === "player_turn" || incomingLocalPhase === "attacking") {
+          setIsPlayerAttacker(true);
+        } else if (incomingLocalPhase === "ai_turn" || incomingLocalPhase === "ai_attacking") {
+          setIsPlayerAttacker(false);
+        }
+      }
 
       setTimeout(() => {
         isReceivingUpdate.current = false;
@@ -2493,6 +2507,15 @@ export default function App() {
 
     const isPlayerActivePhase = phase === "player_turn" || phase === "attacking" || phase === "ai_attacking";
     if (!isPlayerActivePhase) return;
+
+    if (isMultiplayer) {
+      if (phase === "ai_attacking" && !isShotDeclared) {
+        return;
+      }
+      if (phase === "attacking" && isShotDeclared) {
+        return;
+      }
+    }
     
     // Check moves left first
     if ((phase === "player_turn" || phase === "attacking") && playerMovesLeft < 1) {
@@ -2565,10 +2588,11 @@ export default function App() {
       // Append to active specials list
       if (phase === "ai_attacking") {
         setPlayerActiveSpecial((prev) => [...prev, card]);
-        addLog(`🛡️ تكتيك دفاعي: قمت بلعب [ ${card.name} ] لعرقلة هجمة الخصم! (استهلكت حركة واحدة)`, "success");
       } else {
         setPlayerActiveSpecial((prev) => [...prev, card]);
-        addLog(`⚔️ تكتيك هجومي: قمت بلعب [ ${card.name} ] لغزو مرمى المنافس! (استهلكت حركة واحدة)`, "success");
+        if (phase === "player_turn") {
+          addLog(`⚔️ تكتيك هجومي: قمت بلعب [ ${card.name} ] لغزو مرمى المنافس! (استهلكت حركة واحدة)`, "success");
+        }
       }
     }
 
@@ -2804,14 +2828,14 @@ export default function App() {
           const burnLogText = legendBurnLimit > 0 ? `تم حرق ${legendBurnLimit} كروت و` : "تم ";
           if (targetSlot.card) {
             if (targetSlot.isRevealed) {
-              addLog(`🔥 التضحية الفائقة: ${burnLogText}عزل اللاعب المكشوف [ ${targetSlot.card.name} ] خارج الماتش، ليدخل مكانه لاعب أسطوري جديد مقلوباً.`, "success");
+              addLog(`🔥 التضحية الفائقة: ${burnLogText}عزل اللاعب المكشوف في المركز [ ${idx + 1} ] خارج الماتش، ليدخل مكانه لاعب أسطوري جديد مقلوباً.`, "success");
             } else {
               // Face down, returns to hand
               setPlayerHand((prev) => [...prev, targetSlot.card!]);
-              addLog(`🔥 التضحية الفائقة: ${burnLogText}استرجاع لاعب مقلوب إلى يدك، ونزول لاعب أسطوري جديد مقلوباً بالملعب.`, "success");
+              addLog(`🔥 التضحية الفائقة: ${burnLogText}استرجاع لاعب مقلوب في المركز [ ${idx + 1} ] إلى يدك، ونزول لاعب أسطوري جديد مقلوباً بالملعب.`, "success");
             }
           } else {
-            addLog(`🔥 تم إنزال لاعب أسطوري ذهبي في هذا المركز مقلوباً بنجاح!`, "success");
+            addLog(`🔥 تم إنزال لاعب أسطوري ذهبي في المركز [ ${idx + 1} ] مقلوباً بنجاح!`, "success");
           }
 
           setPlayerMovesLeft((prev) => prev - 1);
@@ -2835,14 +2859,14 @@ export default function App() {
           if (currentPitchItem.isRevealed) {
             // "إذا تبدل لاعب مكشوف يخرج خارج اللعب تماماً" (disappears/burned)
             recyclePlayerCard(currentPitchItem.card);
-            addLog(`استبدال حاسم: تم طرد اللاعب المكشوف [ ${currentPitchItem.card.name} ] خارج اللعب بالكامل، ودخل مكانه لاعب جديد مقلوباً.`, "warning");
+            addLog(`استبدال حاسم: تم طرد اللاعب المكشوف في المركز [ ${idx + 1} ] خارج اللعب بالكامل، ودخل مكانه لاعب جديد مقلوباً.`, "warning");
           } else {
             // "ترجعه ليدك وتضع الجديد مقلوباً"
             setPlayerHand((prev) => [...prev, currentPitchItem.card!]);
-            addLog(`مبادلة جيدة: تم استبدال كرت مقلوب من التشكيلة بكرت جديد من الدكة مقلوباً.`, "success");
+            addLog(`مبادلة جيدة: تم استبدال كرت مقلوب في المركز [ ${idx + 1} ] بكرت جديد من الدكة مقلوباً.`, "success");
           }
         } else {
-          addLog(`تنزيل صامت: قمت بوضع لاعب جديد مقلوباً في المركز الخالي لتعزيز كتيبتك.`, "info");
+          addLog(`تنزيل صامت: قمت بوضع لاعب جديد مقلوباً في المركز الخالي [ ${idx + 1} ] لتعزيز كتيبتك.`, "info");
         }
 
         setPlayerMovesLeft((prev) => prev - 1);
@@ -2858,12 +2882,14 @@ export default function App() {
       if (clickedSlot.card && !clickedSlot.isRevealed) {
         // Candidate selection for attack
         setSelectedPitchSlotIdx(idx);
-        addLog(`لقد وقع اختيارك على المهاجم المخفي في هذا المركز. اضغط الآن على زر "إعلان هجوم تكتيكي" في لوحة الأوامر لضرب الخصم.`, "info");
       }
     }
 
     // 3. Handling Defensive reveals during AI main Attacks (Player defends)
     if (phase === "ai_attacking") {
+      if (isMultiplayer && !isShotDeclared) {
+        return;
+      }
       if (isDefenseBlockedFor(true)) {
         addLog("🚫 خطأ تكتيكي: التصدّي والمشاركة بالدفاع محظور حالياً بسبب تأثير هجومي للخصم!", "danger");
         return;
@@ -2883,6 +2909,7 @@ export default function App() {
           setPlayerSlots(newSlots);
           setDefenseMovesLeft((prev) => Math.min(maxMovesPerTurn, prev + 1));
           SoundEffects.playCardDraw();
+          syncMultiplayerIfActive();
         }
         return;
       }
@@ -2906,6 +2933,7 @@ export default function App() {
       setPlayerSlots(newSlots);
       setDefenseMovesLeft((prev) => prev - 1);
       SoundEffects.playCardDraw();
+      syncMultiplayerIfActive();
 
       if (clickedSlot.card.ability) {
         setCinematicEvent({
@@ -2926,6 +2954,9 @@ export default function App() {
 
     // 4. Handling Extra revealing actions during active attacks (Player attacks)
     if (phase === "attacking") {
+      if (isMultiplayer && isShotDeclared) {
+        return;
+      }
       const clickedSlot = playerSlots[idx];
       if (!clickedSlot.card) return;
 
@@ -2995,14 +3026,8 @@ export default function App() {
             setPlayerSlots(newSlots);
             setPlayerMovesLeft((prev) => Math.min(maxMovesPerTurn, prev + 1));
 
-            // Revert one reactive AI slot that was revealed during this attack
-            const aiToRevertIdx = aiSlots.findIndex((s) => s.isRevealed && s.revealedInAttack);
-            if (aiToRevertIdx !== -1) {
-              const updatedAi = [...aiSlots];
-              updatedAi[aiToRevertIdx] = { ...updatedAi[aiToRevertIdx], isRevealed: false, revealedInAttack: false };
-              setAiSlots(updatedAi);
-            }
             SoundEffects.playCardDraw();
+            syncMultiplayerIfActive();
           }
         }
         return;
@@ -3027,6 +3052,7 @@ export default function App() {
       setPlayerSlots(newSlots);
       setPlayerMovesLeft((prev) => prev - 1);
       SoundEffects.playCardDraw();
+      syncMultiplayerIfActive();
 
       if (clickedSlot.card.ability) {
         setCinematicEvent({
@@ -3183,13 +3209,20 @@ export default function App() {
     const movesAfterDeclare = playerMovesLeft - 1;
     setPlayerMovesLeft(movesAfterDeclare);
     setPhase("attacking");
+    setDefenseMovesLeft(maxMovesPerTurn);
 
     SoundEffects.playWhistle();
 
     if (isMultiplayer) {
       setAttackerRole(multiplayerRole);
       // Let's build updated logs representation
-      const updatedLogs = [...logs];
+      const newDeclareLog: ActionLog = {
+        id: Math.random().toString(36).substr(2, 9),
+        timestamp: getFormattedTime(),
+        text: `⚔️ تم بدء الهجمة بقيادة المهاجم [ ${attacker.name} ] بقوة هجوم أساسية ${attacker.attack}، وسحبت معزز [ ${drawnBooster.text} ] (+${drawnBooster.value}).`,
+        type: "info"
+      };
+      const updatedLogs = [...logs, newDeclareLog];
       setLogs(updatedLogs);
 
       setTimeout(() => {
@@ -3220,6 +3253,7 @@ export default function App() {
     } else {
       // We DO NOT trigger the AI defense reaction instantly.
       // This is a strategic enhancement: the AI will now only declare its defense reaction AFTER the player finalized their attack and clicked "تسديدة حاسمة ⚽"!
+      addLog(`⚔️ تم بدء الهجمة بقيادة المهاجم [ ${attacker.name} ] بقوة هجوم أساسية ${attacker.attack}، وسحبت معزز [ ${drawnBooster.text} ] (+${drawnBooster.value}).`, "info");
       addLog(`🛡️ الخصم يدرس التمريرات ويتماسك دفاعياً بانتظار تسديدتك الحاسمة ليرى تشكيلتك كاملة...`, "neutral");
     }
   };
@@ -3487,46 +3521,79 @@ export default function App() {
 
     phaseRef.current = "resolution";
 
-    if (isMultiplayer) {
-      // Calculate total scores immediately for multiplayer
-      const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentBooster, playerActiveSpecial, aiActiveSpecial, playerSlots, aiSlots);
-      const defDetail = getDetailedCalculation(false, false, null, null, playerActiveSpecial, aiActiveSpecial, playerSlots, aiSlots);
-      const finalAttack = attackDetail.total;
-      const finalDefense = defDetail.total;
+    // Gather all confirmed attack action details
+    const attacker = playerSlots[currentAttackerIdx].card!;
+    const confirmLogs: ActionLog[] = [];
+    const addConfirmLog = (text: string, type: ActionLog["type"] = "neutral") => {
+      confirmLogs.push({
+        id: Math.random().toString(36).substr(2, 9),
+        timestamp: getFormattedTime(),
+        text,
+        type
+      });
+    };
 
-      const isGoal = finalAttack > finalDefense;
-      const defenders = aiSlots.filter((s) => s.card && s.isRevealed && s.revealedInAttack).map((s) => s.card!.name);
-      const attackerName = playerSlots[currentAttackerIdx]?.card?.name || "لاعبك";
-      
-      if (isGoal) {
-        const newScore = playerScore + 1;
-        setPlayerScore(newScore);
-        triggerAllGoalScoredAbilities("player");
-        setHasScoredThisTurn(true);
-        setShowConfetti(true);
-        triggerScreenShake();
-        SoundEffects.playGoalCelebration();
-        setCelebrationMessage({
-          title: "جــوووووول! هجمة مرتدة قاتلة! ⚽🔥",
-          subtitle: `إجمالي هجومك (${finalAttack}) تجاوز بنجاح تكتلات دفاع الخصم (${finalDefense}) لتسجل هدفاً تكتيكياً مميزاً!`,
-          isGoal: true
-        });
-        addLog(formatGoalLog(true, finalAttack, finalDefense, attackDetail.breakdown, defDetail.breakdown, `${newScore} - ${aiScore}`), "success");
-        recordRound("player", finalAttack, finalDefense, currentBooster.value, currentBooster.text, true, attackerName, defenders, newScore, aiScore);
-      } else {
-        SoundEffects.playTackleBlock();
-        setCelebrationMessage({
-          title: "يا لها من فرصة ضائعة! التصدي للمحاولة 🧤🚫",
-          subtitle: `تكتلات دفاع الخصم الحصين (${finalDefense}) تفوقت أو تساوت مع قواك الضاربة (${finalAttack}) ليفشل هجومك!`,
-          isGoal: false
-        });
-        addLog(formatBlockLog(true, finalAttack, finalDefense, attackDetail.breakdown, defDetail.breakdown, `${playerScore} - ${aiScore}`), "danger");
-        recordRound("player", finalAttack, finalDefense, currentBooster.value, currentBooster.text, false, attackerName, defenders, playerScore, aiScore);
+    addConfirmLog(`⚽ تسديدة حاسمة: قام المهاجم [ ${attacker.name} ] بالتسديد بقوة ${attacker.attack}!`, "info");
+
+    playerSlots.forEach((slot, idx) => {
+      if (idx !== currentAttackerIdx && slot.card && slot.isRevealed && slot.revealedInAttack) {
+        addConfirmLog(`⚡ تم تعزيز الهجوم باللاعب الداعم [ ${slot.card.name} ] وإضافة نقاطه +${slot.card.attack}!`, "success");
       }
+    });
 
-      setPhase("resolution");
+    playerActiveSpecial.forEach((spec) => {
+      addConfirmLog(`✨ تم تعزيز الهجوم بكارت التكتيك [ ${spec.name} ]!`, "success");
+    });
+
+    const updatedLogs = [...logs, ...confirmLogs];
+
+    if (isMultiplayer) {
+      setIsShotDeclared(true);
+      
+      // Lock current striker card(s) so they cannot be flipped back
+      const cleanPlayerSlots = playerSlots.map((s) => ({
+        ...s,
+        confirmedInAttack: s.revealedInAttack ? true : s.confirmedInAttack
+      }));
+      setPlayerSlots(cleanPlayerSlots);
+
+      setLogs(updatedLogs);
+
+      setTimeout(() => {
+        syncToSupabaseInstance(
+          "attacking", // Keep phase as attacking
+          cleanPlayerSlots,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          playerMovesLeft,
+          undefined,
+          updatedLogs,
+          currentBooster,
+          currentAttackerIdx,
+          playerActiveSpecial,
+          undefined,
+          undefined,
+          undefined,
+          maxMovesPerTurn, // Reset opponent's defense moves to max (e.g. 3) to let them defend!
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          true // overrideIsShotDeclared
+        );
+      }, 50);
+
+      // Release lock so phase is kept attacking
+      isResolvingRef.current = false;
+      phaseRef.current = "attacking";
+      setPhase("attacking");
     } else {
       // IN OFFLINE MODE (VS AI):
+      setLogs(updatedLogs);
       // The AI has not played defense yet. We trigger its AI defense reaction now,
       // and mathematically resolve the outcome inside the callback once it is completed.
       addLog(`🤖 الخصم يدرس تسديدتك الكلية وتكتيكاتك بالملعب ويقود خط الصد التكتيكي الفوري...`, "neutral");
@@ -3569,6 +3636,19 @@ export default function App() {
             isResolvingRef.current = false;
             phaseRef.current = "attacking";
             SoundEffects.playTackleBlock();
+
+            // Lock striker slots that participated in the attack
+            const lockedPlayerSlots = playerSlots.map((s) =>
+              s.revealedInAttack ? { ...s, confirmedInAttack: true } : s
+            );
+            setPlayerSlots(lockedPlayerSlots);
+
+            // Also lock AI defender slots that participated in the defense
+            const lockedAiSlots = updatedSlots.map((s) =>
+              s.revealedInAttack ? { ...s, confirmedInAttack: true } : s
+            );
+            setAiSlots(lockedAiSlots);
+
             addLog(`🧤 تصدي تكتيكي للخصم! دفاع الخصم (${computedDefense}) > هجومك (${computedAttack})\n📊 تفاصيل الحسبة الفنية:\n[قوة الهجوم ⚔️]:\n${attackDetail.breakdown}\n[قوة الدفاع 🛡️]:\n${defDetail.breakdown}\n💡 بما أنه متبقي لك حركات تكتيكية، يمكنك مواصلة الهجوم بالنقر على لاعب مقلوب من التشكيلة لكشفه وضمه للهجوم، أو الضغط على زر "إنهاء الهجمة 🛑" للاستسلام بالتصدي.`, "warning");
           } else {
             // No moves left, auto end attack sequence
@@ -3641,6 +3721,7 @@ export default function App() {
     setCurrentAttackerIdx(null);
     setCurrentBooster(null);
     setShowConfetti(false);
+    setIsShotDeclared(false);
 
     // Helper to decrement slot durations
     const decrementSlotDurations = (slots: typeof playerSlots) => {
@@ -3977,7 +4058,7 @@ export default function App() {
             handPlayerCards = handPlayerCards.filter((c) => c.id !== bestPlayer.id);
             
             aiMoves--;
-            addLog(`🤖 الخصم يدعم صفوفه وينزل لاعباً جديداً من الدكة إلى الملعب في مركز خالي.`, "success");
+            addLog(`🤖 الخصم يدعم صفوفه وينزل لاعباً جديداً من الدكة في المركز الفارغ [ ${emptySlotIdx + 1} ].`, "success");
             triggerAiHandCardPlayed(bestPlayer);
           } else if (spentSlotIdx !== -1) {
             // Find best available hand player card to replace the spent card
@@ -3995,7 +4076,7 @@ export default function App() {
             handPlayerCards = handPlayerCards.filter((c) => c.id !== bestPlayer.id);
             
             aiMoves--;
-            addLog(`🤖 الخصم يستبدل لاعباً مستهلكاً [ ${oldCard.name} ] بنجم جديد من الدكة تعزيزاً لخطوطه المخفية.`, "success");
+            addLog(`🤖 الخصم يستبدل لاعباً مستهلكاً في المركز [ ${spentSlotIdx + 1} ] بلاعب جديد من الدكة تعزيزاً لخطوطه المخفية.`, "success");
             triggerAiHandCardPlayed(bestPlayer);
           } else {
             // No empty or spent slots. Assess swapping any weak unrevealed card
@@ -4015,7 +4096,7 @@ export default function App() {
                 handPlayerCards = handPlayerCards.filter((c) => c.id !== bestPlayer.id);
                 
                 aiMoves--;
-                addLog(`🤖 الخصم يعيد ترتيب خطته ويستبدل لاعباً مقلوباً من التشكيلة بلاعب آخر من الدكة.`, "info");
+                addLog(`🤖 الخصم يعيد ترتيب خطته ويستبدل لاعباً مقلوباً في المركز [ ${weakSlotIdx + 1} ] بلاعب آخر من الدكة.`, "info");
                 triggerAiHandCardPlayed(bestPlayer);
               } else {
                 break;
@@ -4255,7 +4336,29 @@ export default function App() {
     let currentAiHand = [...aiHand];
     let currentAiActiveSpecials = [...aiActiveSpecial];
     let currentAiMovesLeft = aiMovesLeft;
-    const newLogs = [...logs];
+
+    // Compile and log player's confirmed defense details
+    const confirmDefenseLogs: ActionLog[] = [];
+    const addConfirmDefenseLog = (text: string, type: ActionLog["type"] = "neutral") => {
+      confirmDefenseLogs.push({
+        id: Math.random().toString(36).substr(2, 9),
+        timestamp: getFormattedTime(),
+        text,
+        type
+      });
+    };
+
+    playerSlots.forEach((slot) => {
+      if (slot.card && slot.isRevealed && slot.revealedInAttack) {
+        addConfirmDefenseLog(`🧱 تم تأكيد الدفاع باللاعب [ ${slot.card.name} ] لصد الهجوم بقوة دفاع +${slot.card.defense}!`, "info");
+      }
+    });
+
+    playerActiveSpecial.forEach((spec) => {
+      addConfirmDefenseLog(`🛡️ تم تعزيز الدفاع بكارت التكتيك [ ${spec.name} ]!`, "success");
+    });
+
+    const newLogs = [...logs, ...confirmDefenseLogs];
 
     // AI Attacks, Player Defends
     let attackDetail = getDetailedCalculation(false, true, currentAttackerIdx, currentBooster, playerActiveSpecial, currentAiActiveSpecials, playerSlots, aiSlots);
@@ -4419,6 +4522,7 @@ export default function App() {
     setLogs([]);
     setMatchRounds([]);
     setAiCardsDrawnThisTurn(0);
+    setIsShotDeclared(false);
   };
 
   // Dynamic Scoreboard Offensive/Defensive Statistics - requested by user
@@ -4475,101 +4579,7 @@ export default function App() {
           {/* Main Container */}
           <div className={`max-w-7xl mx-auto h-full flex flex-col space-y-1.5 lg:space-y-2 justify-between ${screenShaken ? "animate-shake" : ""}`}>
             
-            {/* TOP STATUS NAVIGATION BAR - Hidden during matches on small viewports to match scribbled layouts */}
-            <header className="hidden lg:flex flex-col sm:flex-row items-center justify-between bg-[#0c0d0c] p-3 px-4 rounded-xl border border-white/5 backdrop-blur-md gap-3 select-none">
-          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-start">
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => {
-                  SoundEffects.playCardDraw();
-                  setIsTutorialOpen(true);
-                }}
-                id="rules_button_header"
-                className="px-3 py-1.5 bg-transparent hover:bg-white/5 text-white border border-white/10 rounded font-medium text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
-              >
-                <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden xs:inline">القوانين بالتفصيل</span>
-                <span className="inline xs:hidden">🏆 القوانين</span>
-              </button>
-              <button
-                onClick={handleResetGame}
-                id="reset_game_header_button"
-                className="p-1.5 bg-transparent hover:bg-white/5 text-slate-400 hover:text-white rounded border border-white/10 transition-colors cursor-pointer flex items-center justify-center w-8 h-8"
-                title="العودة لشاشة البداية"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-              </button>
-              
-              {/* Turn-based logging display toggle - Requirement 3 */}
-              {phase !== "menu" && (
-                <button
-                  onClick={() => setShowCommentary(!showCommentary)}
-                  className={`px-3 py-1.5 text-xs font-bold rounded border transition-colors cursor-pointer flex items-center gap-1 ${
-                    showCommentary 
-                      ? "bg-amber-600/20 border-amber-500/30 text-amber-305"
-                      : "bg-transparent border-white/10 text-slate-300 hover:bg-white/5"
-                  }`}
-                >
-                  <span>التعليق 🎙️</span>
-                  <span className="text-[9px] uppercase font-mono px-1 bg-black/30 rounded">
-                    {showCommentary ? "ظاهر" : "مخفي"}
-                  </span>
-                </button>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-2 sm:hidden text-right">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <h1 className="text-xs font-black text-emerald-400 leading-none">
-                مرتدة ©
-              </h1>
-            </div>
-          </div>
-
-          {/* New Interactive Mid Scoreboard - Requirement 4 */}
-          {phase !== "menu" && (
-            <div className="flex items-center justify-center gap-3 bg-black/40 border border-white/5 px-4 py-1.5 rounded-full shadow-inner w-full sm:w-auto">
-              <div className="flex items-center gap-1 text-right">
-                <span className="text-[10px] text-slate-400 font-bold hidden xs:inline max-w-[60px] truncate">
-                  {coachName || "المدرب"}
-                </span>
-                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">
-                  {playerScore}
-                </span>
-              </div>
-              
-              <div className="text-[10px] text-slate-500 font-black font-sans">
-                -
-              </div>
-
-              <div className="flex items-center gap-1 text-left">
-                <span className="text-[10px] text-rose-450 font-bold bg-rose-500/10 px-2 py-0.5 rounded">
-                  {aiScore}
-                </span>
-                <span className="text-[10px] text-slate-400 font-bold hidden xs:inline max-w-[60px] truncate">
-                  الخصم
-                </span>
-              </div>
-
-              <div className="border-r border-white/10 h-3 mx-1" />
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] text-amber-400 font-bold">
-                  الدور {turnCount}
-                </span>
-                <span className="text-[9px] text-slate-300 bg-white/5 px-2 py-0.5 rounded">
-                  الحركات: {3 - playerMovesLeft}/3
-                </span>
-              </div>
-            </div>
-          )}
-
-          <div className="hidden sm:flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <h1 className="text-sm font-extrabold bg-clip-text text-transparent bg-linear-to-r from-emerald-400 to-teal-200">
-              مرتدة © تكتيك كرة القدم
-            </h1>
-          </div>
-        </header>
+            {/* TOP STATUS NAVIGATION BAR - Removed to maximize screen utilization */}
 
         {/* CONDITION-BASED ROUTING VIEWS */}
         {isGameLoading ? (
@@ -4609,6 +4619,43 @@ export default function App() {
             {/* LEFT SIDEBAR PANEL (Tactics block + Commentary log + Draw blocks) */}
             <div className="w-[28%] md:w-[26%] min-w-[210px] max-w-[270px] flex flex-col gap-1.5 h-full justify-between overflow-hidden shrink-0">
               
+              {/* Match Tools (Rules, Commentary Toggle, Exit/Reset) */}
+              <div className="grid grid-cols-3 gap-1 shrink-0">
+                <button
+                  onClick={() => {
+                    SoundEffects.playCardDraw();
+                    setIsTutorialOpen(true);
+                  }}
+                  id="rules_button_sidebar"
+                  className="py-1 px-1 bg-[#0b100d] hover:bg-white/5 text-slate-350 hover:text-white border border-white/10 rounded-lg text-[9px] font-black flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                  title="قوانين اللعبة بالتفصيل"
+                >
+                  <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>القوانين</span>
+                </button>
+                
+                <button
+                  onClick={() => setShowCommentary(!showCommentary)}
+                  className={`py-1 px-1 border rounded-lg text-[9px] font-black flex items-center justify-center gap-1 cursor-pointer transition-colors ${
+                    showCommentary 
+                      ? "bg-amber-600/20 border-amber-500/30 text-amber-305"
+                      : "bg-[#0b100d] border-white/10 text-slate-350 hover:bg-white/5"
+                  }`}
+                >
+                  <span>التعليق 🎙️</span>
+                </button>
+
+                <button
+                  onClick={handleResetGame}
+                  id="reset_game_sidebar_button"
+                  className="py-1 px-1 bg-rose-950/20 hover:bg-rose-900/30 text-rose-350 hover:text-rose-200 border border-rose-500/20 rounded-lg text-[9px] font-black flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                  title="الخروج للقائمة الرئيسية"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-rose-450" />
+                  <span>خروج</span>
+                </button>
+              </div>
+
               {/* Box 1 (Tactics Panel) - ultra compact layout matching the image identically */}
               <div id="tactics_dashboard_sidebar" className="bg-[#0b100d] border border-white/5 rounded-xl p-1 flex flex-col gap-1 shadow-md select-none">
                 <div className="flex flex-col gap-1">
@@ -5078,7 +5125,13 @@ export default function App() {
                 <div className="flex items-center gap-1.5 md:gap-2 shrink-0 scale-[0.82] md:scale-95 origin-center font-sans font-black text-[6.5px] md:text-[8px] leading-none">
                   {/* Opponent Pill (Rose Red Theme) */}
                   <div className="bg-rose-950/20 text-rose-400 border border-rose-500/25 px-1.5 py-0.5 rounded-lg flex items-center gap-1">
-                    <span>حركات {maxMovesPerTurn - aiMovesLeft}/{maxMovesPerTurn}</span>
+                    <span>حركات {(() => {
+                      if (phase === "attacking") return maxMovesPerTurn - defenseMovesLeft;
+                      if (phase === "resolution") {
+                        return isPlayerAttacker ? (maxMovesPerTurn - defenseMovesLeft) : (maxMovesPerTurn - aiMovesLeft);
+                      }
+                      return maxMovesPerTurn - aiMovesLeft;
+                    })()}/{maxMovesPerTurn}</span>
                     <span className="text-rose-550/30">|</span>
                     <span>سحب {aiCardsDrawnThisTurn}/{maxDrawsPerTurn}</span>
                   </div>
@@ -5096,7 +5149,13 @@ export default function App() {
                       </>
                     ) : (
                       <>
-                        <span>حركات {phase === "ai_attacking" ? (maxMovesPerTurn - defenseMovesLeft) : (maxMovesPerTurn - playerMovesLeft)}/{maxMovesPerTurn}</span>
+                        <span>حركات {(() => {
+                          if (phase === "ai_attacking") return maxMovesPerTurn - defenseMovesLeft;
+                          if (phase === "resolution") {
+                            return isPlayerAttacker ? (maxMovesPerTurn - playerMovesLeft) : (maxMovesPerTurn - defenseMovesLeft);
+                          }
+                          return maxMovesPerTurn - playerMovesLeft;
+                        })()}/{maxMovesPerTurn}</span>
                         <span className="text-emerald-550/30">|</span>
                         <span>سحب {cardsDrawnThisTurn}/{maxDrawsPerTurn}</span>
                       </>
@@ -5141,33 +5200,49 @@ export default function App() {
 
                   {phase === "attacking" && (
                     <>
-                      <button
-                        type="button"
-                        onClick={handleResolveAttack}
-                        className="bg-rose-600 hover:bg-rose-500 text-white font-black py-0.5 px-1.5 md:px-3 rounded-md text-[7.5px] md:text-[10px] cursor-pointer transition-colors leading-none"
-                      >
-                        تسديدة ⚽
-                      </button>
-                      {isAttackBlocked && (
-                        <button
-                          type="button"
-                          onClick={handleForceEndAttack}
-                          className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-0.5 px-0.8 md:px-2 rounded-md text-[7px] md:text-[9px] cursor-pointer leading-none"
-                        >
-                          إنهاء 🛑
-                        </button>
+                      {isMultiplayer && isShotDeclared ? (
+                        <span className="text-[7.5px] md:text-[9.5px] text-yellow-400 font-extrabold flex items-center gap-0.5">
+                          <span>بانتظار دفاع الخصم... ⏳</span>
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleResolveAttack}
+                            className="bg-rose-600 hover:bg-rose-500 text-white font-black py-0.5 px-1.5 md:px-3 rounded-md text-[7.5px] md:text-[10px] cursor-pointer transition-colors leading-none"
+                          >
+                            تسديدة ⚽
+                          </button>
+                          {isAttackBlocked && (
+                            <button
+                              type="button"
+                              onClick={handleForceEndAttack}
+                              className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-0.5 px-0.8 md:px-2 rounded-md text-[7px] md:text-[9px] cursor-pointer leading-none"
+                            >
+                              إنهاء 🛑
+                            </button>
+                          )}
+                        </>
                       )}
                     </>
                   )}
 
                   {phase === "ai_attacking" && (
-                    <button
-                      type="button"
-                      onClick={handleConfirmDefense}
-                      className="bg-blue-600 hover:bg-blue-500 text-white font-black py-0.5 px-1.5 md:px-3 rounded-md text-[7.5px] md:text-[10px] cursor-pointer transition-colors leading-none"
-                    >
-                      تأكيد 🛡️
-                    </button>
+                    <>
+                      {isMultiplayer && !isShotDeclared ? (
+                        <span className="text-[7.5px] md:text-[9.5px] text-rose-400 font-extrabold flex items-center gap-0.5 animate-pulse">
+                          <span>بانتظار تسديدة الخصم... ⚽</span>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleConfirmDefense}
+                          className="bg-blue-600 hover:bg-blue-500 text-white font-black py-0.5 px-1.5 md:px-3 rounded-md text-[7.5px] md:text-[10px] cursor-pointer transition-colors leading-none"
+                        >
+                          تأكيد 🛡️
+                        </button>
+                      )}
+                    </>
                   )}
 
                   {phase === "game_over" && (
