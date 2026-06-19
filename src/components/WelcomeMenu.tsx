@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Shield, Sparkles, Trophy, Users, Zap, Bot, ArrowRight, ArrowLeft, BookOpen, Settings, PlayCircle, Layers, Volume2, VolumeX } from "lucide-react";
 import { SoundEffects } from "../utils/sounds";
@@ -75,14 +75,22 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
   const [dbLoading, setDbLoading] = useState(false);
   const [selectedPlayerPkgs, setSelectedPlayerPkgs] = useState<string[]>([]);
   const [selectedSpecialPkgs, setSelectedSpecialPkgs] = useState<string[]>([]);
-  const [allowMultiplePkgs, setAllowMultiplePkgs] = useState(false);
+  const [multiPackEnabled, setMultiPackEnabled] = useState(false);
+  // Focused item state for PES selector
+  const [focusedSpecialId, setFocusedSpecialId] = useState<string | null>(null);
+  const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
+  // Scroll refs
+  const tacticalScrollRef = useRef<HTMLDivElement>(null);
+  const playerScrollRef = useRef<HTMLDivElement>(null);
+  const lastFocusedPlayerId = useRef("");
+  const lastFocusedSpecialId = useRef("");
   const [playerSearch, setPlayerSearch] = useState("");
   const [specialSearch, setSpecialSearch] = useState("");
 
   useEffect(() => {
     const selectDefaults = (pkgs: any[]) => {
       const firstPlayer = pkgs.find(p => p.type === "player" || !p.type);
-      const firstSpecial = pkgs.find(p => p.type === "special");
+      const firstSpecial = pkgs.find(p => p.type === "special" || p.type === "tactical");
       if (firstPlayer) setSelectedPlayerPkgs([firstPlayer.id]);
       if (firstSpecial) setSelectedSpecialPkgs([firstSpecial.id]);
     };
@@ -108,9 +116,35 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
     }
   }, []);
 
-  const handleSelectPlayerPkg = (pkgId: string) => {
+  // Set initial focused items when packages load
+  useEffect(() => {
+    if (dbPackages.length) {
+      const focusedSpecial = dbPackages.find(p => p.id === focusedSpecialId);
+      const focusedPlayer = dbPackages.find(p => p.id === focusedPlayerId);
+      const firstSpecial = dbPackages.find(p => p.type === "special" || p.type === "tactical");
+      const firstPlayer = dbPackages.find(p => p.type === "player" || !p.type);
+      if (firstSpecial) setFocusedSpecialId(firstSpecial.id);
+      if (firstPlayer) setFocusedPlayerId(firstPlayer.id);
+    }
+  }, [dbPackages]);
+
+  const scrollElementToCenter = (container: HTMLDivElement, element: HTMLElement) => {
+    const targetScrollTop = element.offsetTop - container.clientHeight / 2 + element.clientHeight / 2;
+    container.scrollTo({
+      top: targetScrollTop,
+      behavior: "smooth"
+    });
+  };
+
+  const handleSelectPlayerPkg = (pkgId: string, element?: HTMLElement) => {
     SoundEffects.playCardDraw();
-    if (allowMultiplePkgs) {
+    setFocusedPlayerId(pkgId);
+    
+    if (element && playerScrollRef.current) {
+      scrollElementToCenter(playerScrollRef.current, element);
+    }
+    
+    if (multiPackEnabled) {
       setSelectedPlayerPkgs(prev => {
         const exists = prev.includes(pkgId);
         if (exists) {
@@ -124,17 +158,131 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
     }
   };
 
-  const handleSelectSpecialPkg = (pkgId: string) => {
+  const handleSelectSpecialPkg = (pkgId: string, element?: HTMLElement) => {
     SoundEffects.playCardDraw();
-    if (allowMultiplePkgs) {
-      setSelectedSpecialPkgs(prev => {
-        const exists = prev.includes(pkgId);
-        return exists ? prev.filter(id => id !== pkgId) : [...prev, pkgId];
-      });
+    setFocusedSpecialId(pkgId);
+    
+    if (element && tacticalScrollRef.current) {
+      scrollElementToCenter(tacticalScrollRef.current, element);
+    }
+    
+    if (multiPackEnabled) {
+      if (pkgId === "none") {
+        setSelectedSpecialPkgs([]);
+      } else {
+        setSelectedSpecialPkgs(prev => {
+          const exists = prev.includes(pkgId);
+          const next = exists ? prev.filter(id => id !== pkgId) : [...prev, pkgId];
+          return next.filter(id => id !== "none");
+        });
+      }
     } else {
-      setSelectedSpecialPkgs(prev => prev.includes(pkgId) ? [] : [pkgId]);
+      if (pkgId === "none") {
+        setSelectedSpecialPkgs([]);
+      } else {
+        setSelectedSpecialPkgs([pkgId]);
+      }
     }
   };
+
+  const handleTacticalScroll = () => {
+    if (!tacticalScrollRef.current) return;
+    const container = tacticalScrollRef.current;
+    const containerCenter = container.scrollTop + container.clientHeight / 2;
+    
+    const children = container.querySelectorAll("[data-pkg-id]");
+    let closestId = "";
+    let minDiff = Infinity;
+    
+    children.forEach((child) => {
+      const htmlEl = child as HTMLElement;
+      const childCenter = htmlEl.offsetTop + htmlEl.offsetHeight / 2;
+      const diff = Math.abs(containerCenter - childCenter);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestId = htmlEl.dataset.pkgId || "";
+      }
+    });
+    
+    if (closestId && closestId !== lastFocusedSpecialId.current) {
+      lastFocusedSpecialId.current = closestId;
+      setFocusedSpecialId(closestId);
+      if (!multiPackEnabled) {
+        if (closestId === "none") {
+          setSelectedSpecialPkgs([]);
+        } else {
+          setSelectedSpecialPkgs([closestId]);
+        }
+      }
+    }
+  };
+
+  const handlePlayerScroll = () => {
+    if (!playerScrollRef.current) return;
+    const container = playerScrollRef.current;
+    const containerCenter = container.scrollTop + container.clientHeight / 2;
+    
+    const children = container.querySelectorAll("[data-pkg-id]");
+    let closestId = "";
+    let minDiff = Infinity;
+    
+    children.forEach((child) => {
+      const htmlEl = child as HTMLElement;
+      const childCenter = htmlEl.offsetTop + htmlEl.offsetHeight / 2;
+      const diff = Math.abs(containerCenter - childCenter);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestId = htmlEl.dataset.pkgId || "";
+      }
+    });
+    
+    if (closestId && closestId !== lastFocusedPlayerId.current) {
+      lastFocusedPlayerId.current = closestId;
+      setFocusedPlayerId(closestId);
+      if (!multiPackEnabled) {
+        setSelectedPlayerPkgs([closestId]);
+      }
+    }
+  };
+
+  // Autoscroll to active items on view mount or toggle
+  useEffect(() => {
+    if (playStep === "packages" && dbPackages.length) {
+      setTimeout(() => {
+        if (selectedPlayerPkgs[0] && playerScrollRef.current) {
+          const activeEl = playerScrollRef.current.querySelector(`[data-pkg-id="${selectedPlayerPkgs[0]}"]`);
+          if (activeEl) {
+            scrollElementToCenter(playerScrollRef.current, activeEl as HTMLElement);
+          }
+        }
+        const specId = selectedSpecialPkgs[0] || "none";
+        if (tacticalScrollRef.current) {
+          const activeEl = tacticalScrollRef.current.querySelector(`[data-pkg-id="${specId}"]`);
+          if (activeEl) {
+            scrollElementToCenter(tacticalScrollRef.current, activeEl as HTMLElement);
+          }
+        }
+      }, 150);
+    }
+  }, [playStep, dbPackages]);
+
+  useEffect(() => {
+    if (!multiPackEnabled && playStep === "packages") {
+      if (selectedPlayerPkgs[0] && playerScrollRef.current) {
+        const activeEl = playerScrollRef.current.querySelector(`[data-pkg-id="${selectedPlayerPkgs[0]}"]`);
+        if (activeEl) {
+          scrollElementToCenter(playerScrollRef.current, activeEl as HTMLElement);
+        }
+      }
+      const specId = selectedSpecialPkgs[0] || "none";
+      if (tacticalScrollRef.current) {
+        const activeEl = tacticalScrollRef.current.querySelector(`[data-pkg-id="${specId}"]`);
+        if (activeEl) {
+          scrollElementToCenter(tacticalScrollRef.current, activeEl as HTMLElement);
+        }
+      }
+    }
+  }, [multiPackEnabled]);
 
   const toggleMute = () => {
     SoundEffects.isMuted = !SoundEffects.isMuted;
@@ -179,6 +327,9 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
         });
     }
   };
+
+  const focusedSpecial = dbPackages.find(p => p.id === focusedSpecialId);
+  const focusedPlayer = dbPackages.find(p => p.id === focusedPlayerId);
 
   return (
     <div className="w-full h-full flex flex-col justify-between select-none relative overflow-hidden bg-[#020503] text-[#e0e0e0] font-sans pb-14">
@@ -363,124 +514,208 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                 {/* Play Wizard Step 2: Select Packages */}
                 {playStep === "packages" && (
                   <motion.div
-                    initial={{ opacity: 0, x: 15 }}
-                    animate={{ opacity: 1, x: 0 }}
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
                     className="space-y-3 w-full"
                   >
-                    <div className="text-right border-b border-white/5 pb-1.5 mb-2">
-                      <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">مرحلة 2 من 3: باقات كروت اللعب</span>
-                      <h3 className="text-sm font-black text-white">اختر باقات اللعيبة والكروت التكتيكية للمباراة</h3>
-                    </div>
-
-                    {/* Toggle Multiple Selection */}
-                    <div className="flex items-center justify-between bg-black/45 border border-white/5 rounded-xl p-2 mb-1">
+                    {/* Header with Compact Switch */}
+                    <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-2">
+                      <div className="text-right">
+                        <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">مرحلة 2 من 3: باقات اللعب</span>
+                        <h3 className="text-[11px] font-black text-white/95">اختر باقات اللعيبة والتاكتيكس</h3>
+                      </div>
+                      
+                      {/* Compact Multi-Pack Toggle Switch */}
                       <button
                         type="button"
                         onClick={() => {
+                          const next = !multiPackEnabled;
+                          setMultiPackEnabled(next);
                           SoundEffects.playCardDraw();
-                          const nextVal = !allowMultiplePkgs;
-                          setAllowMultiplePkgs(nextVal);
-                          if (!nextVal) {
+                          if (!next) {
                             setSelectedPlayerPkgs(prev => prev.slice(0, 1));
                             setSelectedSpecialPkgs(prev => prev.slice(0, 1));
                           }
                         }}
-                        className={`px-2 py-0.5 rounded-lg text-[9px] font-black transition-all cursor-pointer ${
-                          allowMultiplePkgs 
-                            ? "bg-emerald-500 text-black shadow-[0_0_8px_rgba(16,185,129,0.3)]" 
-                            : "bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10"
+                        className={`flex items-center gap-2 px-3 py-1 rounded-full border transition-all cursor-pointer ${
+                          multiPackEnabled
+                            ? "border-emerald-500/40 bg-emerald-950/30 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
+                            : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20"
                         }`}
                       >
-                        {allowMultiplePkgs ? "مفعّل (دمج الباقات) 🔓" : "مغلق (باقة واحدة) 🔒"}
+                        <span className="text-[9px] font-bold">باقات متعددة 🔀</span>
+                        <div className={`w-6 h-3.5 rounded-full bg-slate-800 p-0.5 flex transition-colors relative ${multiPackEnabled ? "bg-emerald-600 justify-end" : "justify-start"}`}>
+                          <div className="w-2.5 h-2.5 rounded-full bg-white shadow-xs" />
+                        </div>
                       </button>
-                      <div className="text-right">
-                        <span className="text-[9.5px] font-black text-white block">دمج الباقات والفرق</span>
-                        <span className="text-[8px] text-slate-500 block mt-0.5">تفعيل اختيار أكثر من باقة للعب بها معاً</span>
-                      </div>
                     </div>
 
-                    {!isSupabaseConfigured && (
-                      <div className="p-1.5 bg-amber-950/20 border border-amber-500/30 rounded-lg text-right mb-1">
-                        <p className="text-[8.5px] text-amber-450 font-bold">⚠️ وضع اللعب المحلي بدون سيرفر نشّط</p>
-                        <p className="text-[7.5px] text-slate-400 leading-normal">
-                          قاعدة البيانات غير متصلة. تم تفعيل الباقات الافتراضية أدناه لتتمكن من اختيارها واختبارها محلياً!
-                        </p>
-                      </div>
-                    )}
-
-                    {dbLoading ? (
-                      <div className="text-center py-4 text-slate-500 text-[10px]">⏳ جاري تحميل الباقات من السيرفر...</div>
-                    ) : (
-                      <div className="space-y-3">
-                        {/* Player Packages Track */}
-                        <div className="space-y-1">
-                          <div className="flex justify-between items-center text-[9px]">
-                            <span className="text-[8px] text-slate-500">تم اختيار: {selectedPlayerPkgs.length}</span>
-                            <span className="font-black text-emerald-400">باقات اللاعبين والفرق ⚽</span>
-                          </div>
-                          <div className="flex flex-row overflow-x-auto gap-2 py-1 w-full scrollbar-thin scrollbar-thumb-emerald-500/20 scrollbar-track-transparent snap-x scroll-smooth">
-                            {dbPackages.filter(p => p.type === "player" || !p.type).map((pkg) => {
-                              const isSelected = selectedPlayerPkgs.includes(pkg.id);
-                              return (
-                                <button
-                                  key={pkg.id}
-                                  type="button"
-                                  onClick={() => handleSelectPlayerPkg(pkg.id)}
-                                  className={`flex flex-col items-center justify-between p-2 rounded-xl border text-center transition-all cursor-pointer min-w-[110px] max-w-[110px] h-[100px] shrink-0 snap-center relative ${
-                                    isSelected 
-                                      ? "border-emerald-500 bg-emerald-950/20 text-white shadow-[0_0_12px_rgba(16,185,129,0.15)]" 
-                                      : "border-white/5 bg-black/40 text-slate-450 hover:border-white/10 hover:text-white"
-                                  }`}
-                                >
-                                  <div className="text-xl my-1">{pkg.image || "⚽"}</div>
-                                  <div className="font-extrabold text-[9px] truncate w-full">{pkg.name}</div>
-                                  <div className="text-[7.5px] text-slate-500 line-clamp-2 leading-tight w-full mt-0.5">{pkg.description || "باقة لاعبين"}</div>
-                                  {isSelected && (
-                                    <div className="absolute top-1 right-1 bg-emerald-500 text-black w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7.5px] font-black">
-                                      ✓
+                    {/* Packs Selection Grid (PES Style: Player on Right, Tactical on Left) */}
+                    <div className="grid grid-cols-2 gap-3.5">
+                      
+                      {/* Player Packs (Right in RTL / First in DOM) */}
+                      <div className="flex flex-col">
+                        <h3 className="text-[10px] font-black text-slate-400 mb-1.5 text-right">باقات اللاعبين والفرق ⚽</h3>
+                        <div className="relative h-[200px] bg-black/60 border border-white/10 rounded-2xl overflow-hidden shadow-inner">
+                          {/* Selector focus line (Middle Overlay) */}
+                          <div className="absolute top-[75px] left-2 right-2 h-[50px] border-y border-emerald-500/40 bg-emerald-500/5 pointer-events-none z-20 rounded-md shadow-[0_0_15px_rgba(16,185,129,0.03)]" />
+                          
+                          {/* List Container */}
+                          <div
+                            ref={playerScrollRef}
+                            onScroll={handlePlayerScroll}
+                            className="h-full overflow-y-auto snap-y snap-mandatory py-[75px] scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                          >
+                            {dbPackages
+                              .filter(p => p.type === "player" || !p.type)
+                              .map((pkg) => {
+                                const isSelected = selectedPlayerPkgs.includes(pkg.id);
+                                const isFocused = focusedPlayerId === pkg.id;
+                                return (
+                                  <div
+                                    key={pkg.id}
+                                    data-pkg-id={pkg.id}
+                                    onClick={(e) => handleSelectPlayerPkg(pkg.id, e.currentTarget)}
+                                    className={`snap-center h-[50px] flex items-center justify-between px-3 cursor-pointer transition-all duration-300 ${
+                                      isFocused
+                                        ? "scale-105 font-black text-white bg-white/5"
+                                        : "scale-95 font-medium text-slate-500 opacity-60 hover:opacity-80"
+                                    }`}
+                                    style={isFocused ? { textShadow: "0 0 10px rgba(16,185,129,0.4)" } : undefined}
+                                  >
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-base">{pkg.image || "⚽"}</span>
+                                      <span className="text-[10px] truncate max-w-[85px] text-right">{pkg.name}</span>
                                     </div>
-                                  )}
-                                </button>
-                              );
-                            })}
+                                    
+                                    {multiPackEnabled ? (
+                                      <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${
+                                        isSelected
+                                          ? "border-emerald-500 bg-emerald-500/20 text-emerald-400"
+                                          : "border-white/20 bg-black/40"
+                                      }`}>
+                                        {isSelected && <span className="text-[9px] font-black">✓</span>}
+                                      </div>
+                                    ) : (
+                                      isFocused && (
+                                        <span className="text-[10px] text-emerald-400">●</span>
+                                      )
+                                    )}
+                                  </div>
+                                );
+                              })}
                           </div>
                         </div>
+                      </div>
 
-                        {/* Tactical Packages Track */}
-                        <div className="space-y-1">
-                          <div className="flex justify-between items-center text-[9px]">
-                            <span className="text-[8px] text-slate-500">تم اختيار: {selectedSpecialPkgs.length} {selectedSpecialPkgs.length === 0 && "(لا يوجد تكتيكات)"}</span>
-                            <span className="font-black text-amber-400">باقات الكروت التكتيكية 🃏</span>
-                          </div>
-                          <div className="flex flex-row overflow-x-auto gap-2 py-1 w-full scrollbar-thin scrollbar-thumb-amber-500/20 scrollbar-track-transparent snap-x scroll-smooth">
-                            {dbPackages.filter(p => p.type === "special" || p.type === "tactical").map((pkg) => {
+                      {/* Tactical Packs (Left in RTL / Second in DOM) */}
+                      <div className="flex flex-col">
+                        <h3 className="text-[10px] font-black text-slate-400 mb-1.5 text-right">باقات الكروت التكتيكية 🃏</h3>
+                        <div className="relative h-[200px] bg-black/60 border border-white/10 rounded-2xl overflow-hidden shadow-inner">
+                          {/* Selector focus line (Middle Overlay) */}
+                          <div className="absolute top-[75px] left-2 right-2 h-[50px] border-y border-amber-500/40 bg-amber-500/5 pointer-events-none z-20 rounded-md shadow-[0_0_15px_rgba(245,158,11,0.03)]" />
+                          
+                          {/* List Container */}
+                          <div
+                            ref={tacticalScrollRef}
+                            onScroll={handleTacticalScroll}
+                            className="h-full overflow-y-auto snap-y snap-mandatory py-[75px] scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                          >
+                            {[
+                              { id: "none", name: "بدون كروت تكتيكية", type: "special", image: "🚫" },
+                              ...dbPackages.filter(p => p.type === "special" || p.type === "tactical")
+                            ].map((pkg) => {
                               const isSelected = selectedSpecialPkgs.includes(pkg.id);
+                              const isFocused = focusedSpecialId === pkg.id;
                               return (
-                                <button
-                                  key={pkg.id}
-                                  type="button"
-                                  onClick={() => handleSelectSpecialPkg(pkg.id)}
-                                  className={`flex flex-col items-center justify-between p-2 rounded-xl border text-center transition-all cursor-pointer min-w-[110px] max-w-[110px] h-[100px] shrink-0 snap-center relative ${
-                                    isSelected 
-                                      ? "border-amber-500 bg-amber-950/20 text-white shadow-[0_0_12px_rgba(245,158,11,0.15)]" 
-                                      : "border-white/5 bg-black/40 text-slate-450 hover:border-white/10 hover:text-white"
-                                  }`}
-                                >
-                                  <div className="text-xl my-1">{pkg.image || "🃏"}</div>
-                                  <div className="font-extrabold text-[9px] truncate w-full">{pkg.name}</div>
-                                  <div className="text-[7.5px] text-slate-500 line-clamp-2 leading-tight w-full mt-0.5">{pkg.description || "باقة تكتيكات"}</div>
-                                  {isSelected && (
-                                    <div className="absolute top-1 right-1 bg-amber-500 text-black w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7.5px] font-black">
-                                      ✓
+                                  <div
+                                    key={pkg.id}
+                                    data-pkg-id={pkg.id}
+                                    onClick={(e) => handleSelectSpecialPkg(pkg.id, e.currentTarget)}
+                                    className={`snap-center h-[50px] flex items-center justify-between px-3 cursor-pointer transition-all duration-300 ${
+                                      isFocused
+                                        ? "scale-105 font-black text-white bg-white/5"
+                                        : "scale-95 font-medium text-slate-500 opacity-60 hover:opacity-80"
+                                    }`}
+                                    style={isFocused ? { textShadow: "0 0 10px rgba(245,158,11,0.4)" } : undefined}
+                                  >
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-base">{pkg.image || "🃏"}</span>
+                                      <span className="text-[10px] truncate max-w-[85px] text-right">{pkg.name}</span>
                                     </div>
-                                  )}
-                                </button>
-                              );
-                            })}
+                                    
+                                    {multiPackEnabled ? (
+                                      pkg.id !== "none" && (
+                                        <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${
+                                          isSelected
+                                            ? "border-amber-500 bg-amber-500/20 text-amber-400"
+                                            : "border-white/20 bg-black/40"
+                                        }`}>
+                                          {isSelected && <span className="text-[9px] font-black">✓</span>}
+                                        </div>
+                                      )
+                                    ) : (
+                                      isFocused && (
+                                        <span className="text-[10px] text-amber-400">●</span>
+                                      )
+                                    )}
+                                  </div>
+                                );
+                              })}
                           </div>
                         </div>
                       </div>
-                    )}
+
+                    </div>
+
+                    {/* Previews Side-by-Side (PES detail boxes) */}
+                    <div className="grid grid-cols-2 gap-3.5 mt-2">
+                      
+                      {/* Player Preview (Right) */}
+                      <div>
+                        {focusedPlayer ? (
+                          <div className="p-2 border border-white/10 bg-black/40 rounded-xl min-h-[64px] flex flex-col justify-center text-right shadow-md">
+                            <div className="flex items-center gap-1.5 mb-0.5 justify-end">
+                              <span className="text-[10px] font-black text-white">{focusedPlayer.name}</span>
+                              <span className="text-base">{focusedPlayer.image || "⚽"}</span>
+                            </div>
+                            <p className="text-[8.5px] text-slate-400 leading-tight block truncate max-w-[170px]">
+                              {focusedPlayer.description || "باقة لاعبين وفرق كاملة للمباراة."}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="p-2 border border-white/5 bg-black/20 rounded-xl min-h-[64px] flex items-center justify-center text-[9px] text-slate-500 text-center">
+                            يرجى تحديد باقة
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Tactical Preview (Left) */}
+                      <div>
+                        {focusedSpecialId === "none" ? (
+                          <div className="p-2 border border-white/10 bg-black/40 rounded-xl min-h-[64px] flex flex-col justify-center text-center shadow-md">
+                            <span className="text-base">🚫</span>
+                            <span className="text-[9.5px] font-black text-amber-400">بدون كروت تكتيكية</span>
+                            <span className="text-[8px] text-slate-400 leading-tight mt-0.5">لعب مباراة نظيفة بدون تكتيكات</span>
+                          </div>
+                        ) : focusedSpecial ? (
+                          <div className="p-2 border border-white/10 bg-black/40 rounded-xl min-h-[64px] flex flex-col justify-center text-right shadow-md">
+                            <div className="flex items-center gap-1.5 mb-0.5 justify-end">
+                              <span className="text-[10px] font-black text-white">{focusedSpecial.name}</span>
+                              <span className="text-base">{focusedSpecial.image || "🃏"}</span>
+                            </div>
+                            <p className="text-[8.5px] text-slate-400 leading-tight block truncate max-w-[170px]">
+                              {focusedSpecial.description || "مجموعة كروت التكتيكات الخاصة."}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="p-2 border border-white/5 bg-black/20 rounded-xl min-h-[64px] flex items-center justify-center text-[9px] text-slate-500 text-center">
+                            لم يتم تحديد باقة تكتيكات
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
 
                     <div className="flex items-center justify-between border-t border-white/5 pt-2 mt-3">
                       <button

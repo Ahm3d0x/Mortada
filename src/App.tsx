@@ -1537,10 +1537,15 @@ export default function App() {
       // Initial decks setup from pool (ensuring disjoint decks with no duplicate players)
       const { playerDeck: pDeck, aiDeck: aDeckInit } = generateUniqueDecks(loadedPlayerCards, customLegendPercentage);
       
-      // If we loaded special cards from DB, use them; otherwise, fall back to hardcoded tactical cards
-      const sDeck = generateSpecialDeckFromPool(
-        loadedSpecialCards.length > 0 ? loadedSpecialCards : (INITIAL_SPECIAL_CARDS as SpecialCard[])
-      );
+      // If we loaded special cards from DB, use them; if they chose no special packages, use empty; otherwise use fallback
+      let sDeck: SpecialCard[] = [];
+      if (selectedSpecialPkgs.length > 0) {
+        sDeck = generateSpecialDeckFromPool(
+          loadedSpecialCards.length > 0 ? loadedSpecialCards : (INITIAL_SPECIAL_CARDS as SpecialCard[])
+        );
+      } else {
+        sDeck = []; // Explicitly play without tactical cards
+      }
       const poDeck = generateBoosterDeck(customMaxBonusValue);
 
       // 1. "يسحب كل مدرب كروت لاعبين ويضعهم أمامه في الملعب مقلوبين"
