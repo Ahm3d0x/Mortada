@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Shield, Sparkles, Trophy, Users, Zap, Bot, ArrowRight, ArrowLeft, BookOpen, Settings, PlayCircle, Layers, Volume2, VolumeX } from "lucide-react";
+import { Shield, Sparkles, Trophy, Users, Zap, Bot, ArrowRight, ArrowLeft, BookOpen, Settings, PlayCircle, Layers, Volume2, VolumeX, ChevronUp, ChevronDown } from "lucide-react";
 import { SoundEffects } from "../utils/sounds";
 import { getPackages } from "../admin/adminStore";
 import { isSupabaseConfigured } from "../lib/supabase";
@@ -241,6 +241,39 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
       setFocusedPlayerId(closestId);
       if (!multiPackEnabled) {
         setSelectedPlayerPkgs([closestId]);
+      }
+    }
+  };
+
+  const handleNavigate = (direction: "up" | "down", isPlayer: boolean) => {
+    const container = isPlayer ? playerScrollRef.current : tacticalScrollRef.current;
+    if (!container) return;
+    
+    const items = isPlayer 
+      ? dbPackages.filter(p => p.type === "player" || !p.type)
+      : [
+          { id: "none", name: "بدون كروت تكتيكية", type: "special", image: "🚫" },
+          ...dbPackages.filter(p => p.type === "special" || p.type === "tactical")
+        ];
+        
+    const focusedId = isPlayer ? focusedPlayerId : focusedSpecialId;
+    const currentIndex = items.findIndex(item => item.id === (focusedId || "none"));
+    
+    if (currentIndex === -1) return;
+    
+    let targetIndex = currentIndex;
+    if (direction === "up") {
+      targetIndex = Math.max(0, currentIndex - 1);
+    } else {
+      targetIndex = Math.min(items.length - 1, currentIndex + 1);
+    }
+    
+    const targetItem = items[targetIndex];
+    if (targetItem) {
+      const targetEl = container.querySelector(`[data-pkg-id="${targetItem.id}"]`);
+      if (targetEl) {
+        scrollElementToCenter(container, targetEl as HTMLElement);
+        SoundEffects.playCardDraw();
       }
     }
   };
@@ -556,15 +589,24 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                       {/* Player Packs (Right in RTL / First in DOM) */}
                       <div className="flex flex-col">
                         <h3 className="text-[10px] font-black text-slate-400 mb-1.5 text-right">باقات اللاعبين والفرق ⚽</h3>
-                        <div className="relative h-[200px] bg-black/60 border border-white/10 rounded-2xl overflow-hidden shadow-inner">
+                        <div className="relative h-[140px] sm:h-[180px] bg-black/60 border border-white/10 rounded-2xl overflow-hidden shadow-inner">
+                          {/* Up Navigation Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleNavigate("up", true)}
+                            className="absolute top-1 left-1/2 -translate-x-1/2 z-30 bg-black/60 hover:bg-black/90 text-slate-400 hover:text-white border border-white/10 rounded-full p-0.5 shadow-md flex items-center justify-center cursor-pointer transition-all active:scale-90"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+
                           {/* Selector focus line (Middle Overlay) */}
-                          <div className="absolute top-[75px] left-2 right-2 h-[50px] border-y border-emerald-500/40 bg-emerald-500/5 pointer-events-none z-20 rounded-md shadow-[0_0_15px_rgba(16,185,129,0.03)]" />
+                          <div className="absolute top-[45px] sm:top-[65px] left-2 right-2 h-[50px] border-y border-emerald-500/40 bg-emerald-500/5 pointer-events-none z-20 rounded-md shadow-[0_0_15px_rgba(16,185,129,0.03)]" />
                           
                           {/* List Container */}
                           <div
                             ref={playerScrollRef}
                             onScroll={handlePlayerScroll}
-                            className="h-full overflow-y-auto snap-y snap-mandatory py-[75px] scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                            className="h-full overflow-y-auto snap-y snap-mandatory py-[45px] sm:py-[65px] scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                           >
                             {dbPackages
                               .filter(p => p.type === "player" || !p.type)
@@ -605,21 +647,39 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                                 );
                               })}
                           </div>
+
+                          {/* Down Navigation Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleNavigate("down", true)}
+                            className="absolute bottom-1 left-1/2 -translate-x-1/2 z-30 bg-black/60 hover:bg-black/90 text-slate-400 hover:text-white border border-white/10 rounded-full p-0.5 shadow-md flex items-center justify-center cursor-pointer transition-all active:scale-90"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
 
                       {/* Tactical Packs (Left in RTL / Second in DOM) */}
                       <div className="flex flex-col">
                         <h3 className="text-[10px] font-black text-slate-400 mb-1.5 text-right">باقات الكروت التكتيكية 🃏</h3>
-                        <div className="relative h-[200px] bg-black/60 border border-white/10 rounded-2xl overflow-hidden shadow-inner">
+                        <div className="relative h-[140px] sm:h-[180px] bg-black/60 border border-white/10 rounded-2xl overflow-hidden shadow-inner">
+                          {/* Up Navigation Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleNavigate("up", false)}
+                            className="absolute top-1 left-1/2 -translate-x-1/2 z-30 bg-black/60 hover:bg-black/90 text-slate-400 hover:text-white border border-white/10 rounded-full p-0.5 shadow-md flex items-center justify-center cursor-pointer transition-all active:scale-90"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+
                           {/* Selector focus line (Middle Overlay) */}
-                          <div className="absolute top-[75px] left-2 right-2 h-[50px] border-y border-amber-500/40 bg-amber-500/5 pointer-events-none z-20 rounded-md shadow-[0_0_15px_rgba(245,158,11,0.03)]" />
+                          <div className="absolute top-[45px] sm:top-[65px] left-2 right-2 h-[50px] border-y border-amber-500/40 bg-amber-500/5 pointer-events-none z-20 rounded-md shadow-[0_0_15px_rgba(245,158,11,0.03)]" />
                           
                           {/* List Container */}
                           <div
                             ref={tacticalScrollRef}
                             onScroll={handleTacticalScroll}
-                            className="h-full overflow-y-auto snap-y snap-mandatory py-[75px] scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                            className="h-full overflow-y-auto snap-y snap-mandatory py-[45px] sm:py-[65px] scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                           >
                             {[
                               { id: "none", name: "بدون كروت تكتيكية", type: "special", image: "🚫" },
@@ -663,6 +723,15 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
                                 );
                               })}
                           </div>
+
+                          {/* Down Navigation Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleNavigate("down", false)}
+                            className="absolute bottom-1 left-1/2 -translate-x-1/2 z-30 bg-black/60 hover:bg-black/90 text-slate-400 hover:text-white border border-white/10 rounded-full p-0.5 shadow-md flex items-center justify-center cursor-pointer transition-all active:scale-90"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
 
