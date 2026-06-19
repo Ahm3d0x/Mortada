@@ -21,12 +21,12 @@ interface TopScoreHeaderProps {
 }
 
 // Map team vibes to flags/emojis
-const TEAM_EMOJIS: Record<string, string> = {
-  "الفراعنة": "🇪🇬",
-  "أسود الأطلس": "🇲🇦",
-  "نجوم السامبا": "🇧🇷",
-  "راقصو التانغو": "🇦🇷",
-  "كتائب الأخضر": "🇸🇦",
+const TEAM_EMOJIS: Record<string, React.ReactNode> = {
+  "الفراعنة": <img src="https://flagcdn.com/w40/eg.png" className="w-5.5 h-4 object-cover rounded-xs shadow-xs" alt="EG" />,
+  "أسود الأطلس": <img src="https://flagcdn.com/w40/ma.png" className="w-5.5 h-4 object-cover rounded-xs shadow-xs" alt="MA" />,
+  "نجوم السامبا": <img src="https://flagcdn.com/w40/br.png" className="w-5.5 h-4 object-cover rounded-xs shadow-xs" alt="BR" />,
+  "راقصو التانغو": <img src="https://flagcdn.com/w40/ar.png" className="w-5.5 h-4 object-cover rounded-xs shadow-xs" alt="AR" />,
+  "كتائب الأخضر": <img src="https://flagcdn.com/w40/sa.png" className="w-5.5 h-4 object-cover rounded-xs shadow-xs" alt="SA" />,
   "الملكي": "👑"
 };
 

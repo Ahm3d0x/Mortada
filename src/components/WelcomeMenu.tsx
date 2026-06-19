@@ -5,10 +5,56 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Shield, Sparkles, Trophy, Users, Zap, Bot, ArrowRight, ArrowLeft, BookOpen, Settings, PlayCircle, Layers, Volume2, VolumeX, ChevronUp, ChevronDown } from "lucide-react";
+import { Shield, Sparkles, Trophy, Users, Zap, Bot, ArrowRight, ArrowLeft, BookOpen, Settings, PlayCircle, Layers, Volume2, VolumeX, ChevronUp, ChevronDown, Lock, User, Image, Coins, LogOut } from "lucide-react";
 import { SoundEffects } from "../utils/sounds";
 import { getPackages } from "../admin/adminStore";
 import { isSupabaseConfigured } from "../lib/supabase";
+import { gameAuth } from "../lib/gameAuth";
+
+const COUNTRIES = [
+  { code: "EG", name: "مصر", flag: "🇪🇬" },
+  { code: "SA", name: "السعودية", flag: "🇸🇦" },
+  { code: "MA", name: "المغرب", flag: "🇲🇦" },
+  { code: "DZ", name: "الجزائر", flag: "🇩🇿" },
+  { code: "TN", name: "تونس", flag: "🇹🇳" },
+  { code: "AE", name: "الإمارات", flag: "🇦🇪" },
+  { code: "QA", name: "قطر", flag: "🇶🇦" },
+  { code: "KW", name: "الكويت", flag: "🇰🇼" },
+  { code: "BH", name: "البحرين", flag: "🇧🇭" },
+  { code: "OM", name: "عمان", flag: "🇴🇲" },
+  { code: "JO", name: "الأردن", flag: "🇯🇴" },
+  { code: "PS", name: "فلسطين", flag: "🇵🇸" },
+  { code: "IQ", name: "العراق", flag: "🇮🇶" },
+  { code: "SY", name: "سوريا", flag: "🇸🇾" },
+  { code: "LB", name: "لبنان", flag: "🇱🇧" },
+  { code: "YE", name: "اليمن", flag: "🇾🇪" },
+  { code: "LY", name: "ليبيا", flag: "🇱🇾" },
+  { code: "SD", name: "السودان", flag: "🇸🇩" },
+  { code: "LEGEND", name: "أساطير", flag: "👑" },
+];
+
+const COUNTRIES_MAP: Record<string, string> = {
+  EG: "🇪🇬", SA: "🇸🇦", MA: "🇲🇦", DZ: "🇩🇿", TN: "🇹🇳",
+  AE: "🇦🇪", QA: "🇶🇦", KW: "🇰🇼", BH: "🇧🇭", OM: "🇴🇲",
+  JO: "🇯🇴", PS: "🇵🇸", IQ: "🇮🇶", SY: "🇸🇾", LB: "🇱🇧",
+  YE: "🇾🇪", LY: "🇱🇾", SD: "🇸🇩", LEGEND: "👑"
+};
+const getFlagByCountryCode = (code: string, sizeClass: string = "w-4.5 h-3 inline-block object-cover rounded-xs shadow-xs align-middle") => {
+  const upper = code.toUpperCase();
+  if (upper === "LEGEND") {
+    return <span className="text-xs">👑</span>;
+  }
+  if (COUNTRIES_MAP[upper]) {
+    return (
+      <img 
+        src={`https://flagcdn.com/w40/${upper.toLowerCase()}.png`} 
+        alt={upper} 
+        className={sizeClass}
+      />
+    );
+  }
+  return "⚽";
+};
 
 interface WelcomeMenuProps {
   onStartGame: (
@@ -30,11 +76,11 @@ interface WelcomeMenuProps {
 }
 
 const TEAM_VIBES = [
-  { name: "الفراعنة", color: "from-red-600 to-amber-500", desc: "أداء تكتيكي صلب", emoji: "🇪🇬" },
-  { name: "أسود الأطلس", color: "from-emerald-700 to-red-600", desc: "دفاع فولاذي صلب", emoji: "🇲🇦" },
-  { name: "نجوم السامبا", color: "from-yellow-400 to-green-600", desc: "مهارات ممتعة", emoji: "🇧🇷" },
-  { name: "راقصو التانغو", color: "from-sky-400 to-slate-200 text-slate-800", desc: "تكتيك وذكاء لافت", emoji: "🇦🇷" },
-  { name: "كتائب الأخضر", color: "from-green-600 to-emerald-800", desc: "انسجام وسرعة مميزة", emoji: "🇸🇦" },
+  { name: "الفراعنة", color: "from-red-600 to-amber-500", desc: "أداء تكتيكي صلب", emoji: <img src="https://flagcdn.com/w40/eg.png" className="w-4.5 h-3 inline-block object-cover rounded-xs shadow-xs align-middle" alt="EG" /> },
+  { name: "أسود الأطلس", color: "from-emerald-700 to-red-600", desc: "دفاع فولاذي صلب", emoji: <img src="https://flagcdn.com/w40/ma.png" className="w-4.5 h-3 inline-block object-cover rounded-xs shadow-xs align-middle" alt="MA" /> },
+  { name: "نجوم السامبا", color: "from-yellow-400 to-green-600", desc: "مهارات ممتعة", emoji: <img src="https://flagcdn.com/w40/br.png" className="w-4.5 h-3 inline-block object-cover rounded-xs shadow-xs align-middle" alt="BR" /> },
+  { name: "راقصو التانغو", color: "from-sky-400 to-slate-200 text-slate-800", desc: "تكتيك وذكاء لافت", emoji: <img src="https://flagcdn.com/w40/ar.png" className="w-4.5 h-3 inline-block object-cover rounded-xs shadow-xs align-middle" alt="AR" /> },
+  { name: "كتائب الأخضر", color: "from-green-600 to-emerald-800", desc: "انسجام وسرعة مميزة", emoji: <img src="https://flagcdn.com/w40/sa.png" className="w-4.5 h-3 inline-block object-cover rounded-xs shadow-xs align-middle" alt="SA" /> },
   { name: "الملكي", color: "from-indigo-600 to-violet-850", desc: "شخصية البطل العريقة", emoji: "👑" }
 ];
 
@@ -47,22 +93,193 @@ const MOCK_PACKAGES = [
 ];
 
 export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: WelcomeMenuProps) {
+  const currentUser = gameAuth.getCurrentUser();
+  const defaultSettings = currentUser?.default_match_settings;
+
   // Navigation Tabs State
   const [activeTab, setActiveTab] = useState<"home" | "play" | "decks" | "rules" | "settings">("home");
 
   // Game Setup States (Wizard under "Play" Tab)
   const [playStep, setPlayStep] = useState<"coach" | "packages" | "match">("coach");
-  const [coachName, setCoachName] = useState("");
-  const [selectedVibe, setSelectedVibe] = useState(TEAM_VIBES[0]);
-  const [difficulty, setDifficulty] = useState<"normal" | "tactical" | "legend">("normal");
-  const [matchDuration, setMatchDuration] = useState<number>(180);
-  const [legendPercentage, setLegendPercentage] = useState<number>(30);
-  const [maxDrawsPerTurn, setMaxDrawsPerTurn] = useState<number>(2);
-  const [maxMovesPerTurn, setMaxMovesPerTurn] = useState<number>(3);
-  const [initialCardsCount, setInitialCardsCount] = useState<number>(5);
-  const [defenseDrawsLimit, setDefenseDrawsLimit] = useState<number>(3);
-  const [legendBurnLimit, setLegendBurnLimit] = useState<number>(2);
-  const [maxBonusValue, setMaxBonusValue] = useState<number>(10);
+  const [coachName, setCoachName] = useState(currentUser?.name || "");
+  const [selectedVibe, setSelectedVibe] = useState(() => {
+    const userTeam = currentUser?.team_name || "";
+    const matched = TEAM_VIBES.find((v) => v.name === userTeam);
+    if (matched) return matched;
+    return {
+      name: currentUser?.team_name || "الفراعنة",
+      color: "from-emerald-600 to-teal-500",
+      desc: currentUser?.team_abbreviation || "MTR",
+      emoji: getFlagByCountryCode(currentUser?.country || "EG")
+    };
+  });
+  const [difficulty, setDifficulty] = useState<"normal" | "tactical" | "legend">(defaultSettings?.difficulty || "normal");
+  const [matchDuration, setMatchDuration] = useState<number>(defaultSettings?.matchDuration || 180);
+  const [legendPercentage, setLegendPercentage] = useState<number>(defaultSettings?.legendPercentage || 30);
+  const [maxDrawsPerTurn, setMaxDrawsPerTurn] = useState<number>(defaultSettings?.maxDrawsPerTurn || 2);
+  const [maxMovesPerTurn, setMaxMovesPerTurn] = useState<number>(defaultSettings?.maxMovesPerTurn || 3);
+  const [initialCardsCount, setInitialCardsCount] = useState<number>(defaultSettings?.initialCardsCount || 5);
+  const [defenseDrawsLimit, setDefenseDrawsLimit] = useState<number>(defaultSettings?.maxDrawsPerTurn ? defaultSettings.maxDrawsPerTurn + 1 : 3);
+  const [legendBurnLimit, setLegendBurnLimit] = useState<number>(defaultSettings?.legendBurnLimit || 2);
+  const [maxBonusValue, setMaxBonusValue] = useState<number>(defaultSettings?.maxBonusValue || 10);
+
+  // Settings Sub-tab Controls
+  const [settingsSubTab, setSettingsSubTab] = useState<"profile" | "match" | "password">("profile");
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
+
+  // Profile fields
+  const [editName, setEditName] = useState(currentUser?.name || "");
+  const [editTeamName, setEditTeamName] = useState(currentUser?.team_name || "");
+  const [editTeamAbbr, setEditTeamAbbr] = useState(currentUser?.team_abbreviation || "");
+  const [editTeamLogo, setEditTeamLogo] = useState(currentUser?.team_logo || "");
+  const [editCountry, setEditCountry] = useState(currentUser?.country || "EG");
+
+  // Defaults match sliders fields
+  const [defDiff, setDefDiff] = useState<"normal" | "tactical" | "legend">(defaultSettings?.difficulty || "normal");
+  const [defDuration, setDefDuration] = useState<number>(defaultSettings?.matchDuration || 180);
+  const [defLegendPct, setDefLegendPct] = useState<number>(defaultSettings?.legendPercentage || 30);
+  const [defMaxDraws, setDefMaxDraws] = useState<number>(defaultSettings?.maxDrawsPerTurn || 2);
+  const [defMaxMoves, setDefMaxMoves] = useState<number>(defaultSettings?.maxMovesPerTurn || 3);
+  const [defInitCards, setDefInitCards] = useState<number>(defaultSettings?.initialCardsCount || 5);
+  const [defLegendBurn, setDefLegendBurn] = useState<number>(defaultSettings?.legendBurnLimit || 2);
+  const [defMaxBonus, setDefMaxBonus] = useState<number>(defaultSettings?.maxBonusValue || 10);
+
+  // Password change fields
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+
+  // Sync edits on user session changes
+  useEffect(() => {
+    if (currentUser) {
+      setEditName(currentUser.name);
+      setEditTeamName(currentUser.team_name);
+      setEditTeamAbbr(currentUser.team_abbreviation);
+      setEditTeamLogo(currentUser.team_logo);
+      setEditCountry(currentUser.country);
+      
+      const settings = currentUser.default_match_settings;
+      if (settings) {
+        setDefDiff(settings.difficulty);
+        setDefDuration(settings.matchDuration);
+        setDefLegendPct(settings.legendPercentage);
+        setDefMaxDraws(settings.maxDrawsPerTurn);
+        setDefMaxMoves(settings.maxMovesPerTurn);
+        setDefInitCards(settings.initialCardsCount);
+        setDefLegendBurn(settings.legendBurnLimit);
+        setDefMaxBonus(settings.maxBonusValue);
+      }
+    }
+  }, [activeTab]);
+
+  const [showLogoTip, setShowLogoTip] = useState(false);
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSettingsError(null);
+    setSettingsSuccess(null);
+    
+    if (editTeamAbbr.length !== 3) {
+      setSettingsError("يجب أن يتكون اختصار الفريق من 3 حروف بالضبط ⚠️");
+      return;
+    }
+
+    SoundEffects.playWhistle();
+    const res = await gameAuth.updateProfile(
+      editName,
+      editTeamName,
+      editTeamAbbr,
+      editTeamLogo,
+      editCountry
+    );
+
+    if (res.error) {
+      setSettingsError(res.error);
+    } else {
+      setSettingsSuccess("تم تحديث بيانات الملف الشخصي بنجاح! 🏆");
+      setCoachName(editName);
+      const matched = TEAM_VIBES.find((v) => v.name === editTeamName);
+      if (matched) {
+        setSelectedVibe(matched);
+      } else {
+        setSelectedVibe({
+          name: editTeamName,
+          color: "from-emerald-600 to-teal-500",
+          desc: editTeamAbbr,
+          emoji: getFlagByCountryCode(editCountry)
+        });
+      }
+    }
+  };
+
+  const handleSaveMatchDefaults = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSettingsError(null);
+    setSettingsSuccess(null);
+
+    SoundEffects.playWhistle();
+    const settings = {
+      difficulty: defDiff,
+      matchDuration: defDuration,
+      legendPercentage: defLegendPct,
+      maxDrawsPerTurn: defMaxDraws,
+      maxMovesPerTurn: defMaxMoves,
+      initialCardsCount: defInitCards,
+      legendBurnLimit: defLegendBurn,
+      maxBonusValue: defMaxBonus,
+    };
+
+    const res = await gameAuth.updateDefaultSettings(settings);
+
+    if (res.error) {
+      setSettingsError(res.error);
+    } else {
+      setSettingsSuccess("تم حفظ الإعدادات الافتراضية بنجاح! ⚙️");
+      // Prefill Wizard options immediately
+      setDifficulty(defDiff);
+      setMatchDuration(defDuration);
+      setLegendPercentage(defLegendPct);
+      setMaxDrawsPerTurn(defMaxDraws);
+      setMaxMovesPerTurn(defMaxMoves);
+      setInitialCardsCount(defInitCards);
+      setLegendBurnLimit(defLegendBurn);
+      setMaxBonusValue(defMaxBonus);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSettingsError(null);
+    setSettingsSuccess(null);
+
+    if (newPassword !== confirmNewPassword) {
+      setSettingsError("تأكيد كلمة المرور الجديدة لا يطابق كلمة المرور الجديدة ⚠️");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setSettingsError("يجب أن تكون كلمة المرور الجديدة 6 أحرف أو أكثر ⚠️");
+      return;
+    }
+
+    SoundEffects.playWhistle();
+    const res = await gameAuth.changePassword(oldPassword, newPassword);
+
+    if (res.error) {
+      setSettingsError(res.error);
+    } else {
+      setSettingsSuccess("تم تغيير كلمة المرور بنجاح! 🔐");
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+    }
+  };
+
+  const handleLogout = () => {
+    SoundEffects.playWhistle();
+    gameAuth.signOut();
+  };
 
   // Mute State
   const [isMuted, setIsMuted] = useState(SoundEffects.isMuted);
@@ -1106,44 +1323,443 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
-              className="w-full space-y-3.5"
+              transition={{ duration: 0.2 }}
+              className="w-full space-y-3"
             >
-              <div className="text-right border-b border-white/5 pb-1.5">
-                <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">⚙️ إعدادات وخيارات اللعبة</span>
-                <h3 className="text-sm font-black text-white">إدارة الصوت ولوحة التحكم</h3>
+              {/* Profile Card and Coins Display (Header) */}
+              <div className="bg-black/50 border border-white/10 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-md backdrop-blur-md text-right">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-full border border-emerald-500/30 bg-black/40 flex items-center justify-center overflow-hidden">
+                    {currentUser?.team_logo && currentUser.team_logo.startsWith("http") ? (
+                      <img 
+                        src={currentUser.team_logo} 
+                        alt="Logo" 
+                        className="w-full h-full object-contain p-0.5"
+                        onError={(e) => { (e.target as HTMLImageElement).src = ""; }}
+                      />
+                    ) : (
+                      <span className="text-xl">🛡️</span>
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-black text-white">{currentUser?.name}</span>
+                      <span className="text-xs">{getFlagByCountryCode(currentUser?.country || "EG")}</span>
+                    </div>
+                    <span className="text-[9px] font-bold text-slate-400 block">{currentUser?.team_name} ({currentUser?.team_abbreviation})</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-xl shadow-xs">
+                  <Coins className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                  <span className="text-xs font-black text-amber-400">{currentUser?.coins ?? 1000}</span>
+                </div>
               </div>
 
-              <div className="space-y-2 text-right">
-                {/* Audio Option */}
-                <div className="flex items-center justify-between p-2.5 bg-black/35 border border-white/5 rounded-xl">
+              {/* Sub-tabs Navigation */}
+              <div className="flex bg-black/40 border border-white/5 rounded-xl p-1 gap-1 shrink-0">
+                {[
+                  { id: "profile", label: "الملف الشخصي 👤" },
+                  { id: "match", label: "افتراضيات اللعب ⚙️" },
+                  { id: "password", label: "الحماية 🔐" }
+                ].map((tab) => (
                   <button
-                    onClick={toggleMute}
-                    className={`px-4 py-1 rounded-lg text-[9.5px] font-bold transition-all cursor-pointer ${
-                      isMuted 
-                        ? "bg-red-500/20 text-red-400 border border-red-500/30" 
-                        : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      SoundEffects.playCardDraw();
+                      setSettingsSubTab(tab.id as any);
+                      setSettingsError(null);
+                      setSettingsSuccess(null);
+                    }}
+                    className={`flex-1 py-1 rounded-lg text-[9.5px] font-black text-center cursor-pointer transition-all ${
+                      settingsSubTab === tab.id
+                        ? "bg-emerald-500 text-black shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+                        : "text-slate-400 hover:text-white hover:bg-white/5"
                     }`}
                   >
-                    {isMuted ? "الصوت مكتوم 🔇" : "الصوت مفعل 🔊"}
+                    {tab.label}
                   </button>
-                  <span className="text-xs font-bold text-slate-300">مؤثرات الصوت التكتيكية:</span>
-                </div>
+                ))}
+              </div>
 
-                {/* Admin Cabinet link */}
-                <div className="flex items-center justify-between p-2.5 bg-black/35 border border-white/5 rounded-xl">
-                  <a
-                    href="#/admin"
-                    className="px-4 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-[9.5px] font-bold cursor-pointer transition-colors block text-center"
+              {/* Notification banners */}
+              {settingsError && (
+                <div className="bg-rose-950/20 border border-rose-500/30 text-rose-400 p-2 rounded-xl text-[9px] font-black text-right animate-pulse">
+                  ⚠️ {settingsError}
+                </div>
+              )}
+              {settingsSuccess && (
+                <div className="bg-emerald-950/20 border border-emerald-500/30 text-emerald-450 p-2 rounded-xl text-[9px] font-black text-right">
+                  ✓ {settingsSuccess}
+                </div>
+              )}
+
+              {/* SUB-TAB CONTENTS (Scrollable area) */}
+              <div className="max-h-[160px] overflow-y-auto pr-1 text-right scrollbar-thin scrollbar-thumb-emerald-500/20 space-y-3">
+                
+                {/* 1. Profile sub-tab */}
+                {settingsSubTab === "profile" && (
+                  <form onSubmit={handleSaveProfile} className="space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="block text-[#e0e0e0]/60 font-black text-[9px]">اسم المدرب:</label>
+                        <input
+                          type="text"
+                          required
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="w-full px-2 py-1 rounded-lg bg-black/55 border border-white/10 focus:outline-none focus:border-emerald-500 text-white text-right text-xs font-bold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[#e0e0e0]/60 font-black text-[9px]">اسم الفريق:</label>
+                        <input
+                          type="text"
+                          required
+                          value={editTeamName}
+                          onChange={(e) => setEditTeamName(e.target.value)}
+                          className="w-full px-2 py-1 rounded-lg bg-black/55 border border-white/10 focus:outline-none focus:border-emerald-500 text-white text-right text-xs font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1 col-span-2">
+                        <div className="flex justify-between items-center">
+                          <button
+                            type="button"
+                            onClick={() => setShowLogoTip(!showLogoTip)}
+                            className="text-[7.5px] font-bold text-emerald-400 flex items-center gap-0.5 hover:underline cursor-pointer border-none bg-transparent"
+                          >
+                            <span>رابط الشعار؟ 🔗</span>
+                          </button>
+                          <label className="block text-[#e0e0e0]/60 font-black text-[9px]">رابط صورة الشعار:</label>
+                        </div>
+                        <input
+                          type="url"
+                          value={editTeamLogo}
+                          onChange={(e) => setEditTeamLogo(e.target.value)}
+                          className="w-full px-2 py-1 rounded-lg bg-black/55 border border-white/10 focus:outline-none focus:border-emerald-500 text-white text-right text-xs font-bold font-mono"
+                          dir="ltr"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[#e0e0e0]/60 font-black text-[9px]">اختصار (3 حروف):</label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={3}
+                          value={editTeamAbbr}
+                          onChange={(e) => setEditTeamAbbr(e.target.value.toUpperCase())}
+                          className="w-full px-2 py-1 rounded-lg bg-black/55 border border-white/10 focus:outline-none focus:border-emerald-500 text-white text-center text-xs font-black uppercase font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {showLogoTip && (
+                      <div className="bg-black/80 border border-emerald-500/20 rounded-xl p-2 text-right text-[8px] text-slate-355 leading-normal space-y-1">
+                        <span className="font-black text-emerald-400 block">💡 احصل على رابط شعارك:</span>
+                        ارفع شعارك على موقع مثل <a href="https://imgbb.com" target="_blank" rel="noreferrer" className="text-white hover:underline">imgbb.com</a> ثم انسخ <strong>"الرابط المباشر" (Direct Link)</strong> الذي ينتهي بـ `.png` أو `.jpg` وضعه بالحقل.
+                      </div>
+                    )}
+
+                    {/* Country grid selection */}
+                    <div className="space-y-1">
+                      <label className="block text-[#e0e0e0]/60 font-black text-[9px]">علم الدولة للفريق:</label>
+                      <div className="grid grid-cols-6 gap-1 bg-black/40 p-1 border border-white/5 rounded-xl">
+                        {COUNTRIES.map((c) => {
+                          const isSelected = editCountry === c.code;
+                          return (
+                            <button
+                              key={c.code}
+                              type="button"
+                              onClick={() => { SoundEffects.playCardDraw(); setEditCountry(c.code); }}
+                              className={`flex flex-col items-center justify-center p-0.5 rounded-md border cursor-pointer transition-all ${
+                                isSelected
+                                  ? "border-emerald-500 bg-emerald-950/20 text-white"
+                                  : "border-transparent bg-transparent text-slate-500 hover:border-white/10"
+                              }`}
+                              title={c.name}
+                            >
+                              {c.code === "LEGEND" ? (
+                                <span className="text-sm leading-none">👑</span>
+                              ) : (
+                                <img 
+                                  src={`https://flagcdn.com/w40/${c.code.toLowerCase()}.png`} 
+                                  alt={c.name} 
+                                  className="w-5 h-3.5 object-cover rounded-xs shadow-xs" 
+                                />
+                              )}
+                              <span className="text-[6px] font-bold mt-0.5 truncate max-w-[24px]">{c.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[10px] rounded-lg transition-all cursor-pointer border-none"
+                    >
+                      حفظ التغييرات بالملف الشخصي 💾
+                    </button>
+                  </form>
+                )}
+
+                {/* 2. Match defaults sub-tab */}
+                {settingsSubTab === "match" && (
+                  <form onSubmit={handleSaveMatchDefaults} className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2 text-right">
+                      {/* Difficulty Selection */}
+                      <div className="space-y-1 col-span-2">
+                        <label className="block text-[#e0e0e0]/60 font-black text-[9px]">صعوبة المباراة الافتراضية:</label>
+                        <div className="grid grid-cols-3 gap-1 bg-black/45 p-0.5 border border-white/5 rounded-lg">
+                          {[
+                            { id: "normal", label: "ناشئ 🟢" },
+                            { id: "tactical", label: "محترف 🟡" },
+                            { id: "legend", label: "أسطوري 🔴" }
+                          ].map((d) => (
+                            <button
+                              key={d.id}
+                              type="button"
+                              onClick={() => { SoundEffects.playCardDraw(); setDefDiff(d.id as any); }}
+                              className={`py-1 rounded-md text-[8.5px] font-black text-center cursor-pointer transition-all ${
+                                defDiff === d.id
+                                  ? "bg-white/10 text-white border border-white/20"
+                                  : "text-slate-500 hover:text-slate-350 border border-transparent"
+                              }`}
+                            >
+                              {d.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Sliders */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-emerald-400 text-[8.5px]">
+                          <span className="font-extrabold">{defDuration} ثانية</span>
+                          <span className="font-black text-[#e0e0e0]/60">وقت المباراة الافتراضي:</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={60}
+                          max={300}
+                          step={30}
+                          value={defDuration}
+                          onChange={(e) => setDefDuration(Number(e.target.value))}
+                          className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-emerald-400 text-[8.5px]">
+                          <span className="font-extrabold">{defLegendPct}%</span>
+                          <span className="font-black text-[#e0e0e0]/60">نسبة كروت الأساطير:</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={defLegendPct}
+                          onChange={(e) => setDefLegendPct(Number(e.target.value))}
+                          className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-emerald-400 text-[8.5px]">
+                          <span className="font-extrabold">{defMaxDraws} سحبات</span>
+                          <span className="font-black text-[#e0e0e0]/60">حد السحب بالدور:</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={1}
+                          max={5}
+                          step={1}
+                          value={defMaxDraws}
+                          onChange={(e) => setDefMaxDraws(Number(e.target.value))}
+                          className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-emerald-400 text-[8.5px]">
+                          <span className="font-extrabold">{defMaxMoves} حركات</span>
+                          <span className="font-black text-[#e0e0e0]/60">حركات اللعب بالدور:</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={1}
+                          max={5}
+                          step={1}
+                          value={defMaxMoves}
+                          onChange={(e) => setDefMaxMoves(Number(e.target.value))}
+                          className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-emerald-400 text-[8.5px]">
+                          <span className="font-extrabold">{defInitCards} كروت</span>
+                          <span className="font-black text-[#e0e0e0]/60">كروت البداية:</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={3}
+                          max={8}
+                          step={1}
+                          value={defInitCards}
+                          onChange={(e) => setDefInitCards(Number(e.target.value))}
+                          className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-emerald-400 text-[8.5px]">
+                          <span className="font-extrabold">{defLegendBurn} كروت</span>
+                          <span className="font-black text-[#e0e0e0]/60">حرق لإنزال الأسطورة:</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={4}
+                          step={1}
+                          value={defLegendBurn}
+                          onChange={(e) => setDefLegendBurn(Number(e.target.value))}
+                          className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1 col-span-2">
+                        <div className="flex items-center justify-between text-emerald-400 text-[8.5px]">
+                          <span className="font-extrabold">{defMaxBonus === 0 ? "بدون معزز (0)" : defMaxBonus}</span>
+                          <span className="font-black text-[#e0e0e0]/60">أقصى قيمة لمعزز الهجمات:</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={10}
+                          step={1}
+                          value={defMaxBonus}
+                          onChange={(e) => setDefMaxBonus(Number(e.target.value))}
+                          className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[10px] rounded-lg transition-all cursor-pointer border-none"
+                    >
+                      حفظ إعدادات الماتش الافتراضية 💾
+                    </button>
+                  </form>
+                )}
+
+                {/* 3. Password change sub-tab */}
+                {settingsSubTab === "password" && (
+                  <form onSubmit={handleChangePassword} className="space-y-2.5">
+                    <div className="space-y-1">
+                      <label className="block text-[#e0e0e0]/60 font-black text-[9px]">كلمة المرور القديمة:</label>
+                      <input
+                        type="password"
+                        required
+                        placeholder="••••••••"
+                        value={oldPassword}
+                        onChange={(e) => setOldPassword(e.target.value)}
+                        className="w-full px-2 py-1 rounded-lg bg-black/55 border border-white/10 focus:outline-none focus:border-emerald-500 text-white text-right text-xs font-bold font-mono"
+                        dir="ltr"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="block text-[#e0e0e0]/60 font-black text-[9px]">كلمة المرور الجديدة:</label>
+                        <input
+                          type="password"
+                          required
+                          placeholder="••••••••"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="w-full px-2 py-1 rounded-lg bg-black/55 border border-white/10 focus:outline-none focus:border-emerald-500 text-white text-right text-xs font-bold font-mono"
+                          dir="ltr"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[#e0e0e0]/60 font-black text-[9px]">تأكيد الجديدة:</label>
+                        <input
+                          type="password"
+                          required
+                          placeholder="••••••••"
+                          value={confirmNewPassword}
+                          onChange={(e) => setConfirmNewPassword(e.target.value)}
+                          className="w-full px-2 py-1 rounded-lg bg-black/55 border border-white/10 focus:outline-none focus:border-emerald-500 text-white text-right text-xs font-bold font-mono"
+                          dir="ltr"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[10px] rounded-lg transition-all cursor-pointer border-none"
+                    >
+                      تغيير كلمة المرور بشكل آمن 🔐
+                    </button>
+                  </form>
+                )}
+
+              </div>
+
+              {/* BOTTOM CONTROLS & UTILITIES */}
+              <div className="border-t border-white/10 pt-2.5 mt-2 space-y-2">
+                <div className="grid grid-cols-2 gap-2 text-right">
+                  {/* Sound control toggle */}
+                  <button
+                    type="button"
+                    onClick={toggleMute}
+                    className={`py-1.5 rounded-xl text-[9px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 border border-white/5 ${
+                      isMuted 
+                        ? "bg-red-500/10 text-red-400 hover:bg-red-500/25" 
+                        : "bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                    }`}
                   >
-                    دخول لوحة التحكم ⚙️
-                  </a>
-                  <span className="text-xs font-bold text-slate-300">لوحة الإدارة وقواعد البيانات:</span>
+                    <span>{isMuted ? "الصوت مكتوم 🔇" : "الصوت مفعل 🔊"}</span>
+                  </button>
+
+                  {/* Admin console button (only active for admin role) */}
+                  {currentUser?.role === "admin" ? (
+                    <a
+                      href="#/admin"
+                      className="py-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 rounded-xl text-[9px] font-black cursor-pointer transition-colors flex items-center justify-center gap-1 text-center"
+                    >
+                      دخول لوحة التحكم 👑⚙️
+                    </a>
+                  ) : (
+                    <div
+                      className="py-1.5 bg-black/20 text-slate-500 border border-white/5 rounded-xl text-[8.5px] font-bold cursor-not-allowed flex items-center justify-center gap-1 text-center"
+                      title="متاح للمشرفين التكتيكيين فقط ⚠️"
+                    >
+                      لوحة الإدارة مغلقة 🔒
+                    </div>
+                  )}
                 </div>
 
-                {/* Game Info */}
-                <div className="text-center text-[8px] text-slate-500 space-y-0.5 pt-1">
+                {/* Logout Button */}
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full py-2 bg-rose-600 hover:bg-rose-500 hover:shadow-[0_0_12px_rgba(239,68,68,0.2)] text-white font-black text-[10px] rounded-xl flex items-center justify-center gap-1 cursor-pointer transition-all duration-150 transform hover:scale-[1.01] active:scale-[0.99] border-none"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>تسجيل الخروج من الحساب 🚪</span>
+                </button>
+
+                {/* Footer Game info */}
+                <div className="text-center text-[7.5px] text-slate-600 space-y-0.5 pt-0.5">
                   <div>مرتدة © تحدي التخطيط الكروي الذكي</div>
-                  <div>إصدار التحديث التكتيكي v2.1</div>
+                  <div>إصدار نظام الحسابات والتحديث التكتيكي v3.0</div>
                 </div>
               </div>
             </motion.div>

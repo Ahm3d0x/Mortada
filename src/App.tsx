@@ -22,6 +22,7 @@ import Confetti from "./components/Confetti";
 import WelcomeMenu from "./components/WelcomeMenu";
 import Multilobby from "./components/Multilobby";
 import { supabaseService, MatchRoom } from "./lib/supabase";
+import { gameAuth } from "./lib/gameAuth";
 import GameTutorialPanel from "./components/GameTutorialPanel";
 import TacticalPitch from "./components/TacticalPitch";
 import GameCard from "./components/GameCard";
@@ -383,6 +384,9 @@ ${attackBrk}
 };
 
 export default function App() {
+  const currentUser = gameAuth.getCurrentUser();
+  const defaultSettings = currentUser?.default_match_settings;
+
   // Helper to safely fetch card name, hiding it if it's a face-down player card
   const getSafeCardName = (card: Card | null | undefined, isPlayerOwned: boolean): string => {
     if (!card) return "";
@@ -719,12 +723,12 @@ export default function App() {
   // Static AI properties
   const aiCoachName = "المدرب الغريم (تكتيك روبوت)";
   const aiTeam = "كتائب الروبوت الذكية 🤖";
-  const [maxDrawsPerTurn, setMaxDrawsPerTurn] = useState<number>(2);
-  const [defaultMaxDrawsPerTurn, setDefaultMaxDrawsPerTurn] = useState<number>(2);
-  const [maxMovesPerTurn, setMaxMovesPerTurn] = useState<number>(3);
-  const [defenseDrawsLimit, setDefenseDrawsLimit] = useState<number>(3);
-  const [legendBurnLimit, setLegendBurnLimit] = useState<number>(2);
-  const [initialCardsCount, setInitialCardsCount] = useState<number>(5);
+  const [maxDrawsPerTurn, setMaxDrawsPerTurn] = useState<number>(defaultSettings?.maxDrawsPerTurn ?? 2);
+  const [defaultMaxDrawsPerTurn, setDefaultMaxDrawsPerTurn] = useState<number>(defaultSettings?.maxDrawsPerTurn ?? 2);
+  const [maxMovesPerTurn, setMaxMovesPerTurn] = useState<number>(defaultSettings?.maxMovesPerTurn ?? 3);
+  const [defenseDrawsLimit, setDefenseDrawsLimit] = useState<number>(defaultSettings?.maxDrawsPerTurn ? defaultSettings.maxDrawsPerTurn + 1 : 3);
+  const [legendBurnLimit, setLegendBurnLimit] = useState<number>(defaultSettings?.legendBurnLimit ?? 2);
+  const [initialCardsCount, setInitialCardsCount] = useState<number>(defaultSettings?.initialCardsCount ?? 5);
 
   // Mobile & Orientation state
   const [isMobile, setIsMobile] = useState(false);
@@ -838,9 +842,9 @@ export default function App() {
     phaseRef.current = phase;
   }, [phase]);
 
-  const [coachName, setCoachName] = useState("");
-  const [teamVibe, setTeamVibe] = useState("");
-  const [difficulty, setDifficulty] = useState<"normal" | "tactical" | "legend">("normal");
+  const [coachName, setCoachName] = useState(currentUser?.name || "");
+  const [teamVibe, setTeamVibe] = useState(currentUser?.team_name || "");
+  const [difficulty, setDifficulty] = useState<"normal" | "tactical" | "legend">(defaultSettings?.difficulty || "normal");
 
   const [playerScore, setPlayerScore] = useState(0);
   const [aiScore, setAiScore] = useState(0);
@@ -952,8 +956,8 @@ export default function App() {
   } | null>(null);
   
   // Match countdown timer
-  const [matchTime, setMatchTime] = useState<number>(180);
-  const [initialMatchTime, setInitialMatchTime] = useState<number>(180);
+  const [matchTime, setMatchTime] = useState<number>(defaultSettings?.matchDuration ?? 180);
+  const [initialMatchTime, setInitialMatchTime] = useState<number>(defaultSettings?.matchDuration ?? 180);
 
   // Lifted state to control hand bag openness
   const [isHandExpanded, setIsHandExpanded] = useState<boolean>(false);
@@ -3551,17 +3555,31 @@ export default function App() {
       });
     };
 
-    addConfirmLog(`⚽ تسديدة حاسمة: قام المهاجم [ ${attacker.name} ] بالتسديد بقوة ${attacker.attack}!`, "info");
+    // 1. Initial declare log
+    addConfirmLog(`⚔️ تم بدء الهجمة بقيادة المهاجم [ ${attacker.name} ] بقوة هجوم أساسية ${attacker.attack}، وسحبت معزز [ ${currentBooster.text} ] (+${currentBooster.value})! (استهلكت حركة واحدة)`, "info");
+    
+    // 2. Opponent study log
+    addConfirmLog(`🛡️ الخصم يدرس التمريرات ويتمااسك دفاعياً بانتظار تسديدتك الحاسمة ليرى تشكيلتك كاملة...`, "neutral");
 
+    // 3. Supporting strikers reveals (if any)
     playerSlots.forEach((slot, idx) => {
       if (idx !== currentAttackerIdx && slot.card && slot.isRevealed && slot.revealedInAttack) {
-        addConfirmLog(`⚡ تم تعزيز الهجوم باللاعب الداعم [ ${slot.card.name} ] وإضافة نقاطه +${slot.card.attack}!`, "success");
+        addConfirmLog(`⚔️ تم كشف المهاجم الداعم [ ${slot.card.name} ] لتعزيز الهجمة! (استهلكت حركة واحدة)`, "success");
       }
     });
 
+    // 4. Played specials logs from tempPhaseLogs
+    tempPhaseLogs.forEach((l) => {
+      confirmLogs.push(l);
+    });
+
+    // 5. Active specials summary
     playerActiveSpecial.forEach((spec) => {
       addConfirmLog(`✨ تم تعزيز الهجوم بكارت التكتيك [ ${spec.name} ]!`, "success");
     });
+
+    // 6. Final shoot log
+    addConfirmLog(`⚽ تسديدة حاسمة: قام المهاجم [ ${attacker.name} ] بالتسديد بقوة ${attacker.attack}!`, "info");
 
     const updatedLogs = [...logs, ...confirmLogs];
 
@@ -3576,6 +3594,7 @@ export default function App() {
       setPlayerSlots(cleanPlayerSlots);
 
       setLogs(updatedLogs);
+      setTempPhaseLogs([]);
 
       setTimeout(() => {
         syncToSupabaseInstance(
@@ -3612,6 +3631,7 @@ export default function App() {
     } else {
       // IN OFFLINE MODE (VS AI):
       setLogs(updatedLogs);
+      setTempPhaseLogs([]);
       // The AI has not played defense yet. We trigger its AI defense reaction now,
       // and mathematically resolve the outcome inside the callback once it is completed.
       addLog(`🤖 الخصم يدرس تسديدتك الكلية وتكتيكاتك بالملعب ويقود خط الصد التكتيكي الفوري...`, "neutral");
@@ -3692,6 +3712,41 @@ export default function App() {
     isResolvingRef.current = true;
     phaseRef.current = "resolution";
 
+    // Gather all confirmed attack action details
+    const attacker = playerSlots[currentAttackerIdx!].card!;
+    const confirmLogs: ActionLog[] = [];
+    const addConfirmLog = (text: string, type: ActionLog["type"] = "neutral") => {
+      confirmLogs.push({
+        id: Math.random().toString(36).substr(2, 9),
+        timestamp: getFormattedTime(),
+        text,
+        type
+      });
+    };
+
+    // 1. Initial declare log
+    addConfirmLog(`⚔️ تم بدء الهجمة بقيادة المهاجم [ ${attacker.name} ] بقوة هجوم أساسية ${attacker.attack}، وسحبت معزز [ ${currentBooster?.text} ] (+${currentBooster?.value})! (استهلكت حركة واحدة)`, "info");
+    
+    // 2. Opponent study log
+    addConfirmLog(`🛡️ الخصم يدرس التمريرات ويتمااسك دفاعياً بانتظار تسديدتك الحاسمة ليرى تشكيلتك كاملة...`, "neutral");
+
+    // 3. Supporting strikers reveals (if any)
+    playerSlots.forEach((slot, idx) => {
+      if (idx !== currentAttackerIdx && slot.card && slot.isRevealed && slot.revealedInAttack) {
+        addConfirmLog(`⚔️ تم كشف المهاجم الداعم [ ${slot.card.name} ] لتعزيز الهجمة! (استهلكت حركة واحدة)`, "success");
+      }
+    });
+
+    // 4. Played specials logs from tempPhaseLogs
+    tempPhaseLogs.forEach((l) => {
+      confirmLogs.push(l);
+    });
+
+    // 5. Active specials summary
+    playerActiveSpecial.forEach((spec) => {
+      addConfirmLog(`✨ تم تعزيز الهجوم بكارت التكتيك [ ${spec.name} ]!`, "success");
+    });
+
     // Accumulate scores for final consolation modal
     const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentBooster, playerActiveSpecial, aiActiveSpecial, playerSlots, aiSlots);
     const defDetail = getDetailedCalculation(false, false, null, null, playerActiveSpecial, aiActiveSpecial, playerSlots, aiSlots);
@@ -3706,7 +3761,17 @@ export default function App() {
     });
 
     const defenders = aiSlots.filter((s) => s.card && s.isRevealed && s.revealedInAttack).map((s) => s.card!.name);
-    addLog(formatBlockLog(true, computedAttack, computedDefense, attackDetail.breakdown, defDetail.breakdown, `${playerScore} - ${aiScore}`), "danger");
+    
+    const blockMsg = formatBlockLog(true, computedAttack, computedDefense, attackDetail.breakdown, defDetail.breakdown, `${playerScore} - ${aiScore}`);
+    const updatedLogs = [...logs, ...confirmLogs, {
+      id: Math.random().toString(36).substr(2, 9),
+      timestamp: getFormattedTime(),
+      text: blockMsg,
+      type: "danger" as const
+    }];
+
+    setLogs(updatedLogs);
+    setTempPhaseLogs([]);
 
     const attackerName = playerSlots[currentAttackerIdx!]?.card?.name || "لاعبك";
     recordRound("player", computedAttack, computedDefense, currentBooster?.value || 0, currentBooster?.text || "", false, attackerName, defenders, playerScore, aiScore);
@@ -3741,6 +3806,7 @@ export default function App() {
     setCurrentBooster(null);
     setShowConfetti(phaseRef.current === "game_over" ? showConfetti : false);
     setIsShotDeclared(false);
+    setTempPhaseLogs([]);
 
     if (phaseRef.current === "game_over") {
       return;
@@ -4383,7 +4449,7 @@ export default function App() {
       addConfirmDefenseLog(`🛡️ تم تعزيز الدفاع بكارت التكتيك [ ${spec.name} ]!`, "success");
     });
 
-    const newLogs = [...logs, ...confirmDefenseLogs];
+    const newLogs = [...logs, ...tempPhaseLogs, ...confirmDefenseLogs];
 
     // AI Attacks, Player Defends
     let attackDetail = getDetailedCalculation(false, true, currentAttackerIdx, currentBooster, playerActiveSpecial, currentAiActiveSpecials, playerSlots, aiSlots);
@@ -4515,6 +4581,7 @@ export default function App() {
     }
 
     setLogs(newLogs);
+    setTempPhaseLogs([]);
 
     if (isMultiplayer) {
       setTimeout(() => {
@@ -4537,14 +4604,37 @@ export default function App() {
   // RESET AND RETURN TO MAIN MENU
   const handleResetGame = () => {
     setPhase("menu");
-    setCoachName("");
-    setTeamVibe("");
+    
+    // Reload settings of the logged-in user when returning to menu
+    const freshUser = gameAuth.getCurrentUser();
+    const freshSettings = freshUser?.default_match_settings;
+    if (freshUser) {
+      setCoachName(freshUser.name);
+      setTeamVibe(freshUser.team_name);
+      if (freshSettings) {
+        setDifficulty(freshSettings.difficulty);
+        setMatchTime(freshSettings.matchDuration);
+        setInitialMatchTime(freshSettings.matchDuration);
+        setLegendPercentage(freshSettings.legendPercentage);
+        setMaxDrawsPerTurn(freshSettings.maxDrawsPerTurn);
+        setDefaultMaxDrawsPerTurn(freshSettings.maxDrawsPerTurn);
+        setMaxMovesPerTurn(freshSettings.maxMovesPerTurn);
+        setLegendBurnLimit(freshSettings.legendBurnLimit);
+        setInitialCardsCount(freshSettings.initialCardsCount);
+        setMaxBonusValue(freshSettings.maxBonusValue);
+      }
+    } else {
+      setCoachName("");
+      setTeamVibe("");
+    }
+
     setSelectedHandCardId(null);
     setBurningCardIds([]);
     setSelectedPitchSlotIdx(null);
     setActiveTargetingCard(null);
     setShowConfetti(false);
     setLogs([]);
+    setTempPhaseLogs([]);
     setMatchRounds([]);
     setAiCardsDrawnThisTurn(0);
     setIsShotDeclared(false);
