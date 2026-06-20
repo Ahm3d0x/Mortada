@@ -1313,7 +1313,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     if (!hasPendingLocalChanges.current) {
       if (my_deck !== undefined && my_deck !== null) {
         setPlayerDeck(my_deck);
-        if (my_deck.length > 0 && resolvedRole === "opponent") {
+        if (my_deck.length > 0) {
           setIsGameLoading(false);
         }
       }
@@ -2244,22 +2244,33 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     setWarmupTimeLeft(customWarmupTimeLimit);
 
     if (isHost) {
+      setPhase("warmup");
       setIsGameLoading(true);
       setGameLoadError(null);
-      try {
-        const res = await supabaseService.invokeReferee({
-          action: "init_match",
-          roomId: room.id,
-          settings: rs
-        });
+      supabaseService.invokeReferee({
+        action: "init_match",
+        roomId: room.id,
+        settings: rs
+      }).then((res) => {
         if (!res.success) {
           throw new Error(res.error || "Failed to initialize match via referee");
         }
-      } catch (err: any) {
+        if (res.game_state) {
+          setPlayerDeck(res.game_state.host_player_deck || []);
+          setAiDeck(res.game_state.opponent_player_deck || []);
+          setSpecialDeck(res.game_state.special_deck || []);
+          setBoosterDeck(res.game_state.booster_deck || []);
+          setPlayerSlots(Array(5).fill(null).map(() => ({ card: null, isRevealed: false })));
+          setAiSlots(Array(5).fill(null).map(() => ({ card: null, isRevealed: false })));
+          setPlayerHand([]);
+          setAiHand([]);
+        }
+        setIsGameLoading(false);
+      }).catch((err: any) => {
         console.error("Error starting match via referee:", err);
         setGameLoadError(err.message || "Failed to start match via referee");
         setIsGameLoading(false);
-      }
+      });
     } else {
       // Opponent is waiting for host to sync
       const gs = room.game_state;

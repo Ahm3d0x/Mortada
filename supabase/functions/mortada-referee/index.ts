@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
             type: 'success',
           },
         ],
-        last_updated_by: 'host',
+        last_updated_by: 'referee',
       }
 
       updates = {
@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
         updates.current_turn = startRole
       }
 
-      gameState.last_updated_by = role
+      gameState.last_updated_by = 'referee'
       updates.game_state = gameState
     }
 
@@ -338,7 +338,7 @@ Deno.serve(async (req) => {
         gameState.active_specials_opponent = filterSpecials(opponentSpecials)
       }
 
-      gameState.last_updated_by = role
+      gameState.last_updated_by = 'referee'
       updates.game_state = gameState
     }
 
@@ -370,7 +370,7 @@ Deno.serve(async (req) => {
       })
 
       updates.current_turn = nextTurn
-      gameState.last_updated_by = role
+      gameState.last_updated_by = 'referee'
       updates.game_state = gameState
     }
 

@@ -773,7 +773,7 @@ export const supabaseService = {
             type: "success",
           },
         ],
-        last_updated_by: "host",
+        last_updated_by: "referee",
       };
 
       updates = {
@@ -822,7 +822,7 @@ export const supabaseService = {
         updates.current_turn = startRole;
       }
 
-      gameState.last_updated_by = body.role;
+      gameState.last_updated_by = "referee";
       updates.game_state = gameState;
     } 
     else if (body.action === "resolve_combat") {
@@ -923,7 +923,7 @@ export const supabaseService = {
         gameState.active_specials_opponent = filterSpecials(opponentSpecials);
       }
 
-      gameState.last_updated_by = body.role;
+      gameState.last_updated_by = "referee";
       updates.game_state = gameState;
     } 
     else if (body.action === "end_turn") {
@@ -951,7 +951,7 @@ export const supabaseService = {
       });
 
       updates.current_turn = nextTurn;
-      gameState.last_updated_by = body.role;
+      gameState.last_updated_by = "referee";
       updates.game_state = gameState;
     }
 
