@@ -1,4 +1,5 @@
-import { CardAbility, CardAbilityAction, CardAbilityCondition } from "../types";
+import { CardAbility, CardAbilityAction, CardAbilityCondition, SpecialCard, PlayerCard, Card, BoosterCard } from "../types";
+
 
 export const VALID_TRIGGERS = [
   "CardPlayed",
@@ -427,3 +428,203 @@ export function calculatePowerScore(
     }
   };
 }
+
+/**
+ * Server-authoritative rules engine for multiplayer combat resolution.
+ * Takes explicit states to avoid React state dependency.
+ */
+export function runRefereeRulesEngine(
+  isPlayerSide: boolean, // Side we are calculating for (true = Player, false = AI/Opponent)
+  isAttackingStage: boolean, // Is this an attack calculation? (true = Attack, false = Defense)
+  attackerIdx: number | null,
+  activeBooster: BoosterCard | null,
+  playerActiveSpecials: SpecialCard[],
+  aiActiveSpecials: SpecialCard[],
+  playerSlots: { card: PlayerCard | null; isRevealed: boolean; revealedInAttack?: boolean; spent?: boolean }[],
+  aiSlots: { card: PlayerCard | null; isRevealed: boolean; revealedInAttack?: boolean; spent?: boolean }[],
+  isPlayerAttacker: boolean
+): number {
+  let score = 0;
+  const slots = isPlayerSide ? playerSlots : aiSlots;
+  
+  if (isAttackingStage) {
+    // Base attack score: sum of attack of all revealed player cards on the attacking side
+    slots.forEach((slot) => {
+      if (slot.card && slot.isRevealed && slot.revealedInAttack) {
+        if (slot.card.frozen || slot.card.stunned || (slot.card as any).silenced) return;
+        score += slot.card.attack;
+      }
+    });
+    if (activeBooster && isPlayerSide === isPlayerAttacker) {
+      score += activeBooster.value;
+    }
+  } else {
+    // Base defense score: sum of defense of all revealed player cards on the defending side
+    slots.forEach((slot) => {
+      if (slot.card && slot.isRevealed && slot.revealedInAttack) {
+        if (slot.card.frozen || slot.card.stunned || (slot.card as any).silenced) return;
+        score += slot.card.defense;
+      }
+    });
+  }
+
+  const activeSources: { card: Card; isPlayerOwned: boolean }[] = [];
+  
+  playerSlots.forEach((slot) => {
+    if (slot.card && slot.isRevealed) {
+      activeSources.push({ card: slot.card, isPlayerOwned: true });
+    }
+  });
+  aiSlots.forEach((slot) => {
+    if (slot.card && slot.isRevealed) {
+      activeSources.push({ card: slot.card, isPlayerOwned: false });
+    }
+  });
+  playerActiveSpecials.forEach((spec) => {
+    activeSources.push({ card: spec, isPlayerOwned: true });
+  });
+  aiActiveSpecials.forEach((spec) => {
+    activeSources.push({ card: spec, isPlayerOwned: false });
+  });
+
+  let attackModifiers = 0;
+  let defenseModifiers = 0;
+  let attackMultiplier = 1;
+  let defenseMultiplier = 1;
+  let cancelStrongestAttacker = false;
+
+  activeSources.forEach((src) => {
+    const { card, isPlayerOwned } = src;
+
+    // 1. Dynamic Ability execution
+    if (card.ability) {
+      const opponentActiveSpecials = isPlayerOwned ? aiActiveSpecials : playerActiveSpecials;
+      const opponentSlots = isPlayerOwned ? aiSlots : playerSlots;
+      const isAbilityBlocked = opponentActiveSpecials.some(c => c.ability?.actions.some(a => a.type === "BlockAbility")) ||
+                                opponentSlots.some(s => s.card && s.isRevealed && !s.card.silenced && s.card.ability?.actions.some(a => a.type === "BlockAbility"));
+
+      const isSilenced = (card as any).silenced || (card as any).abilityBlocked || isAbilityBlocked;
+      if (isSilenced) return;
+
+      const ability = card.ability;
+      
+      // Check triggers
+      const triggerMatches = 
+        ((ability.trigger === "CardRevealed" || ability.trigger === "CardPlayed") && card.type === "player") || // While active on field
+        (ability.trigger === "CardPlayed" && card.type === "special") || // Specials active this turn
+        (ability.trigger === "AttackStarted" && isAttackingStage) ||
+        (ability.trigger === "DefenseStarted" && !isAttackingStage);
+
+      if (triggerMatches) {
+        // Evaluate conditions
+        let conditionsMet = true;
+        if (ability.conditions) {
+          ability.conditions.forEach((cond) => {
+            if (cond.type === "IsFaceUp") {
+              // If it's on field it's face up
+            }
+            if (cond.type === "IsAttacker") {
+              const isOwnerAttacking = isPlayerOwned === isPlayerAttacker;
+              if (!isOwnerAttacking) conditionsMet = false;
+            }
+            if (cond.type === "IsDefender") {
+              const isOwnerDefending = isPlayerOwned !== isPlayerAttacker;
+              if (!isOwnerDefending) conditionsMet = false;
+            }
+            if (cond.type === "CardOwnerIsEnemy") {
+              if (isPlayerOwned === isPlayerSide) conditionsMet = false;
+            }
+            if (cond.type === "IsLegend") {
+              if (card.type === "player" && !(card as PlayerCard).isLegend) {
+                conditionsMet = false;
+              }
+            }
+          });
+        }
+
+        if (conditionsMet && ability.actions) {
+          ability.actions.forEach((act) => {
+            const isTargetSide = (act.target === "Allies" && isPlayerOwned === isPlayerSide) ||
+                                 (act.target === "Enemies" && isPlayerOwned !== isPlayerSide) ||
+                                 (act.target === "CurrentAttack" && isAttackingStage) ||
+                                 (act.target === "CurrentDefense" && !isAttackingStage) ||
+                                 (act.target === "Self" && card === src.card && isPlayerOwned === isPlayerSide);
+
+            if (isTargetSide) {
+              if (act.type === "AddStat") {
+                if (act.stat === "attack" && isAttackingStage) {
+                  attackModifiers += act.value ?? 0;
+                }
+                if (act.stat === "defense" && !isAttackingStage) {
+                  defenseModifiers += act.value ?? 0;
+                }
+              } else if (act.type === "RemoveStat") {
+                if (act.stat === "attack" && isAttackingStage) {
+                  attackModifiers -= act.value ?? 0;
+                }
+                if (act.stat === "defense" && !isAttackingStage) {
+                  defenseModifiers -= act.value ?? 0;
+                }
+              } else if (act.type === "MultiplyStat") {
+                if (act.stat === "attack" && isAttackingStage) {
+                  attackMultiplier *= act.value ?? 1;
+                }
+                if (act.stat === "defense" && !isAttackingStage) {
+                  defenseMultiplier *= act.value ?? 1;
+                }
+              } else if (act.type === "CancelAction" && isAttackingStage) {
+                cancelStrongestAttacker = true;
+              }
+            }
+          });
+        }
+      }
+    } else if (card.type === "special") {
+      // 2. Fallback to hardcoded special card behaviors
+      const spec = card as SpecialCard;
+      if (isAttackingStage) {
+        if (isPlayerOwned === isPlayerAttacker) {
+          if (spec.effect === "counter_attack" && isPlayerSide === isPlayerAttacker) {
+            attackModifiers += 4;
+          }
+          if (spec.effect === "fans" && isPlayerSide === isPlayerAttacker) {
+            attackModifiers += 3;
+          }
+        } else {
+          if (spec.effect === "wet_pitch" && isPlayerSide === isPlayerAttacker) {
+            attackModifiers -= 4;
+          }
+          if (spec.effect === "offside" && isPlayerSide === isPlayerAttacker) {
+            cancelStrongestAttacker = true;
+          }
+        }
+      } else {
+        if (isPlayerOwned !== isPlayerAttacker) {
+          if (spec.effect === "park_the_bus" && isPlayerSide !== isPlayerAttacker) {
+            defenseModifiers += 6;
+          }
+          if (spec.effect === "fans" && isPlayerSide !== isPlayerAttacker) {
+            defenseModifiers += 3;
+          }
+        }
+      }
+    }
+  });
+
+  if (isAttackingStage) {
+    let finalAttack = (score * attackMultiplier) + attackModifiers;
+    if (cancelStrongestAttacker) {
+      let maxAttStrength = 0;
+      slots.forEach((s) => {
+        if (s.card && s.isRevealed && s.revealedInAttack) {
+          maxAttStrength = Math.max(maxAttStrength, s.card.attack);
+        }
+      });
+      finalAttack -= maxAttStrength;
+    }
+    return Math.max(0, finalAttack);
+  } else {
+    return Math.max(0, (score * defenseMultiplier) + defenseModifiers);
+  }
+}
+

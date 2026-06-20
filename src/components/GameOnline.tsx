@@ -908,6 +908,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const phaseRef = useRef<GamePhase>("menu");
   const isResolvingRef = useRef<boolean>(false);
   const isAIExecutingRef = useRef<boolean>(false);
+  const [isRefereeResolving, setIsRefereeResolving] = useState<boolean>(false);
   const opponentLastActiveRef = useRef<number>(Date.now() + 10000);
 
   // Realtime Broadcast channel and DB tracking refs
@@ -1221,6 +1222,31 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       setIsShotDeclared(false);
       setTempPhaseLogs([]);
       isResolvingRef.current = false;
+    }
+
+    if (incomingLocalPhase === "resolution" && phaseRef.current !== "resolution") {
+      const lastLog = gs.logs && gs.logs.length > 0 ? gs.logs[gs.logs.length - 1] : null;
+      if (lastLog) {
+        const text = lastLog.text || "";
+        const isGoal = text.includes("جـوووول") || text.includes("⚽");
+        if (isGoal) {
+          SoundEffects.playGoalCelebration();
+          setShowConfetti(true);
+          triggerScreenShake();
+          setCelebrationMessage({
+            title: "جــوووووول! ⚽🔥",
+            subtitle: text,
+            isGoal: true
+          });
+        } else if (text.includes("إنقاذ") || text.includes("🧤") || text.includes("صد")) {
+          SoundEffects.playWhistle();
+          setCelebrationMessage({
+            title: "إنقاذ بطولي! 🧤🧱",
+            subtitle: text,
+            isGoal: false
+          });
+        }
+      }
     }
 
     phaseRef.current = incomingLocalPhase;
@@ -1748,9 +1774,16 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     if (gameMode === "rounds") return;
 
     if (isHalfTimeBreak) {
+      let lastBreakTick = Date.now();
       const breakTimer = setInterval(() => {
+        const now = Date.now();
+        const delta = Math.round((now - lastBreakTick) / 1000);
+        lastBreakTick = now;
+        if (delta <= 0) return;
+
         setHalfTimeBreakLeft((prev) => {
-          if (prev <= 1) {
+          const nextVal = Math.max(0, prev - delta);
+          if (nextVal <= 0) {
             if (isMultiplayer && multiplayerRole !== "host") {
               // Opponent waits for host to sync transition
               return 0;
@@ -1806,18 +1839,25 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
             }
             return 0;
           }
-          return prev - 1;
+          return nextVal;
         });
       }, 1000);
       return () => clearInterval(breakTimer);
     }
 
+    let lastMatchTick = Date.now();
     const timer = setInterval(() => {
+      const now = Date.now();
+      const delta = Math.round((now - lastMatchTick) / 1000);
+      lastMatchTick = now;
+      if (delta <= 0) return;
+
       setMatchTime((prev) => {
         const halfTimePoint = Math.floor(initialMatchTime / 2);
+        const nextVal = Math.max(0, prev - delta);
 
         // Transition to half-time break
-        if (matchHalf === 1 && prev <= halfTimePoint) {
+        if (matchHalf === 1 && nextVal <= halfTimePoint) {
           clearInterval(timer);
           setIsHalfTimeBreak(true);
           setHalfTimeBreakLeft(halfTimeBreakDuration);
@@ -1846,7 +1886,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
           return halfTimePoint;
         }
 
-        if (prev <= 1) {
+        if (nextVal <= 0) {
           clearInterval(timer);
           SoundEffects.playWhistle();
           setPhase("game_over");
@@ -1880,7 +1920,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
           }
           return 0;
         }
-        return prev - 1;
+        return nextVal;
       });
     }, 1000);
 
@@ -1894,9 +1934,16 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
     if (phase !== "player_turn" && phase !== "ai_turn") return;
 
+    let lastTurnTick = Date.now();
     const timerId = setInterval(() => {
+      const now = Date.now();
+      const delta = Math.round((now - lastTurnTick) / 1000);
+      lastTurnTick = now;
+      if (delta <= 0) return;
+
       setTurnTimeLeft((prev) => {
-        if (prev <= 1) {
+        const nextVal = Math.max(0, prev - delta);
+        if (nextVal <= 0) {
           clearInterval(timerId);
           
           if (phase === "player_turn") {
@@ -1911,7 +1958,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
           }
           return 0;
         }
-        return prev - 1;
+        return nextVal;
       });
     }, 1000);
 
@@ -2199,168 +2246,20 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     if (isHost) {
       setIsGameLoading(true);
       setGameLoadError(null);
-
-      let pDeck: PlayerCard[] = [];
-      let pDeckOpponent: PlayerCard[] = [];
-      let sDeck: SpecialCard[] = [];
-
       try {
-        const selectedPlayerPkgs = rs.selectedPlayerPkgs;
-        const selectedSpecialPkgs = rs.selectedSpecialPkgs;
-
-        // Fetch customized player cards
-        let fetchedPlayers: PlayerCard[] = [];
-        if (selectedPlayerPkgs && selectedPlayerPkgs.length > 0) {
-          try {
-            fetchedPlayers = await getCardsForGame(selectedPlayerPkgs);
-          } catch (err) {
-            console.error("Error loading selected player packages, falling back to default pool:", err);
-          }
-        }
-        if (!fetchedPlayers || fetchedPlayers.length < 10) {
-          fetchedPlayers = getMockPlayerCards(selectedPlayerPkgs);
-        }
-        
-        // Fetch customized special cards
-        let fetchedSpecials: SpecialCard[] = [];
-        if (selectedSpecialPkgs && selectedSpecialPkgs.length > 0) {
-          try {
-            fetchedSpecials = await getSpecialCardsForGame(selectedSpecialPkgs);
-          } catch (err) {
-            console.error("Error loading selected special packages, falling back to default pool:", err);
-          }
-        }
-        if (selectedSpecialPkgs && selectedSpecialPkgs.length > 0 && (!fetchedSpecials || fetchedSpecials.length === 0)) {
-          fetchedSpecials = getMockSpecialCards(selectedSpecialPkgs);
-        }
-
-        if (fetchedPlayers && fetchedPlayers.length >= 10) {
-          const { playerDeck: uniqueP, aiDeck: uniqueOpp } = generateUniqueDecks(fetchedPlayers, customLegendPct);
-          pDeck = uniqueP;
-          pDeckOpponent = uniqueOpp;
-        } else {
-          const stdDecks = generateUniquePlayerDecks(customLegendPct);
-          pDeck = stdDecks.playerDeck;
-          pDeckOpponent = stdDecks.aiDeck;
-        }
-
-        if (selectedSpecialPkgs && selectedSpecialPkgs.length > 0) {
-          if (fetchedSpecials && fetchedSpecials.length > 0) {
-            sDeck = generateSpecialDeckFromPool(fetchedSpecials);
-          } else {
-            sDeck = generateSpecialDeckFromPool(INITIAL_SPECIAL_CARDS as SpecialCard[]);
-          }
-        } else {
-          sDeck = [];
+        const res = await supabaseService.invokeReferee({
+          action: "init_match",
+          roomId: room.id,
+          settings: rs
+        });
+        if (!res.success) {
+          throw new Error(res.error || "Failed to initialize match via referee");
         }
       } catch (err: any) {
-        console.error("Error building packages decks:", err);
-        const stdDecks = generateUniquePlayerDecks(customLegendPct);
-        pDeck = stdDecks.playerDeck;
-        pDeckOpponent = stdDecks.aiDeck;
-        sDeck = generateSpecialDeck();
-      } finally {
+        console.error("Error starting match via referee:", err);
+        setGameLoadError(err.message || "Failed to start match via referee");
         setIsGameLoading(false);
       }
-
-      const poDeck = generateBoosterDeck(customMaxBonus);
-
-      // Choose random kickoff roles
-      const randomStart = Math.random() < 0.5;
-      const firstHalfRole = randomStart ? "player" : "ai";
-      const secondHalfRole = randomStart ? "ai" : "player";
-      setFirstHalfKickoffRole(firstHalfRole);
-      setSecondHalfKickoffRole(secondHalfRole);
-
-      const initialPlayerSlots = [
-        { card: null, isRevealed: false },
-        { card: null, isRevealed: false },
-        { card: null, isRevealed: false },
-        { card: null, isRevealed: false },
-        { card: null, isRevealed: false }
-      ];
-      const initialAiSlots = [
-        { card: null, isRevealed: false },
-        { card: null, isRevealed: false },
-        { card: null, isRevealed: false },
-        { card: null, isRevealed: false },
-        { card: null, isRevealed: false }
-      ];
-      const initialPlayerHand: Card[] = [];
-      const initialAiHand: Card[] = [];
-      const finalPlayerDeck = pDeck;
-      const finalSpecialDeck = sDeck;
-
-      setPlayerSlots(initialPlayerSlots);
-      setAiSlots(initialAiSlots);
-      setPlayerHand(initialPlayerHand);
-      setAiHand(initialAiHand);
-      setPlayerDeck(finalPlayerDeck);
-      setSpecialDeck(finalSpecialDeck);
-      setBoosterDeck(poDeck);
-
-      setPlayerScore(0);
-      setAiScore(0);
-      setTurnCount(1);
-      setCardsDrawnThisTurn(0);
-      setPlayerMovesLeft(customMaxMoves);
-
-      setPhase("warmup");
-      
-      const kickoffLogs = [
-        {
-          id: Math.random().toString(),
-          timestamp: getFormattedTime(),
-          text: `صافرة بداية مباراة الأونلاين! كود الغرفة المميز: ${room.id} ⚽`,
-          type: "success" as const
-        },
-        {
-          id: Math.random().toString(),
-          timestamp: getFormattedTime(),
-          text: `المضيف ${myName} ضد الضيف المبارز ${enemyName}! مرحلة تسخين تكتيكي صامتة لتعديل تمركز الأوراق.`,
-          type: "info" as const
-        }
-      ];
-      setLogs(kickoffLogs);
-
-      // Save immediately to Supabase
-      await syncToSupabaseInstance(
-        "warmup",
-        initialPlayerSlots,
-        initialAiSlots,
-        initialPlayerHand,
-        initialAiHand,
-        0,
-        0,
-        3,
-        3,
-        kickoffLogs,
-        null,
-        null,
-        [],
-        [],
-        0,
-        1,
-        3,
-        finalPlayerDeck,
-        pDeckOpponent,
-        finalSpecialDeck,
-        poDeck,
-        null, // overrideAttackerRole
-        false, // overrideIsShotDeclared
-        undefined, // overrideGameMode
-        undefined, // overrideWinningGoals
-        undefined, // overrideTotalRounds
-        undefined, // overrideHalfTimeBreakDuration
-        0, // overrideCompletedRounds
-        firstHalfRole, // overrideFirstHalfKickoffRole
-        secondHalfRole, // overrideSecondHalfKickoffRole
-        1, // overrideMatchHalf
-        false, // overrideIsHalfTimeBreak
-        0, // overrideHalfTimeBreakLeft
-        matchTime, // overrideMatchTime
-        initialMatchTime // overrideInitialMatchTime
-      );
     } else {
       // Opponent is waiting for host to sync
       const gs = room.game_state;
@@ -2637,75 +2536,22 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     }
 
     if (isMultiplayer) {
-      const isHost = multiplayerRole === "host";
       setMyConfirmed(true);
-
-      const bothConfirmed = otherConfirmed;
-
-      if (bothConfirmed) {
-        const hostStarts = firstHalfKickoffRole === "player";
-        const isMyTurn = (isHost && hostStarts) || (!isHost && !hostStarts);
-        const nextPhase = isMyTurn ? "player_turn" : "ai_turn";
-        
-        setPlayerSlots((prev) => slotsToUse.map((s) => ({ ...s, isRevealed: false })));
-        setPhase(nextPhase as any);
-        setCardsDrawnThisTurn(0);
-        setPlayerMovesLeft(isMyTurn ? maxMovesPerTurn : 0);
-        setAiMovesLeft(isMyTurn ? 0 : maxMovesPerTurn);
-        
-        const startLogs = [
-          ...logs,
-          {
-            id: Math.random().toString(),
-            timestamp: getFormattedTime(),
-            text: "تأكدت تكتيكات كلا الفريقين بالكامل! صافرة ركلة البداية! المباراة تنطلق الآن أونلاين ⚽",
-            type: "success" as const
-          }
-        ];
-        setLogs(startLogs);
-
-        // Sync both confirmed and transition phase to playing
-        setTimeout(() => {
-          syncToSupabaseInstance(
-            nextPhase as any,
-            undefined, undefined, undefined, undefined,
-            undefined, undefined,
-            isMyTurn ? maxMovesPerTurn : 0,
-            isMyTurn ? 0 : maxMovesPerTurn,
-            startLogs,
-            null, null, [], [], 0, 1, maxMovesPerTurn,
-            deckToUse,
-            undefined,
-            undefined,
-            undefined,
-            null,
-            false
-          );
-          // Write directly to Supabase room table as well
-          supabaseService.updateRoomState(currentRoomId!, {
-            host_confirmed: true,
-            opponent_confirmed: true,
-            status: "playing"
-          });
-        }, 60);
-      } else {
-        addLog("تم تأكيد خطتك وتشكيلتك بنجاح! بانتظار الخصم لينهي تسخينه لتنطلق المباراة ⏳.", "neutral");
-        
-        // Sync my confirmation via game_state update and room table status
-        syncToSupabaseInstance({
-          playerSlots: slotsToUse,
-          playerDeck: deckToUse
-        });
-        if (isHost) {
-          supabaseService.updateRoomState(currentRoomId!, {
-            host_confirmed: true
-          });
-        } else {
-          supabaseService.updateRoomState(currentRoomId!, {
-            opponent_confirmed: true
-          });
-        }
-      }
+      addLog("تم تأكيد خطتك وتشكيلتك بنجاح! بانتظار الخصم لينهي تسخينه لتنطلق المباراة ⏳.", "neutral");
+      setIsRefereeResolving(true);
+      supabaseService.invokeReferee({
+        action: "confirm_lineup",
+        roomId: currentRoomId!,
+        role: multiplayerRole!,
+        slots: slotsToUse.map((s) => ({ ...s, isRevealed: false })),
+        deck: deckToUse
+      }).catch((err) => {
+        console.error("Error confirming lineup via referee:", err);
+        addLog("فشل تأكيد الخطة عبر الحكم المحايد. يرجى المحاولة مجدداً.", "danger");
+        setMyConfirmed(false);
+      }).finally(() => {
+        setIsRefereeResolving(false);
+      });
     } else {
       setPlayerSlots((prev) => slotsToUse.map((s) => ({ ...s, isRevealed: false })));
       const isPlayerStarting = (firstHalfKickoffRole === "player");
@@ -2725,11 +2571,13 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   };
 
   const handleConfirmLineup = () => {
+    if (isRefereeResolving) return;
     confirmLineupWithData(playerSlots, playerDeck);
   };
 
   // DRAW CARDS ACTION IN PLAYER TURN
   const handleDrawCard = (deckType: "player" | "special") => {
+    if (isRefereeResolving) return;
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (phase === "ai_attacking") {
       addLog("لا يمكنك سحب كروت إضافية أثناء مرحلة الدفاع! يمكنك فقط اللعب بالكروت المتاحة معك في الملعب أو يدك.", "warning");
@@ -3185,6 +3033,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
   // HANDLE CARD CLICK SELECTIONS
   const handleSelectHandCard = (id: string) => {
+    if (isRefereeResolving) return;
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (phase === "ai_turn" || phase === "resolution") return;
 
@@ -3481,6 +3330,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
   // PLAY TACTICAL SPECIAL CARD
   const handlePlaySpecialCard = (id: string) => {
+    if (isRefereeResolving) return;
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (phase === "warmup") {
       addLog("خطأ: لا يمكن تفعيل الكروت التكتيكية أثناء فترة الإحماء والتسخين!", "danger");
@@ -3674,6 +3524,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
   // CO-ORDINATE CLICK ON PITCH SLOT
   const handleSelectPitchSlot = (idx: number, isAi: boolean = false) => {
+    if (isRefereeResolving) return;
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     // 0. Handle active targeting card plays
     if (activeTargetingCard) {
@@ -4160,6 +4011,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
   // DECLARE PLAYER ATTACK
   const handleDeclareAttack = () => {
+    if (isRefereeResolving) return;
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (isAttackBlockedFor(true)) {
       const blockingLegendSlot = aiSlots.find(
@@ -4603,48 +4455,34 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     if (isMultiplayer) {
       setIsShotDeclared(true);
       
-      // Lock current striker card(s) so they cannot be flipped back
       const cleanPlayerSlots = playerSlots.map((s) => ({
         ...s,
         confirmedInAttack: s.revealedInAttack ? true : s.confirmedInAttack
       }));
       setPlayerSlots(cleanPlayerSlots);
-
       setLogs(updatedLogs);
       setTempPhaseLogs([]);
 
-      setTimeout(() => {
-        syncToSupabaseInstance(
-          "attacking", // Keep phase as attacking
-          cleanPlayerSlots,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          playerMovesLeft,
-          undefined,
-          updatedLogs,
-          currentBooster,
-          currentAttackerIdx,
-          playerActiveSpecial,
-          undefined,
-          undefined,
-          undefined,
-          maxMovesPerTurn, // Reset opponent's defense moves to max (e.g. 3) to let them defend!
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          true // overrideIsShotDeclared
-        );
-      }, 50);
-
-      // Release lock so phase is kept attacking
-      isResolvingRef.current = false;
-      phaseRef.current = "attacking";
-      setPhase("attacking");
+      setIsRefereeResolving(true);
+      supabaseService.invokeReferee({
+        action: "resolve_combat",
+        actionType: "resolve_attack",
+        roomId: currentRoomId!,
+        role: multiplayerRole!,
+        details: {
+          playerSlots: cleanPlayerSlots,
+          currentBooster: currentBooster,
+          currentAttackerIdx: currentAttackerIdx,
+          logs: updatedLogs
+        }
+      }).catch((err) => {
+        console.error("Error resolving attack via referee:", err);
+        addLog("فشل إرسال الهجمة عبر الحكم. يرجى المحاولة مجدداً.", "danger");
+        setIsShotDeclared(false);
+      }).finally(() => {
+        setIsRefereeResolving(false);
+        isResolvingRef.current = false;
+      });
     } else {
       // IN OFFLINE MODE (VS AI):
       setLogs(updatedLogs);
@@ -5139,6 +4977,32 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (phaseRef.current !== "player_turn") return;
 
+    if (isMultiplayer) {
+      setSelectedPitchSlotIdx(null);
+      setSelectedHandCardId(null);
+      setBurningCardIds([]);
+      setIsRefereeResolving(true);
+      
+      if (gameMode === "rounds" && (completedRounds + 1) >= totalRounds) {
+        setPhase("game_over");
+        syncToSupabaseInstance("game_over");
+        setIsRefereeResolving(false);
+        return;
+      }
+
+      supabaseService.invokeReferee({
+        action: "end_turn",
+        roomId: currentRoomId!,
+        role: multiplayerRole!
+      }).catch((err) => {
+        console.error("Error ending turn via referee:", err);
+        addLog("فشل إنهاء الدور عبر الحكم. يرجى المحاولة مجدداً.", "danger");
+      }).finally(() => {
+        setIsRefereeResolving(false);
+      });
+      return;
+    }
+
     if (gameMode === "rounds") {
       const nextRounds = completedRounds + 1;
       setCompletedRounds(nextRounds);
@@ -5153,9 +5017,6 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         } else {
           addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds}) بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}!`, "neutral");
         }
-        if (isMultiplayer) {
-          syncToSupabaseInstance("game_over");
-        }
         return;
       }
 
@@ -5164,56 +5025,9 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       setBurningCardIds([]);
       setIsPlayerAttacker(false);
 
-      if (isMultiplayer) {
-        const nextPhase = "ai_turn";
-        const nextAttackerRole = multiplayerRole === "host" ? "opponent" : "host";
-        setCardsDrawnThisTurn(0);
-        setPlayerMovesLeft(0);
-        setAiMovesLeft(maxMovesPerTurn);
-        setAttackerRole(nextAttackerRole);
-
-        const nextLogs = [
-          ...logs,
-          {
-            id: Math.random().toString(),
-            timestamp: getFormattedTime(),
-            text: `🏁 أنهيت جولة هجومك يدوياً بدون هجمات (جولة رقم ${nextRounds}). دور الخصم الآن!`,
-            type: "info" as const
-          }
-        ];
-        setLogs(nextLogs);
-
-        setTimeout(() => {
-          syncToSupabaseInstance(
-            nextPhase as any,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            0,
-            maxMovesPerTurn,
-            nextLogs,
-            null,
-            null,
-            [],
-            [],
-            0,
-            turnCount + 1,
-            maxMovesPerTurn,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            nextAttackerRole
-          );
-        }, 50);
-      } else {
-        phaseRef.current = "ai_turn";
-        setPhase("ai_turn");
-        addLog(`🏁 أنهيت جولة هجومك يدوياً بدون هجمات (جولة رقم ${nextRounds}). دور الخصم الآن!`, "info");
-      }
+      phaseRef.current = "ai_turn";
+      setPhase("ai_turn");
+      addLog(`🏁 أنهيت جولة هجومك يدوياً بدون هجمات (جولة رقم ${nextRounds}). دور الخصم الآن!`, "info");
       return;
     }
 
@@ -5223,55 +5037,6 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     setSelectedPitchSlotIdx(null);
     setSelectedHandCardId(null);
     setBurningCardIds([]);
-
-    if (isMultiplayer) {
-      const nextPhase = "ai_turn";
-      const nextAttackerRole = multiplayerRole === "host" ? "opponent" : "host";
-      setCardsDrawnThisTurn(0);
-      setPlayerMovesLeft(0);
-      setAiMovesLeft(maxMovesPerTurn);
-      setAttackerRole(nextAttackerRole);
-
-      const nextLogs = [
-        ...logs,
-        {
-          id: Math.random().toString(),
-          timestamp: getFormattedTime(),
-          text: "🏁 قمت بنقل دور اللعب والتوجيه يدوياً للمدرب الخصم.",
-          type: "info" as const
-        }
-      ];
-      setLogs(nextLogs);
-
-      setTimeout(() => {
-        syncToSupabaseInstance(
-          nextPhase as any,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          0,
-          3,
-          nextLogs,
-          null,
-          null,
-          [],
-          [],
-          0,
-          turnCount + 1,
-          3,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          nextAttackerRole
-        );
-      }, 50);
-    } else {
-      // AI turn starts via phase useEffect trigger
-    }
   };
 
   // THE AI TURN STRATEGY ENGINE (PvE AI AUTOMATED RUNNER)
@@ -5689,6 +5454,27 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const handleConfirmDefense = () => {
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (phaseRef.current !== "ai_attacking") return;
+
+    if (isMultiplayer) {
+      setIsRefereeResolving(true);
+      supabaseService.invokeReferee({
+        action: "resolve_combat",
+        actionType: "confirm_defense",
+        roomId: currentRoomId!,
+        role: multiplayerRole!,
+        details: {
+          defenders: playerSlots,
+          specials: playerActiveSpecial
+        }
+      }).catch((err) => {
+        console.error("Error confirming defense via referee:", err);
+        addLog("فشل تأكيد الدفاع عبر الحكم. يرجى المحاولة مجدداً.", "danger");
+      }).finally(() => {
+        setIsRefereeResolving(false);
+      });
+      return;
+    }
+
     phaseRef.current = "resolution";
     setPhase("resolution");
 

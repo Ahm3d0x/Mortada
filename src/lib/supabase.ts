@@ -4,6 +4,8 @@
  */
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { generateUniquePlayerDecks, generateSpecialDeck, generateBoosterDeck } from "../cardsData";
+import { runRefereeRulesEngine } from "../utils/rulesEngine";
 
 // Retrieve potential environment variables
 const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || "";
@@ -656,5 +658,318 @@ export const supabaseService = {
         localBroadcast.postMessage({ type: "state_updated", roomId, updates: { last_activity: Date.now() } });
       }
     }
+  },
+
+  async invokeReferee(body: {
+    action: "init_match" | "confirm_lineup" | "resolve_combat" | "end_turn";
+    roomId: string;
+    role?: "host" | "opponent";
+    settings?: any;
+    actionType?: "resolve_attack" | "confirm_defense";
+    details?: any;
+    slots?: any[];
+    deck?: any[];
+  }): Promise<{ success: boolean; game_state?: any; error?: string }> {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error } = await supabase.functions.invoke("mortada-referee", {
+          body
+        });
+        if (error) {
+          return { success: false, error: error.message };
+        }
+        return { success: true, game_state: data.game_state };
+      } catch (err: any) {
+        return { success: false, error: err.message || "Unknown error calling referee" };
+      }
+    } else {
+      return this.runLocalRefereeMock(body);
+    }
+  },
+
+  async runLocalRefereeMock(body: {
+    action: "init_match" | "confirm_lineup" | "resolve_combat" | "end_turn";
+    roomId: string;
+    role?: "host" | "opponent";
+    settings?: any;
+    actionType?: "resolve_attack" | "confirm_defense";
+    details?: any;
+    slots?: any[];
+    deck?: any[];
+  }): Promise<{ success: boolean; game_state?: any; error?: string }> {
+    const rooms = getFallbackRooms();
+    const idx = rooms.findIndex((r) => r.id === body.roomId);
+    if (idx === -1) {
+      return { success: false, error: "Room not found" };
+    }
+
+    const room = rooms[idx];
+    let gameState = room.game_state || {};
+    let updates: any = {};
+
+    const getFormattedTime = () => {
+      return new Date().toLocaleTimeString("en-US", { hour12: false });
+    };
+
+    if (body.action === "init_match") {
+      const rs = body.settings || {};
+      const legendRatio = rs.legendPercentage ?? 30;
+      const maxBonusValue = rs.maxBonusValue ?? 10;
+
+      const { playerDeck: hostDeck, aiDeck: oppDeck } = generateUniquePlayerDecks(legendRatio);
+      
+      const specialPool = generateSpecialDeck();
+      const specialDeckPool: any[] = [];
+      const reps = specialPool.length > 5 ? 2 : 3;
+      for (let i = 0; i < reps; i++) {
+        specialDeckPool.push(...specialPool);
+      }
+      const specialDeck = specialDeckPool
+        .sort(() => Math.random() - 0.5)
+        .map((card, idx) => ({ ...card, id: `spec_${idx}_${Math.random().toString(36).substr(2, 6)}` }));
+
+      const boosterPool = generateBoosterDeck(maxBonusValue);
+      const boosterDeckPool: any[] = [];
+      for (let i = 0; i < 4; i++) {
+        boosterDeckPool.push(...boosterPool);
+      }
+      const boosterDeck = boosterDeckPool
+        .sort(() => Math.random() - 0.5)
+        .map((b, idx) => ({ ...b, id: `booster_${idx}_${Math.random().toString(36).substr(2, 6)}` }));
+
+      const hostStarts = Math.random() < 0.5;
+      const firstHalfRole = hostStarts ? "player" : "ai";
+      const secondHalfRole = hostStarts ? "ai" : "player";
+
+      gameState = {
+        room_settings: rs,
+        phase: "warmup",
+        host_slots: Array(5).fill(null).map(() => ({ card: null, isRevealed: false })),
+        opponent_slots: Array(5).fill(null).map(() => ({ card: null, isRevealed: false })),
+        host_hand: [],
+        opponent_hand: [],
+        host_score: 0,
+        opponent_score: 0,
+        host_moves: rs.maxMovesPerTurn ?? 3,
+        opponent_moves: rs.maxMovesPerTurn ?? 3,
+        host_player_deck: hostDeck,
+        opponent_player_deck: oppDeck,
+        special_deck: specialDeck,
+        booster_deck: boosterDeck,
+        turn_count: 1,
+        match_half: 1,
+        is_half_time_break: false,
+        half_time_break_left: 0,
+        completed_rounds: 0,
+        first_half_kickoff_role: firstHalfRole,
+        second_half_kickoff_role: secondHalfRole,
+        attacker_role: hostStarts ? "host" : "opponent",
+        is_shot_declared: false,
+        logs: [
+          {
+            id: Math.random().toString(),
+            timestamp: getFormattedTime(),
+            text: `صافرة بداية مباراة الأونلاين! كود الغرفة: ${body.roomId} ⚽`,
+            type: "success",
+          },
+        ],
+        last_updated_by: "host",
+      };
+
+      updates = {
+        game_state: gameState,
+        status: "playing",
+        host_confirmed: false,
+        opponent_confirmed: false,
+      };
+    } 
+    else if (body.action === "confirm_lineup") {
+      const isHost = body.role === "host";
+      const slots = body.slots || [];
+      const deck = body.deck || [];
+
+      if (isHost) {
+        updates.host_confirmed = true;
+        gameState.host_slots = slots.map((s: any) => ({ ...s, isRevealed: false }));
+        gameState.host_player_deck = deck;
+      } else {
+        updates.opponent_confirmed = true;
+        gameState.opponent_slots = slots.map((s: any) => ({ ...s, isRevealed: false }));
+        gameState.opponent_player_deck = deck;
+      }
+
+      const bothConfirmed = (isHost ? room.opponent_confirmed : room.host_confirmed) || false;
+      if (bothConfirmed || (updates.host_confirmed && updates.opponent_confirmed)) {
+        const hostStarts = gameState.first_half_kickoff_role === "player";
+        const startRole = hostStarts ? "host" : "opponent";
+
+        gameState.phase = "player_turn";
+        gameState.attacker_role = startRole;
+        gameState.current_turn = startRole;
+        gameState.start_time = Date.now();
+
+        gameState.host_moves = hostStarts ? (gameState.room_settings.maxMovesPerTurn ?? 3) : 0;
+        gameState.opponent_moves = hostStarts ? 0 : (gameState.room_settings.maxMovesPerTurn ?? 3);
+
+        gameState.logs.push({
+          id: Math.random().toString(),
+          timestamp: getFormattedTime(),
+          text: `تم تأكيد خطة الفريقين! ركلة البداية مع ${hostStarts ? room.host_name : (room.opponent_name || "الخصم")}! ⚽🏁`,
+          type: "success",
+        });
+
+        updates.status = "playing";
+        updates.current_turn = startRole;
+      }
+
+      gameState.last_updated_by = body.role;
+      updates.game_state = gameState;
+    } 
+    else if (body.action === "resolve_combat") {
+      const actionType = body.actionType;
+      const details = body.details || {};
+
+      if (actionType === "resolve_attack") {
+        gameState.is_shot_declared = true;
+        if (details.playerSlots) {
+          if (body.role === "host") {
+            gameState.host_slots = details.playerSlots;
+          } else {
+            gameState.opponent_slots = details.playerSlots;
+          }
+        }
+        gameState.current_booster = details.currentBooster;
+        gameState.current_attacker_idx = details.currentAttackerIdx;
+        gameState.logs = details.logs || gameState.logs;
+      } 
+      else if (actionType === "confirm_defense") {
+        const defenderRole = body.role;
+        const attackerRole = defenderRole === "host" ? "opponent" : "host";
+
+        const hostSlots = defenderRole === "host" ? details.defenders : gameState.host_slots;
+        const opponentSlots = defenderRole === "opponent" ? details.defenders : gameState.opponent_slots;
+
+        const hostSpecials = defenderRole === "host" ? details.specials : (gameState.active_specials_host || []);
+        const opponentSpecials = defenderRole === "opponent" ? details.specials : (gameState.active_specials_opponent || []);
+
+        const isHostAttacker = gameState.attacker_role === "host";
+
+        const attackPower = runRefereeRulesEngine(
+          isHostAttacker,
+          true,
+          gameState.current_attacker_idx,
+          gameState.current_booster,
+          hostSpecials,
+          opponentSpecials,
+          hostSlots,
+          opponentSlots,
+          isHostAttacker
+        );
+
+        const defensePower = runRefereeRulesEngine(
+          !isHostAttacker,
+          false,
+          null,
+          null,
+          hostSpecials,
+          opponentSpecials,
+          hostSlots,
+          opponentSlots,
+          isHostAttacker
+        );
+
+        const isGoal = attackPower > defensePower;
+        const attackerName = isHostAttacker ? room.host_name : (room.opponent_name || "الخصم");
+        const defenderName = isHostAttacker ? (room.opponent_name || "الخصم") : room.host_name;
+
+        if (isGoal) {
+          if (isHostAttacker) {
+            gameState.host_score += 1;
+          } else {
+            gameState.opponent_score += 1;
+          }
+          gameState.logs.push({
+            id: Math.random().toString(),
+            timestamp: getFormattedTime(),
+            text: `⚽ جـوووول! تسديدة ${attackerName} المتقنة (${attackPower}) تتغلب على الدفاع المستميت لـ ${defenderName} (${defensePower})!`,
+            type: "success",
+          });
+        } else {
+          gameState.logs.push({
+            id: Math.random().toString(),
+            timestamp: getFormattedTime(),
+            text: `🧤 إنقاذ بطولي! جدار صد دفاع ${defenderName} (${defensePower}) يقطع محاولة تسديد ${attackerName} (${attackPower})!`,
+            type: "neutral",
+          });
+        }
+
+        const applySpent = (slots: any[]) => slots.map((s: any) => {
+          if (s && s.revealedInAttack) {
+            return { ...s, spent: true, revealedInAttack: false, confirmedInAttack: false };
+          }
+          return s;
+        });
+
+        gameState.host_slots = applySpent(hostSlots);
+        gameState.opponent_slots = applySpent(opponentSlots);
+        gameState.is_shot_declared = false;
+        gameState.phase = "resolution";
+
+        const filterSpecials = (specials: any[]) => specials.filter((s: any) => {
+          const mainAction = s.ability?.actions?.[0];
+          return mainAction && mainAction.duration !== "Instant" && mainAction.duration !== "CurrentPhase";
+        });
+        gameState.active_specials_host = filterSpecials(hostSpecials);
+        gameState.active_specials_opponent = filterSpecials(opponentSpecials);
+      }
+
+      gameState.last_updated_by = body.role;
+      updates.game_state = gameState;
+    } 
+    else if (body.action === "end_turn") {
+      const isHost = body.role === "host";
+      const nextTurn = isHost ? "opponent" : "host";
+      const maxMoves = gameState.room_settings?.maxMovesPerTurn ?? 3;
+
+      gameState.phase = "player_turn";
+      gameState.current_turn = nextTurn;
+      gameState.attacker_role = nextTurn;
+
+      if (nextTurn === "host") {
+        gameState.host_moves = maxMoves;
+        gameState.opponent_moves = 0;
+      } else {
+        gameState.host_moves = 0;
+        gameState.opponent_moves = maxMoves;
+      }
+
+      gameState.logs.push({
+        id: Math.random().toString(),
+        timestamp: getFormattedTime(),
+        text: `⏳ انتهى دور ${isHost ? room.host_name : (room.opponent_name || "الخصم")}! الدور الآن للطرف الآخر لشن الخطط!`,
+        type: "info",
+      });
+
+      updates.current_turn = nextTurn;
+      gameState.last_updated_by = body.role;
+      updates.game_state = gameState;
+    }
+
+    rooms[idx] = {
+      ...room,
+      ...updates,
+      last_activity: Date.now(),
+    };
+    saveFallbackRooms(rooms);
+
+    if (localBroadcast) {
+      localBroadcast.postMessage({
+        type: "state_updated",
+        roomId: body.roomId,
+        updates: { last_activity: Date.now() },
+      });
+    }
+
+    return { success: true, game_state: gameState };
   }
 };
