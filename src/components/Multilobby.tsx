@@ -7,7 +7,8 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Users, Key, LogIn, UserPlus, LogOut, RefreshCw, Star, 
-  Sparkles, Trophy, PlusCircle, Gamepad2, AlertCircle, PlayCircle 
+  Sparkles, Trophy, PlusCircle, Gamepad2, AlertCircle, PlayCircle,
+  Copy, Link, Globe, Shield, Settings, Check
 } from "lucide-react";
 import { supabaseService, MatchRoom, isSupabaseConfigured } from "../lib/supabase";
 import { SoundEffects } from "../utils/sounds";
@@ -38,6 +39,54 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Custom Match Settings states
+  const [showConfig, setShowConfig] = useState(false);
+  const [roomName, setRoomName] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [matchDuration, setMatchDuration] = useState<number>(180);
+  const [gameMode, setGameMode] = useState<"time" | "rounds">("time");
+  const [winningGoals, setWinningGoals] = useState<number>(5);
+  const [totalRounds, setTotalRounds] = useState<number>(10);
+  const [halfTimeBreakDuration, setHalfTimeBreakDuration] = useState<number>(30);
+  const [legendPercentage, setLegendPercentage] = useState<number>(30);
+  const [maxDrawsPerTurn, setMaxDrawsPerTurn] = useState<number>(2);
+  const [maxMovesPerTurn, setMaxMovesPerTurn] = useState<number>(3);
+  const [initialCardsCount, setInitialCardsCount] = useState<number>(5);
+  const [legendBurnLimit, setLegendBurnLimit] = useState<number>(2);
+  const [maxBonusValue, setMaxBonusValue] = useState<number>(10);
+
+  // Pre-populate settings from user defaults
+  useEffect(() => {
+    if (user) {
+      const usernameVal = user.user_metadata?.username || user.email.split("@")[0] || "مدرب تكتيكي";
+      setRoomName(`غرفة الكابتن ${usernameVal}`);
+      
+      const defaults = user.default_match_settings || user.user_metadata?.default_match_settings;
+      if (defaults) {
+        if (defaults.matchDuration !== undefined) setMatchDuration(defaults.matchDuration);
+        if (defaults.gameMode !== undefined) setGameMode(defaults.gameMode);
+        if (defaults.winningGoals !== undefined) setWinningGoals(defaults.winningGoals);
+        if (defaults.totalRounds !== undefined) setTotalRounds(defaults.totalRounds);
+        if (defaults.halfTimeBreakDuration !== undefined) setHalfTimeBreakDuration(defaults.halfTimeBreakDuration);
+        if (defaults.legendPercentage !== undefined) setLegendPercentage(defaults.legendPercentage);
+        if (defaults.maxDrawsPerTurn !== undefined) setMaxDrawsPerTurn(defaults.maxDrawsPerTurn);
+        if (defaults.maxMovesPerTurn !== undefined) setMaxMovesPerTurn(defaults.maxMovesPerTurn);
+        if (defaults.initialCardsCount !== undefined) setInitialCardsCount(defaults.initialCardsCount);
+        if (defaults.legendBurnLimit !== undefined) setLegendBurnLimit(defaults.legendBurnLimit);
+        if (defaults.maxBonusValue !== undefined) setMaxBonusValue(defaults.maxBonusValue);
+      }
+    }
+  }, [user]);
+
+  // URL query parameter detection
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const roomParam = params.get("room");
+    if (roomParam) {
+      setJoinCode(roomParam.toUpperCase());
+    }
+  }, []);
 
   // Active Hosted Room (waiting state)
   const [myHostedRoom, setMyHostedRoom] = useState<MatchRoom | null>(null);
@@ -161,12 +210,57 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
 
     try {
       const name = user.user_metadata?.username || user.email.split("@")[0] || "مدرب تكتيكي";
-      const room = await supabaseService.createRoom(user.id, name, selectedVibe);
+      const settingsPayload = {
+        matchDuration,
+        gameMode,
+        winningGoals,
+        totalRounds,
+        halfTimeBreakDuration,
+        legendPercentage,
+        maxDrawsPerTurn,
+        maxMovesPerTurn,
+        initialCardsCount,
+        legendBurnLimit,
+        maxBonusValue
+      };
+
+      const room = await supabaseService.createRoom(
+        user.id,
+        name,
+        selectedVibe,
+        roomName.trim() || `${name} - مباراة مبارزة`,
+        isPrivate,
+        settingsPayload
+      );
       setMyHostedRoom(room);
+      setShowConfig(false); // Close settings configuration form
     } catch (err: any) {
       setLobbyError(err.message || "فشل إنشاء غرفة اللعب");
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleUpdateSetting = async (key: string, value: any) => {
+    if (!myHostedRoom) return;
+    const currentSettings = myHostedRoom.game_state?.room_settings || {};
+    const updatedSettings = {
+      ...currentSettings,
+      [key]: value
+    };
+
+    setMyHostedRoom(prev => prev ? {
+      ...prev,
+      game_state: {
+        ...prev.game_state,
+        room_settings: updatedSettings
+      }
+    } : null);
+
+    try {
+      await supabaseService.updateRoomSettings(myHostedRoom.id, updatedSettings);
+    } catch (e) {
+      console.error("Failed to update room settings in database:", e);
     }
   };
 
@@ -221,6 +315,219 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
     } finally {
       setIsJoining(false);
     }
+  };
+
+  const renderSettingsForm = (isWaitingScreen: boolean = false) => {
+    const settingsSource = isWaitingScreen 
+      ? (myHostedRoom?.game_state?.room_settings || {})
+      : {
+          matchDuration,
+          gameMode,
+          winningGoals,
+          totalRounds,
+          halfTimeBreakDuration,
+          legendPercentage,
+          maxDrawsPerTurn,
+          maxMovesPerTurn,
+          initialCardsCount,
+          legendBurnLimit,
+          maxBonusValue
+        };
+
+    const getValue = (key: string, fallback: any) => {
+      return settingsSource[key] !== undefined ? settingsSource[key] : fallback;
+    };
+
+    const updateValue = (key: string, value: any, setter: (v: any) => void) => {
+      if (isWaitingScreen) {
+        handleUpdateSetting(key, value);
+      } else {
+        setter(value);
+      }
+    };
+
+    const currentDuration = getValue("matchDuration", 180);
+    const currentGameMode = getValue("gameMode", "time");
+    const currentGoals = getValue("winningGoals", 5);
+    const currentRounds = getValue("totalRounds", 10);
+    const currentHalfTimeBreak = getValue("halfTimeBreakDuration", 30);
+    const currentLegendPct = getValue("legendPercentage", 30);
+    const currentMaxDraws = getValue("maxDrawsPerTurn", 2);
+    const currentMaxMoves = getValue("maxMovesPerTurn", 3);
+    const currentInitialCards = getValue("initialCardsCount", 5);
+    const currentLegendBurn = getValue("legendBurnLimit", 2);
+    const currentMaxBonus = getValue("maxBonusValue", 10);
+
+    return (
+      <div className="space-y-3 text-right" dir="rtl">
+        {/* Goals Target slider */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-[10px] text-amber-400">
+            <span>{currentGoals} أهداف</span>
+            <span className="font-bold">أهداف الفوز:</span>
+          </div>
+          <input
+            type="range" min={3} max={10} step={1}
+            value={currentGoals}
+            onChange={(e) => updateValue("winningGoals", Number(e.target.value), setWinningGoals)}
+            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-amber-500"
+          />
+        </div>
+
+        {/* Game Mode */}
+        <div className="space-y-1">
+          <label className="block text-[10px] text-[#e0e0e0]/60 font-bold mb-1">نظام تحديد وقت ومده المباراة:</label>
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { id: "time", label: "نظام زمني ⏱️" },
+              { id: "rounds", label: "نظام جولات 🔁" }
+            ].map((m) => {
+              const isSelected = currentGameMode === m.id;
+              return (
+                <button
+                  key={m.id} type="button"
+                  onClick={() => updateValue("gameMode", m.id, setGameMode)}
+                  className={`py-1 rounded text-center font-bold text-[9px] cursor-pointer transition-all ${
+                    isSelected ? "border border-amber-500 text-amber-400 bg-amber-950/20" : "border border-white/5 bg-black/25 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Mode Dependent Options */}
+        {currentGameMode === "time" ? (
+          <div className="grid grid-cols-2 gap-2 bg-black/25 p-1.5 border border-white/5 rounded">
+            <div className="space-y-1">
+              <label className="block text-[9px] text-slate-400">وقت المباراة:</label>
+              <select
+                value={currentDuration}
+                onChange={(e) => updateValue("matchDuration", Number(e.target.value), setMatchDuration)}
+                className="w-full bg-black border border-white/10 rounded p-0.5 text-[9px] text-[#e0e0e0] font-bold text-right cursor-pointer"
+              >
+                <option value={180}>3 دقائق</option>
+                <option value={300}>5 دقائق</option>
+                <option value={600}>10 دقائق</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-[9px] text-slate-400">استراحة الشوطين:</label>
+              <select
+                value={currentHalfTimeBreak}
+                onChange={(e) => updateValue("halfTimeBreakDuration", Number(e.target.value), setHalfTimeBreakDuration)}
+                className="w-full bg-black border border-white/10 rounded p-0.5 text-[9px] text-[#e0e0e0] font-bold text-right cursor-pointer"
+              >
+                <option value={30}>30 ثانية</option>
+                <option value={45}>45 ثانية</option>
+                <option value={60}>دقيقة</option>
+              </select>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-1 bg-black/25 p-1.5 border border-white/5 rounded">
+            <label className="block text-[9px] text-slate-400">عدد الجولات:</label>
+            <select
+              value={currentRounds}
+              onChange={(e) => updateValue("totalRounds", Number(e.target.value), setTotalRounds)}
+              className="w-full bg-black border border-white/10 rounded p-0.5 text-[9px] text-[#e0e0e0] font-bold text-right cursor-pointer"
+            >
+              <option value={6}>6 جولات</option>
+              <option value={8}>8 جولات</option>
+              <option value={10}>10 جولات</option>
+              <option value={12}>12 جولة</option>
+              <option value={14}>14 جولة</option>
+            </select>
+          </div>
+        )}
+
+        {/* Legend Pct & Booster Slider */}
+        <div className="grid grid-cols-2 gap-2 bg-black/25 p-1.5 border border-white/5 rounded">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[9px] text-amber-300">
+              <span>{currentLegendPct}%</span>
+              <span className="font-bold">نسبة الأساطير:</span>
+            </div>
+            <input
+              type="range" min={0} max={100} step={10}
+              value={currentLegendPct}
+              onChange={(e) => updateValue("legendPercentage", Number(e.target.value), setLegendPercentage)}
+              className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-amber-500"
+            />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[9px] text-emerald-450">
+              <span>+{currentMaxBonus}</span>
+              <span className="font-bold">حد المعزز:</span>
+            </div>
+            <input
+              type="range" min={0} max={10} step={1}
+              value={currentMaxBonus}
+              onChange={(e) => updateValue("maxBonusValue", Number(e.target.value), setMaxBonusValue)}
+              className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+            />
+          </div>
+        </div>
+
+        {/* Turn parameters (Draws / Moves) */}
+        <div className="grid grid-cols-2 gap-2 bg-black/25 p-2 border border-white/5 rounded">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[9px] text-emerald-450">
+              <span>{currentMaxDraws} سحبات</span>
+              <span className="font-bold">السحبات:</span>
+            </div>
+            <input
+              type="range" min={1} max={5} step={1}
+              value={currentMaxDraws}
+              onChange={(e) => updateValue("maxDrawsPerTurn", Number(e.target.value), setMaxDrawsPerTurn)}
+              className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+            />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[9px] text-emerald-450">
+              <span>{currentMaxMoves} حركات</span>
+              <span className="font-bold">الحركات:</span>
+            </div>
+            <input
+              type="range" min={1} max={5} step={1}
+              value={currentMaxMoves}
+              onChange={(e) => updateValue("maxMovesPerTurn", Number(e.target.value), setMaxMovesPerTurn)}
+              className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+            />
+          </div>
+        </div>
+
+        {/* Legend Burn Limit & Initial Cards */}
+        <div className="grid grid-cols-2 gap-2 bg-black/25 p-1.5 border border-white/5 rounded">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[9px] text-amber-400">
+              <span>{currentLegendBurn} كروت</span>
+              <span className="font-bold">حرق الأسطورة:</span>
+            </div>
+            <input
+              type="range" min={0} max={4} step={1}
+              value={currentLegendBurn}
+              onChange={(e) => updateValue("legendBurnLimit", Number(e.target.value), setLegendBurnLimit)}
+              className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-amber-500"
+            />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[9px] text-emerald-450">
+              <span>{currentInitialCards} أوراق</span>
+              <span className="font-bold">كروت البداية:</span>
+            </div>
+            <input
+              type="range" min={3} max={7} step={1}
+              value={currentInitialCards}
+              onChange={(e) => updateValue("initialCardsCount", Number(e.target.value), setInitialCardsCount)}
+              className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-emerald-500"
+            />
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -417,66 +724,174 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
               <span className="text-sm font-bold font-serif">إنشاء غرفة تكتيك ومبارزة صديق</span>
               <PlusCircle className="w-4 h-4" />
             </div>
-            <p className="text-xs text-[#e0e0e0]/60 leading-relaxed mb-4">
-              أنشئ تكتيك الغرفة الخاص بك واحصل على كود فريد مكون من 4 أرقام. شارك الكود مع صديقك فوراً لينضم لملعب المباراة أونلاين ويقود فريقه لتحديك!
-            </p>
+            {!showConfig && !myHostedRoom && (
+              <p className="text-xs text-[#e0e0e0]/60 leading-relaxed mb-4">
+                أنشئ تكتيك الغرفة الخاص بك واحصل على كود فريد مكون من 6 رموز. شارك الكود أو الرابط المباشر مع صديقك فوراً لينضم لملعب المباراة أونلاين ويقود فريقه لتحديك!
+              </p>
+            )}
 
-            {/* Select Team Vibe for hosting */}
-            <div className="space-y-1.5 mb-4">
-              <label className="block text-[11px] text-[#e0e0e0]/50">اختر أسلوب هويتكم للغرفة:</label>
-              <div className="flex flex-wrap gap-1.5 justify-end">
-                {TEAM_VIBES.map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => {
-                      SoundEffects.playCardDraw();
-                      setSelectedVibe(v);
-                    }}
-                    className={`px-2.5 py-1 text-[11px] rounded transition-all cursor-pointer ${
-                      selectedVibe === v
-                        ? "bg-amber-500/25 border border-amber-500 text-amber-300 font-bold"
-                        : "bg-[#0c0d0c] border border-white/5 text-[#e0e0e0]/40 hover:text-white"
-                    }`}
-                  >
-                    {v}
-                  </button>
-                ))}
+            {/* Select Team Vibe for hosting (only visible when not waiting and not in config settings) */}
+            {!showConfig && !myHostedRoom && (
+              <div className="space-y-1.5 mb-4">
+                <label className="block text-[11px] text-[#e0e0e0]/50">اختر أسلوب هويتكم للغرفة:</label>
+                <div className="flex flex-wrap gap-1.5 justify-end">
+                  {TEAM_VIBES.map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => {
+                        SoundEffects.playCardDraw();
+                        setSelectedVibe(v);
+                      }}
+                      className={`px-2.5 py-1 text-[11px] rounded transition-all cursor-pointer ${
+                        selectedVibe === v
+                          ? "bg-amber-500/25 border border-amber-500 text-amber-300 font-bold"
+                          : "bg-[#0c0d0c] border border-white/5 text-[#e0e0e0]/40 hover:text-white"
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="pt-2 border-t border-white/5">
             <AnimatePresence mode="wait">
-              {myHostedRoom ? (
+              {showConfig ? (
+                <motion.div
+                  key="create_config"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="space-y-3 bg-black/40 p-4 rounded-lg border border-amber-500/20 text-right overflow-y-auto max-h-[380px] scrollbar-thin scrollbar-thumb-amber-800"
+                >
+                  <h4 className="text-xs font-black text-amber-400 pb-1.5 border-b border-white/5 flex items-center justify-end gap-1.5">
+                    <span>تخصيص قوانين الغرفة</span>
+                    <Settings className="w-3.5 h-3.5" />
+                  </h4>
+                  
+                  {/* Room Name */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] text-slate-400">اسم الغرفة:</label>
+                    <input
+                      type="text"
+                      value={roomName}
+                      onChange={(e) => setRoomName(e.target.value)}
+                      placeholder="اسم الغرفة..."
+                      className="w-full px-2.5 py-1 rounded bg-[#0c0d0c] border border-white/5 text-white text-right text-xs focus:outline-none focus:border-amber-500 font-bold"
+                    />
+                  </div>
+
+                  {/* Privacy Toggle */}
+                  <div className="flex items-center justify-between bg-black/35 p-1.5 rounded border border-white/5">
+                    <button
+                      type="button"
+                      onClick={() => setIsPrivate(!isPrivate)}
+                      className="px-2.5 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-300 rounded text-[9px] font-bold cursor-pointer"
+                    >
+                      تغيير
+                    </button>
+                    <span className="text-[10px] text-[#e0e0e0]/70 flex items-center gap-1">
+                      {isPrivate ? (
+                        <>
+                          <span>غرفة خاصة (بالرمز فقط) 🔒</span>
+                          <Shield className="w-3.5 h-3.5 text-amber-500" />
+                        </>
+                      ) : (
+                        <>
+                          <span>غرفة عامة (في الساحة) 🌐</span>
+                          <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                        </>
+                      )}
+                    </span>
+                  </div>
+
+                  {/* Render Sliders Form */}
+                  {renderSettingsForm(false)}
+
+                  <div className="flex gap-2 pt-2 border-t border-white/5">
+                    <button
+                      type="button"
+                      onClick={() => setShowConfig(false)}
+                      className="flex-1 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded text-[11px] font-bold transition-all cursor-pointer"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCreateRoom}
+                      disabled={isCreating}
+                      className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:bg-amber-800 text-black font-extrabold rounded text-[11px] transition-all cursor-pointer"
+                    >
+                      {isCreating ? "جاري حجز الغرفة..." : "تأكيد وإنشاء ⚽"}
+                    </button>
+                  </div>
+                </motion.div>
+              ) : myHostedRoom ? (
                 <motion.div
                   key="my_hosted"
                   initial={{ scale: 0.95 }}
                   animate={{ scale: 1 }}
-                  className="space-y-3 bg-black/40 p-4 rounded-lg border border-amber-500/20 text-center"
+                  className="space-y-3 bg-black/45 p-4 rounded-lg border border-amber-500/20 text-center"
                 >
-                  <div className="text-[10px] text-amber-400 font-mono tracking-widest uppercase">WAITING FOR DEFENDER...</div>
+                  <div className="text-[10px] text-amber-400 font-mono tracking-widest uppercase flex items-center justify-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                    <span>بانتظار انضمام الخصم...</span>
+                  </div>
+                  
                   <h3 className="text-2xl font-mono font-extrabold text-white tracking-widest flex items-center justify-center gap-2">
-                    <span className="text-amber-500 animate-pulse">●</span>
-                    <span className="bg-amber-500/10 px-4 py-1.5 rounded">{myHostedRoom.id}</span>
+                    <span className="bg-amber-500/10 px-4 py-1.5 rounded border border-amber-500/20">{myHostedRoom.id}</span>
                   </h3>
-                  <p className="text-xs text-[#e0e0e0]/60">
-                    أعط هذا الكود لصديقك ليدخله في مربع "انضمام بكود الغرفة" المقابل.
+                  
+                  <div className="flex items-center gap-2 justify-center">
+                    <button
+                      onClick={() => {
+                        const link = `${window.location.origin}${window.location.pathname}?room=${myHostedRoom.id}`;
+                        navigator.clipboard.writeText(link);
+                        SoundEffects.playWhistle();
+                        alert("تم نسخ رابط الغرفة بنجاح! شاركه مع منافسك للانضمام فوراً 🔗");
+                      }}
+                      className="px-3 py-1.5 bg-amber-500 text-black rounded font-bold text-xs flex items-center gap-1 hover:bg-amber-400 transition-all cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>نسخ رابط الغرفة 🔗</span>
+                    </button>
+                  </div>
+
+                  {/* Accordion to edit settings live */}
+                  <div className="mt-4 border-t border-white/5 pt-2 text-right">
+                    <details className="group">
+                      <summary className="text-[11px] text-amber-400/80 hover:text-amber-400 cursor-pointer font-bold select-none list-none flex items-center justify-between">
+                        <span className="text-[10px] opacity-65 transition-transform group-open:rotate-180">▼</span>
+                        <span className="flex items-center gap-1">
+                          <span>تعديل إشراف وقواعد الغرفة الحية ⚙️</span>
+                        </span>
+                      </summary>
+                      <div className="mt-2.5 p-2 bg-black/20 rounded border border-white/5 max-h-[220px] overflow-y-auto scrollbar-thin">
+                        {renderSettingsForm(true)}
+                      </div>
+                    </details>
+                  </div>
+
+                  <p className="text-[10px] text-[#e0e0e0]/40 leading-normal pt-2">
+                    مباراتك: <strong className="text-white">{myHostedRoom.room_name}</strong> ({myHostedRoom.is_private ? "غرفة خاصة" : "غرفة عامة"})
                   </p>
+                  
                   <button
-                    onClick={() => setMyHostedRoom(null)}
-                    className="text-xs text-red-400 hover:underline cursor-pointer"
+                    onClick={() => { SoundEffects.playCardDraw(); setMyHostedRoom(null); }}
+                    className="text-xs text-red-400 hover:underline cursor-pointer pt-1"
                   >
-                    إلغاء حجر الغرفة والعودة
+                    إلغاء حجز الغرفة والعودة
                   </button>
                 </motion.div>
               ) : (
                 <motion.div key="create_panel" className="flex flex-col items-stretch">
                   <button
-                    onClick={handleCreateRoom}
-                    disabled={isCreating}
+                    onClick={() => { SoundEffects.playWhistle(); setShowConfig(true); }}
                     className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-amber-800 text-black font-extrabold rounded text-xs cursor-pointer flex items-center justify-center gap-1.5 transition-all shadow-md"
                   >
-                    <span>{isCreating ? "جاري حجز ملعب أونلاين..." : "إنشاء غرفة لعب جديدة"}</span>
+                    <span>تخصيص وإنشاء غرفة لعب ⚽</span>
                     <Gamepad2 className="w-4 h-4" />
                   </button>
                   {lobbyError && (
@@ -496,7 +911,7 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
               <Key className="w-4 h-4" />
             </div>
             <p className="text-xs text-[#e0e0e0]/60 leading-relaxed mb-4">
-              صديقك شارك كوداً معك؟ أدخل الكود المكون من 4 أرقام بالأسفل لتنضم فوراً وتتحداه في معركة تكتيكية حية ومباراة لا تنسى!
+              صديقك شارك كوداً أو رابطاً معك؟ أدخل الكود المكون من 6 رموز بالأسفل لتنضم فوراً وتتحداه في معركة تكتيكية حية!
             </p>
 
             <form onSubmit={handleJoinByCode} className="space-y-3">
@@ -504,10 +919,10 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
                 <input
                   type="text"
                   required
-                  maxLength={4}
-                  placeholder="مثال: 5832"
+                  maxLength={6}
+                  placeholder="مثال: A8X9F2"
                   value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, ""))}
+                  onChange={(e) => setJoinCode(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())}
                   className="w-full tracking-widest text-center px-4 py-2.5 rounded bg-[#0c0d0c] border border-white/5 focus:outline-none focus:border-emerald-500 text-lg font-mono font-bold text-white shadow-inner"
                 />
               </div>
@@ -516,7 +931,7 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
                 disabled={isJoining || !joinCode}
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white font-bold text-xs cursor-pointer transition-colors flex items-center justify-center gap-1.5"
               >
-                <span>{isJoining ? "جاري اقتحام الغرفة..." : "انضم للمباراة وواجه الخصم!"}</span>
+                <span>{isJoining ? "جاري دخول الغرفة..." : "انضم للمباراة وواجه الخصم!"}</span>
                 <PlayCircle className="w-4 h-4" />
               </button>
             </form>
@@ -695,7 +1110,9 @@ CREATE TABLE IF NOT EXISTS public.rooms (
     game_state jsonb,
     last_activity bigint NOT NULL,
     host_confirmed boolean DEFAULT false,
-    opponent_confirmed boolean DEFAULT false
+    opponent_confirmed boolean DEFAULT false,
+    room_name text DEFAULT 'غرفة مرتدة',
+    is_private boolean DEFAULT false
 );
 
 -- إضافة الأعمدة الجديدة المطلوبة لإدارة الـ Game Logic دون تغيير الأعمدة القديمة
@@ -708,6 +1125,8 @@ ALTER TABLE public.rooms
     ADD COLUMN IF NOT EXISTS current_attack_score INT DEFAULT 0, -- حساب قوة الهجوم لحظياً
     ADD COLUMN IF NOT EXISTS current_defense_score INT DEFAULT 0, -- حساب قوة الدفاع لحظياً
     ADD COLUMN IF NOT EXISTS winner_id text NULL, -- معرف الفائز النهائي
+    ADD COLUMN IF NOT EXISTS room_name text DEFAULT 'غرفة مرتدة',
+    ADD COLUMN IF NOT EXISTS is_private boolean DEFAULT false,
     ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone default now();
 
 -- =======================================================================

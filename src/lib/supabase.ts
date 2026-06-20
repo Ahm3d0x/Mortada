@@ -25,7 +25,7 @@ export const supabase = supabaseInstance;
 
 // Type definition for game room in Supabase
 export interface MatchRoom {
-  id: string; // 4-digit code e.g. "1234"
+  id: string; // 6-character code e.g. "A8X9F2"
   created_at: string;
   host_id: string;
   host_name: string;
@@ -39,6 +39,18 @@ export interface MatchRoom {
   last_activity: number;
   host_confirmed?: boolean;
   opponent_confirmed?: boolean;
+  room_name?: string;
+  is_private?: boolean;
+}
+
+// Generate easy-to-read, 6-character unique uppercase room code
+export function generateRoomId(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 32 characters, excluding confusing ones like O, 0, I, 1
+  let result = "";
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }
 
 // User Profile interface
@@ -206,8 +218,38 @@ export const supabaseService = {
   },
 
   // DATABASE & MATCHROOMS LOGIC
-  async createRoom(hostId: string, hostName: string, hostVibe: string): Promise<MatchRoom> {
-    const roomId = Math.floor(1000 + Math.random() * 9000).toString(); // Easy 4 digit room code
+  async createRoom(
+    hostId: string, 
+    hostName: string, 
+    hostVibe: string, 
+    roomName: string = "غرفة مرتدة", 
+    isPrivate: boolean = false, 
+    settings: any = null
+  ): Promise<MatchRoom> {
+    let roomId = generateRoomId();
+
+    if (isSupabaseConfigured && supabase) {
+      let isUnique = false;
+      let attempts = 0;
+      while (!isUnique && attempts < 5) {
+        try {
+          const { data } = await supabase
+            .from("rooms")
+            .select("id")
+            .eq("id", roomId)
+            .maybeSingle();
+          if (!data) {
+            isUnique = true;
+          } else {
+            roomId = generateRoomId();
+            attempts++;
+          }
+        } catch {
+          // If query fails, proceed anyway
+          isUnique = true;
+        }
+      }
+    }
 
     const newRoom: MatchRoom = {
       id: roomId,
@@ -220,8 +262,10 @@ export const supabaseService = {
       opponent_vibe: null,
       status: "waiting",
       current_turn: "host",
-      game_state: null,
-      last_activity: Date.now()
+      game_state: settings ? { room_settings: settings } : null,
+      last_activity: Date.now(),
+      room_name: roomName,
+      is_private: isPrivate
     };
 
     if (isSupabaseConfigured && supabase) {
@@ -230,7 +274,6 @@ export const supabaseService = {
         .insert([newRoom]);
       if (error) {
         console.error("Error creating room in Supabase", error);
-        // Fallback if table name doesn't exist, use localStorage gracefully
       }
     }
 
@@ -328,6 +371,11 @@ export const supabaseService = {
           const updater = newGS.last_updated_by;
           const mergedGS = { ...newGS };
 
+          // Preserve room settings if they exist in DB game_state but aren't being updated
+          if (currentGS.room_settings !== undefined && mergedGS.room_settings === undefined) {
+            mergedGS.room_settings = currentGS.room_settings;
+          }
+
           if (updater === "host") {
             if (currentGS.opponent_slots !== undefined) mergedGS.opponent_slots = currentGS.opponent_slots;
             if (currentGS.opponent_hand !== undefined) mergedGS.opponent_hand = currentGS.opponent_hand;
@@ -372,6 +420,11 @@ export const supabaseService = {
         const newGS = updates.game_state;
         const updater = newGS.last_updated_by;
         mergedGameState = { ...newGS };
+
+        if (currentGS.room_settings !== undefined && mergedGameState.room_settings === undefined) {
+          mergedGameState.room_settings = currentGS.room_settings;
+        }
+
         if (updater === "host") {
           if (currentGS.opponent_slots !== undefined) mergedGameState.opponent_slots = currentGS.opponent_slots;
           if (currentGS.opponent_hand !== undefined) mergedGameState.opponent_hand = currentGS.opponent_hand;
@@ -406,6 +459,51 @@ export const supabaseService = {
     }
   },
 
+  async updateRoomSettings(roomId: string, settings: any): Promise<void> {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: room } = await supabase
+          .from("rooms")
+          .select("game_state")
+          .eq("id", roomId)
+          .single();
+        
+        const currentGS = room?.game_state || {};
+        const updatedGS = {
+          ...currentGS,
+          room_settings: settings
+        };
+
+        await supabase
+          .from("rooms")
+          .update({
+            game_state: updatedGS,
+            last_activity: Date.now()
+          })
+          .eq("id", roomId);
+      } catch (err) {
+        console.error("Error updating room settings in Supabase", err);
+      }
+    }
+
+    // Fallback update
+    const rooms = getFallbackRooms();
+    const idx = rooms.findIndex((r) => r.id === roomId);
+    if (idx !== -1) {
+      const currentGS = rooms[idx].game_state || {};
+      rooms[idx].game_state = {
+        ...currentGS,
+        room_settings: settings
+      };
+      rooms[idx].last_activity = Date.now();
+      saveFallbackRooms(rooms);
+    }
+
+    if (localBroadcast) {
+      localBroadcast.postMessage({ type: "state_updated", roomId, updates: { last_activity: Date.now() } });
+    }
+  },
+
   // SUBSCRIBE TO REAL-TIME CHANGES IN A ROOM
   subscribeToRoom(roomId: string, callback: (room: MatchRoom) => void): () => void {
     if (isSupabaseConfigured && supabase) {
@@ -413,7 +511,7 @@ export const supabaseService = {
       const channel = supabase
         .channel(`room-changes-${roomId}`)
         .on(
-          "postgres_changes",
+            "postgres_changes",
           {
             event: "UPDATE",
             schema: "public",
@@ -470,9 +568,11 @@ export const supabaseService = {
         .from("rooms")
         .select("*")
         .eq("status", "waiting")
-        .limit(10);
+        .eq("is_private", false)
+        .order("created_at", { ascending: false })
+        .limit(20);
       return (data || []) as MatchRoom[];
     }
-    return getFallbackRooms().filter((r) => r.status === "waiting");
+    return getFallbackRooms().filter((r) => r.status === "waiting" && !r.is_private);
   }
 };

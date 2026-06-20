@@ -1036,8 +1036,45 @@ export default function App() {
   }, [celebrationMessage]);
 
   // Sync current local state to Supabase
+  // Sync current local state to Supabase
   const syncToSupabaseInstance = async (
-    overridePhase?: GamePhase,
+    overridePhaseOrOpts?: GamePhase | {
+      phase?: GamePhase;
+      playerSlots?: { card: PlayerCard | null; isRevealed: boolean }[];
+      aiSlots?: { card: PlayerCard | null; isRevealed: boolean }[];
+      playerHand?: Card[];
+      aiHand?: Card[];
+      playerScore?: number;
+      aiScore?: number;
+      playerMoves?: number;
+      aiMoves?: number;
+      logs?: ActionLog[];
+      currentBooster?: BoosterCard | null;
+      currentAttackIdx?: number | null;
+      activeSpecialPlayer?: SpecialCard[];
+      activeSpecialAi?: SpecialCard[];
+      cardsDrawn?: number;
+      turnCount?: number;
+      defenseMoves?: number;
+      playerDeck?: PlayerCard[];
+      aiDeck?: PlayerCard[];
+      specialDeck?: SpecialCard[];
+      boosterDeck?: BoosterCard[];
+      attackerRole?: "host" | "opponent" | null;
+      isShotDeclared?: boolean;
+      gameMode?: "time" | "rounds";
+      winningGoals?: number;
+      totalRounds?: number;
+      halfTimeBreakDuration?: number;
+      completedRounds?: number;
+      firstHalfKickoffRole?: "player" | "ai";
+      secondHalfKickoffRole?: "player" | "ai";
+      matchHalf?: 1 | 2;
+      isHalfTimeBreak?: boolean;
+      halfTimeBreakLeft?: number;
+      matchTime?: number;
+      initialMatchTime?: number;
+    },
     overridePlayerSlots?: { card: PlayerCard | null; isRevealed: boolean }[],
     overrideAiSlots?: { card: PlayerCard | null; isRevealed: boolean }[],
     overridePlayerHand?: Card[],
@@ -1073,58 +1110,67 @@ export default function App() {
     overrideMatchTime?: number,
     overrideInitialMatchTime?: number
   ) => {
-    if (!isMultiplayer && !overridePhase) return;
+    const isOpts = overridePhaseOrOpts && typeof overridePhaseOrOpts === "object";
+    const opts = isOpts ? (overridePhaseOrOpts as any) : {};
+
+    const resolvedPhase = isOpts ? opts.phase : overridePhaseOrOpts;
+    if (!isMultiplayer && !resolvedPhase) return;
+
     const resolvedRoomId = currentRoomId;
     const resolvedRole = multiplayerRole;
     if (!resolvedRoomId || !resolvedRole) return;
     if (isReceivingUpdate.current) return;
 
-    const resolvedPhase = overridePhase !== undefined ? overridePhase : phase;
-    const resolvedPlayerSlots = overridePlayerSlots !== undefined ? overridePlayerSlots : playerSlots;
-    const resolvedAiSlots = overrideAiSlots !== undefined ? overrideAiSlots : aiSlots;
-    const resolvedPlayerHand = overridePlayerHand !== undefined ? overridePlayerHand : playerHand;
-    const resolvedAiHand = overrideAiHand !== undefined ? overrideAiHand : aiHand;
-    const resolvedPlayerScore = overridePlayerScore !== undefined ? overridePlayerScore : playerScore;
-    const resolvedAiScore = overrideAiScore !== undefined ? overrideAiScore : aiScore;
-    const resolvedPlayerMoves = overridePlayerMoves !== undefined ? overridePlayerMoves : playerMovesLeft;
-    const resolvedAiMoves = overrideAiMoves !== undefined ? overrideAiMoves : aiMovesLeft;
-    const resolvedLogs = overrideLogs !== undefined ? overrideLogs : logs;
-    const resolvedBooster = overrideCurrentBooster !== undefined ? overrideCurrentBooster : currentBooster;
-    const resolvedAttackerIdx = overrideCurrentAttackIdx !== undefined ? overrideCurrentAttackIdx : currentAttackerIdx;
-    const resolvedSpecialP = overrideActiveSpecialPlayer !== undefined ? overrideActiveSpecialPlayer : playerActiveSpecial;
-    const resolvedSpecialA = overrideActiveSpecialAi !== undefined ? overrideActiveSpecialAi : aiActiveSpecial;
-    const resolvedDrawn = overrideCardsDrawn !== undefined ? overrideCardsDrawn : cardsDrawnThisTurn;
-    const resolvedTurnCount = overrideTurnCount !== undefined ? overrideTurnCount : turnCount;
-    const resolvedDefenseMoves = overrideDefenseMoves !== undefined ? overrideDefenseMoves : defenseMovesLeft;
-    const resolvedPlayerDeck = overridePlayerDeck !== undefined ? overridePlayerDeck : playerDeck;
-    const resolvedAiDeck = overrideAiDeck !== undefined ? overrideAiDeck : aiDeck;
-    const resolvedSpecialDeck = overrideSpecialDeck !== undefined ? overrideSpecialDeck : specialDeck;
-    const resolvedBoosterDeck = overrideBoosterDeck !== undefined ? overrideBoosterDeck : boosterDeck;
-    const resolvedAttackerRole = overrideAttackerRole !== undefined ? overrideAttackerRole : attackerRole;
-    const resolvedIsShotDeclared = overrideIsShotDeclared !== undefined ? overrideIsShotDeclared : isShotDeclared;
+    const finalPhase = resolvedPhase !== undefined ? resolvedPhase : phase;
+    const resolvedPlayerSlots = isOpts ? opts.playerSlots : (overridePlayerSlots !== undefined ? overridePlayerSlots : playerSlots);
+    const resolvedAiSlots = isOpts ? opts.aiSlots : (overrideAiSlots !== undefined ? overrideAiSlots : aiSlots);
+    const resolvedPlayerHand = isOpts ? opts.playerHand : (overridePlayerHand !== undefined ? overridePlayerHand : playerHand);
+    const resolvedAiHand = isOpts ? opts.aiHand : (overrideAiHand !== undefined ? overrideAiHand : aiHand);
+    const resolvedPlayerScore = isOpts ? opts.playerScore : (overridePlayerScore !== undefined ? overridePlayerScore : playerScore);
+    const resolvedAiScore = isOpts ? opts.aiScore : (overrideAiScore !== undefined ? overrideAiScore : aiScore);
+    const resolvedPlayerMoves = isOpts ? opts.playerMoves : (overridePlayerMoves !== undefined ? overridePlayerMoves : playerMovesLeft);
+    const resolvedAiMoves = isOpts ? opts.aiMoves : (overrideAiMoves !== undefined ? overrideAiMoves : aiMovesLeft);
+    const resolvedLogs = isOpts ? opts.logs : (overrideLogs !== undefined ? overrideLogs : logs);
+    const resolvedBooster = isOpts ? opts.currentBooster : (overrideCurrentBooster !== undefined ? overrideCurrentBooster : currentBooster);
+    const resolvedAttackerIdx = isOpts ? opts.currentAttackIdx : (overrideCurrentAttackIdx !== undefined ? overrideCurrentAttackIdx : currentAttackerIdx);
+    const resolvedSpecialP = isOpts ? opts.activeSpecialPlayer : (overrideActiveSpecialPlayer !== undefined ? overrideActiveSpecialPlayer : playerActiveSpecial);
+    const resolvedSpecialA = isOpts ? opts.activeSpecialAi : (overrideActiveSpecialAi !== undefined ? overrideActiveSpecialAi : aiActiveSpecial);
+    const resolvedDrawn = isOpts ? opts.cardsDrawn : (overrideCardsDrawn !== undefined ? overrideCardsDrawn : cardsDrawnThisTurn);
+    const resolvedTurnCount = isOpts ? opts.turnCount : (overrideTurnCount !== undefined ? overrideTurnCount : turnCount);
+    const resolvedDefenseMoves = isOpts ? opts.defenseMoves : (overrideDefenseMoves !== undefined ? overrideDefenseMoves : defenseMovesLeft);
+    const resolvedPlayerDeck = isOpts ? opts.playerDeck : (overridePlayerDeck !== undefined ? overridePlayerDeck : playerDeck);
+    const resolvedAiDeck = isOpts ? opts.aiDeck : (overrideAiDeck !== undefined ? overrideAiDeck : aiDeck);
+    const resolvedSpecialDeck = isOpts ? opts.specialDeck : (overrideSpecialDeck !== undefined ? overrideSpecialDeck : specialDeck);
+    const resolvedBoosterDeck = isOpts ? opts.boosterDeck : (overrideBoosterDeck !== undefined ? overrideBoosterDeck : boosterDeck);
+    const resolvedAttackerRole = isOpts ? opts.attackerRole : (overrideAttackerRole !== undefined ? overrideAttackerRole : attackerRole);
+    const resolvedIsShotDeclared = isOpts ? opts.isShotDeclared : (overrideIsShotDeclared !== undefined ? overrideIsShotDeclared : isShotDeclared);
 
-    const resolvedGameMode = overrideGameMode !== undefined ? overrideGameMode : gameMode;
-    const resolvedWinningGoals = overrideWinningGoals !== undefined ? overrideWinningGoals : winningGoals;
-    const resolvedTotalRounds = overrideTotalRounds !== undefined ? overrideTotalRounds : totalRounds;
-    const resolvedHalfTimeBreakDuration = overrideHalfTimeBreakDuration !== undefined ? overrideHalfTimeBreakDuration : halfTimeBreakDuration;
-    const resolvedCompletedRounds = overrideCompletedRounds !== undefined ? overrideCompletedRounds : completedRounds;
-    const resolvedMatchHalf = overrideMatchHalf !== undefined ? overrideMatchHalf : matchHalf;
-    const resolvedIsHalfTimeBreak = overrideIsHalfTimeBreak !== undefined ? overrideIsHalfTimeBreak : isHalfTimeBreak;
-    const resolvedHalfTimeBreakLeft = overrideHalfTimeBreakLeft !== undefined ? overrideHalfTimeBreakLeft : halfTimeBreakLeft;
-    const resolvedMatchTime = overrideMatchTime !== undefined ? overrideMatchTime : matchTime;
-    const resolvedInitialMatchTime = overrideInitialMatchTime !== undefined ? overrideInitialMatchTime : initialMatchTime;
+    const resolvedGameMode = isOpts ? opts.gameMode : (overrideGameMode !== undefined ? overrideGameMode : gameMode);
+    const resolvedWinningGoals = isOpts ? opts.winningGoals : (overrideWinningGoals !== undefined ? overrideWinningGoals : winningGoals);
+    const resolvedTotalRounds = isOpts ? opts.totalRounds : (overrideTotalRounds !== undefined ? overrideTotalRounds : totalRounds);
+    const resolvedHalfTimeBreakDuration = isOpts ? opts.halfTimeBreakDuration : (overrideHalfTimeBreakDuration !== undefined ? overrideHalfTimeBreakDuration : halfTimeBreakDuration);
+    const resolvedCompletedRounds = isOpts ? opts.completedRounds : (overrideCompletedRounds !== undefined ? overrideCompletedRounds : completedRounds);
+    const resolvedMatchHalf = isOpts ? opts.matchHalf : (overrideMatchHalf !== undefined ? overrideMatchHalf : matchHalf);
+    const resolvedIsHalfTimeBreak = isOpts ? opts.isHalfTimeBreak : (overrideIsHalfTimeBreak !== undefined ? overrideIsHalfTimeBreak : isHalfTimeBreak);
+    const resolvedHalfTimeBreakLeft = isOpts ? opts.halfTimeBreakLeft : (overrideHalfTimeBreakLeft !== undefined ? overrideHalfTimeBreakLeft : halfTimeBreakLeft);
+    const resolvedMatchTime = isOpts ? opts.matchTime : (overrideMatchTime !== undefined ? overrideMatchTime : matchTime);
+    const resolvedInitialMatchTime = isOpts ? opts.initialMatchTime : (overrideInitialMatchTime !== undefined ? overrideInitialMatchTime : initialMatchTime);
 
-    const resolvedFirstKickoff = resolvedRole === "host" 
-      ? (overrideFirstHalfKickoffRole !== undefined ? overrideFirstHalfKickoffRole : firstHalfKickoffRole)
-      : (overrideFirstHalfKickoffRole !== undefined 
-          ? (overrideFirstHalfKickoffRole === "player" ? "ai" : "player") 
-          : (firstHalfKickoffRole === "player" ? "ai" : "player"));
+    const resolvedFirstKickoff = resolvedRole === "host"
+      ? (isOpts ? opts.firstHalfKickoffRole : (overrideFirstHalfKickoffRole !== undefined ? overrideFirstHalfKickoffRole : firstHalfKickoffRole))
+      : (isOpts
+          ? (opts.firstHalfKickoffRole !== undefined ? (opts.firstHalfKickoffRole === "player" ? "ai" : "player") : (firstHalfKickoffRole === "player" ? "ai" : "player"))
+          : (overrideFirstHalfKickoffRole !== undefined
+              ? (overrideFirstHalfKickoffRole === "player" ? "ai" : "player")
+              : (firstHalfKickoffRole === "player" ? "ai" : "player")));
 
-    const resolvedSecondKickoff = resolvedRole === "host" 
-      ? (overrideSecondHalfKickoffRole !== undefined ? overrideSecondHalfKickoffRole : secondHalfKickoffRole)
-      : (overrideSecondHalfKickoffRole !== undefined 
-          ? (overrideSecondHalfKickoffRole === "player" ? "ai" : "player") 
-          : (secondHalfKickoffRole === "player" ? "ai" : "player"));
+    const resolvedSecondKickoff = resolvedRole === "host"
+      ? (isOpts ? opts.secondHalfKickoffRole : (overrideSecondHalfKickoffRole !== undefined ? overrideSecondHalfKickoffRole : secondHalfKickoffRole))
+      : (isOpts
+          ? (opts.secondHalfKickoffRole !== undefined ? (opts.secondHalfKickoffRole === "player" ? "ai" : "player") : (secondHalfKickoffRole === "player" ? "ai" : "player"))
+          : (overrideSecondHalfKickoffRole !== undefined
+              ? (overrideSecondHalfKickoffRole === "player" ? "ai" : "player")
+              : (secondHalfKickoffRole === "player" ? "ai" : "player")));
 
     // Convert from local perspective to Host perspective (canonical)
     const host_slots = resolvedRole === "host" ? resolvedPlayerSlots : resolvedAiSlots;
@@ -1141,12 +1187,12 @@ export default function App() {
     const opponent_deck = resolvedRole === "host" ? resolvedAiDeck : resolvedPlayerDeck;
 
     // Invert phase if Opponent is uploading
-    let canonicalPhase = resolvedPhase;
+    let canonicalPhase = finalPhase;
     if (resolvedRole === "opponent") {
-      if (resolvedPhase === "player_turn") canonicalPhase = "ai_turn";
-      else if (resolvedPhase === "ai_turn") canonicalPhase = "player_turn";
-      else if (resolvedPhase === "attacking") canonicalPhase = "ai_attacking";
-      else if (resolvedPhase === "ai_attacking") canonicalPhase = "attacking";
+      if (finalPhase === "player_turn") canonicalPhase = "ai_turn";
+      else if (finalPhase === "ai_turn") canonicalPhase = "player_turn";
+      else if (finalPhase === "attacking") canonicalPhase = "ai_attacking";
+      else if (finalPhase === "ai_attacking") canonicalPhase = "attacking";
     }
 
     const syncState = {
@@ -1220,6 +1266,10 @@ export default function App() {
       const breakTimer = setInterval(() => {
         setHalfTimeBreakLeft((prev) => {
           if (prev <= 1) {
+            if (isMultiplayer && multiplayerRole !== "host") {
+              // Opponent waits for host to sync transition
+              return 0;
+            }
             clearInterval(breakTimer);
             setIsHalfTimeBreak(false);
             setMatchHalf(2);
@@ -1255,6 +1305,10 @@ export default function App() {
 
         // Transition to half-time break
         if (matchHalf === 1 && prev <= halfTimePoint) {
+          if (isMultiplayer && multiplayerRole !== "host") {
+            // Opponent waits for host to sync transition
+            return halfTimePoint;
+          }
           clearInterval(timer);
           setIsHalfTimeBreak(true);
           setHalfTimeBreakLeft(halfTimeBreakDuration);
@@ -1272,6 +1326,10 @@ export default function App() {
         }
 
         if (prev <= 1) {
+          if (isMultiplayer && multiplayerRole !== "host") {
+            // Opponent waits for host to declare game over
+            return 0;
+          }
           clearInterval(timer);
           SoundEffects.playWhistle();
           setPhase("game_over");
@@ -1382,16 +1440,24 @@ export default function App() {
       setMyConfirmed(isMeHost ? hostConfirm : oppConfirm);
       setOtherConfirmed(isMeHost ? oppConfirm : hostConfirm);
 
-      if (hostConfirm && oppConfirm && phase === "warmup") {
-        const nextPhase = isMeHost ? "player_turn" : "ai_turn";
+      const gs = updatedRoom.game_state;
+
+      if (hostConfirm && oppConfirm && phase === "warmup" && gs) {
+        const firstKickoff = gs.first_half_kickoff_role || "player"; // "player" means host starts
+        const hostStarts = firstKickoff === "player";
+        const isMyTurn = (isMeHost && hostStarts) || (!isMeHost && !hostStarts);
+
+        const nextPhase = isMyTurn ? "player_turn" : "ai_turn";
         setPhase(nextPhase);
         setCardsDrawnThisTurn(0);
-        setPlayerMovesLeft(isMeHost ? 3 : 0);
-        setAiMovesLeft(isMeHost ? 0 : 3);
-        addLog(getRandom(stadiumPhrases), "info");
+        setPlayerMovesLeft(isMyTurn ? maxMovesPerTurn : 0);
+        setAiMovesLeft(isMyTurn ? 0 : maxMovesPerTurn);
+
+        const starterName = hostStarts ? updatedRoom.host_name : (updatedRoom.opponent_name || "الخصم");
+        const startMsg = `🪙 القرعة العشوائية تحدد البداية! ركلة البداية واللعب الأول لصالح [ ${starterName} ]! ⚽`;
+        addLog(startMsg, "success");
       }
 
-      const gs = updatedRoom.game_state;
       if (!gs) return;
 
       // Skip updates made by myself
@@ -1455,6 +1521,24 @@ export default function App() {
       setTurnCount(gs.turn_count !== undefined ? gs.turn_count : 1);
       setDefenseMovesLeft(gs.defense_moves_left !== undefined ? gs.defense_moves_left : 3);
       setIsShotDeclared(gs.is_shot_declared || false);
+
+      if (gs.match_time !== undefined) setMatchTime(gs.match_time);
+      if (gs.match_half !== undefined) setMatchHalf(gs.match_half);
+      if (gs.is_half_time_break !== undefined) setIsHalfTimeBreak(gs.is_half_time_break);
+      if (gs.half_time_break_left !== undefined) setHalfTimeBreakLeft(gs.half_time_break_left);
+      if (gs.game_mode !== undefined) setGameMode(gs.game_mode);
+      if (gs.winning_goals !== undefined) setWinningGoals(gs.winning_goals);
+      if (gs.total_rounds !== undefined) setTotalRounds(gs.total_rounds);
+      if (gs.completed_rounds !== undefined) setCompletedRounds(gs.completed_rounds);
+      if (gs.initial_match_time !== undefined) setInitialMatchTime(gs.initial_match_time);
+
+      if (gs.first_half_kickoff_role !== undefined) {
+        setFirstHalfKickoffRole(multiplayerRole === "host" ? gs.first_half_kickoff_role : (gs.first_half_kickoff_role === "player" ? "ai" : "player"));
+      }
+      if (gs.second_half_kickoff_role !== undefined) {
+        setSecondHalfKickoffRole(multiplayerRole === "host" ? gs.second_half_kickoff_role : (gs.second_half_kickoff_role === "player" ? "ai" : "player"));
+      }
+
       const my_deck = multiplayerRole === "host" ? (gs.host_player_deck || gs.player_deck) : gs.opponent_player_deck;
       const enemy_deck = multiplayerRole === "host" ? gs.opponent_player_deck : (gs.host_player_deck || gs.player_deck);
 
@@ -1500,11 +1584,39 @@ export default function App() {
     setOpponentName(enemyName);
     setOpponentVibe(enemyVibe);
 
+    // Sync match settings from Room Game State
+    const rs = room.game_state?.room_settings || {};
+    const customLegendPct = rs.legendPercentage !== undefined ? rs.legendPercentage : legendPercentage;
+    const customMaxBonus = rs.maxBonusValue !== undefined ? rs.maxBonusValue : maxBonusValue;
+    const customMaxDraws = rs.maxDrawsPerTurn !== undefined ? rs.maxDrawsPerTurn : maxDrawsPerTurn;
+    const customMaxMoves = rs.maxMovesPerTurn !== undefined ? rs.maxMovesPerTurn : maxMovesPerTurn;
+    const customLegendBurn = rs.legendBurnLimit !== undefined ? rs.legendBurnLimit : legendBurnLimit;
+    const customInitialCards = rs.initialCardsCount !== undefined ? rs.initialCardsCount : initialCardsCount;
+    const customGameMode = rs.gameMode !== undefined ? rs.gameMode : gameMode;
+    const customWinningGoals = rs.winningGoals !== undefined ? rs.winningGoals : winningGoals;
+    const customTotalRounds = rs.totalRounds !== undefined ? rs.totalRounds : totalRounds;
+    const customHalfTimeDuration = rs.halfTimeBreakDuration !== undefined ? rs.halfTimeBreakDuration : halfTimeBreakDuration;
+    const customMatchDuration = rs.matchDuration !== undefined ? rs.matchDuration : matchTime;
+
+    setLegendPercentage(customLegendPct);
+    setMaxBonusValue(customMaxBonus);
+    setMaxDrawsPerTurn(customMaxDraws);
+    setDefaultMaxDrawsPerTurn(customMaxDraws);
+    setMaxMovesPerTurn(customMaxMoves);
+    setLegendBurnLimit(customLegendBurn);
+    setInitialCardsCount(customInitialCards);
+    setGameMode(customGameMode);
+    setWinningGoals(customWinningGoals);
+    setTotalRounds(customTotalRounds);
+    setHalfTimeBreakDuration(customHalfTimeDuration);
+    setMatchTime(customMatchDuration);
+    setInitialMatchTime(customMatchDuration);
+
     if (isHost) {
       // Host generates and seeds disjoint player and opponent decks
-      const { playerDeck: pDeck, aiDeck: pDeckOpponent } = generateUniquePlayerDecks(legendPercentage);
+      const { playerDeck: pDeck, aiDeck: pDeckOpponent } = generateUniquePlayerDecks(customLegendPct);
       const sDeck = generateSpecialDeck();
-      const poDeck = generateBoosterDeck(maxBonusValue);
+      const poDeck = generateBoosterDeck(customMaxBonus);
 
       // Choose random kickoff roles
       const randomStart = Math.random() < 0.5;
@@ -1557,7 +1669,7 @@ export default function App() {
       setAiScore(0);
       setTurnCount(1);
       setCardsDrawnThisTurn(0);
-      setPlayerMovesLeft(maxMovesPerTurn);
+      setPlayerMovesLeft(customMaxMoves);
 
       setPhase("warmup");
       
@@ -5113,7 +5225,7 @@ export default function App() {
     <div style={rotatedStyle} className={mainDivClass}>
       {showConfetti && <Confetti />}
       {phase === "menu" && !isGameLoading && !gameLoadError ? (
-        <WelcomeMenu onStartGame={handleStartGame} isMobileLandscape={isMobileLandscape} />
+        <WelcomeMenu onStartGame={handleStartGame} onStartMultiplayerGame={handleStartMultiplayerGame} isMobileLandscape={isMobileLandscape} />
       ) : phase === "game_over" ? (
         <GameOverScreen
           playerScore={playerScore}

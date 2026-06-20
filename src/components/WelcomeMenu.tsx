@@ -8,8 +8,9 @@ import { motion, AnimatePresence } from "motion/react";
 import { Shield, Sparkles, Trophy, Users, Zap, Bot, ArrowRight, ArrowLeft, BookOpen, Settings, PlayCircle, Layers, Volume2, VolumeX, ChevronUp, ChevronDown, Lock, User, Image, Coins, LogOut } from "lucide-react";
 import { SoundEffects } from "../utils/sounds";
 import { getPackages } from "../admin/adminStore";
-import { isSupabaseConfigured } from "../lib/supabase";
+import { isSupabaseConfigured, MatchRoom } from "../lib/supabase";
 import { gameAuth } from "../lib/gameAuth";
+import Multilobby from "./Multilobby";
 
 const COUNTRIES = [
   { code: "EG", name: "مصر", flag: "🇪🇬" },
@@ -76,6 +77,7 @@ interface WelcomeMenuProps {
     totalRounds?: number,
     halfTimeBreakDuration?: number
   ) => void;
+  onStartMultiplayerGame: (room: MatchRoom, role: "host" | "opponent") => void;
   isMobileLandscape?: boolean;
 }
 
@@ -96,12 +98,15 @@ const MOCK_PACKAGES = [
   { id: "pkg_tactics_modern", name: "التكتيكات الهجومية الحديثة 🔥", description: "باقة الكروت التكتيكية الحديثة لأسلوب الضغط العالي", image: "🔥", type: "special" }
 ];
 
-export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: WelcomeMenuProps) {
+export default function WelcomeMenu({ onStartGame, onStartMultiplayerGame, isMobileLandscape = false }: WelcomeMenuProps) {
   const currentUser = gameAuth.getCurrentUser();
   const defaultSettings = currentUser?.default_match_settings;
 
   // Navigation Tabs State
-  const [activeTab, setActiveTab] = useState<"home" | "play" | "decks" | "rules" | "settings">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "play" | "multiplayer" | "decks" | "rules" | "settings">(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.has("room") ? "multiplayer" : "home";
+  });
 
   // Game Setup States (Wizard under "Play" Tab)
   const [playStep, setPlayStep] = useState<"coach" | "packages" | "match">("packages");
@@ -2005,12 +2010,22 @@ export default function WelcomeMenu({ onStartGame, isMobileLandscape = false }: 
         </AnimatePresence>
       </main>
 
+      {/* Render Multiplayer Lobby Tab */}
+      <AnimatePresence mode="wait">
+        {activeTab === "multiplayer" && (
+          <div className="absolute inset-0 top-[35px] bottom-14 z-20 bg-[#020503] overflow-y-auto px-4 py-2 w-full flex flex-col justify-start">
+            <Multilobby onStartMultiplayerGame={onStartMultiplayerGame} />
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* FIXED BOTTOM NAVIGATION BAR */}
       {activeTab !== "play" && (
         <div className="fixed bottom-0 left-0 right-0 bg-[#060807]/95 border-t border-white/5 h-14 w-full px-2 shrink-0 z-30 backdrop-blur-md flex justify-around items-center">
           {[
             { id: "home", label: "الرئيسية", icon: "🏠" },
             { id: "play", label: "اللعب", icon: "⚔️" },
+            { id: "multiplayer", label: "أونلاين", icon: "🌐" },
             { id: "decks", label: "الباقات", icon: "🎴" },
             { id: "rules", label: "القوانين", icon: "📜" },
             { id: "settings", label: "الإعدادات", icon: "⚙️" }
