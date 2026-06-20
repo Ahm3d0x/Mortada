@@ -249,8 +249,37 @@ export const supabaseService = {
           isUnique = true;
         }
       }
+
+      const newRoom: MatchRoom = {
+        id: roomId,
+        created_at: new Date().toISOString(),
+        host_id: hostId,
+        host_name: hostName,
+        host_vibe: hostVibe,
+        opponent_id: null,
+        opponent_name: null,
+        opponent_vibe: null,
+        status: "waiting",
+        current_turn: "host",
+        game_state: settings ? { room_settings: settings } : null,
+        last_activity: Date.now(),
+        room_name: roomName,
+        is_private: isPrivate
+      };
+
+      const { error } = await supabase
+        .from("rooms")
+        .insert([newRoom]);
+
+      if (error) {
+        console.error("Error creating room in Supabase:", error);
+        throw new Error(`فشل إنشاء الغرفة سحابياً: ${error.message}`);
+      }
+
+      return newRoom;
     }
 
+    // Offline fallback (ONLY if not configured)
     const newRoom: MatchRoom = {
       id: roomId,
       created_at: new Date().toISOString(),
@@ -268,16 +297,6 @@ export const supabaseService = {
       is_private: isPrivate
     };
 
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase
-        .from("rooms")
-        .insert([newRoom]);
-      if (error) {
-        console.error("Error creating room in Supabase", error);
-      }
-    }
-
-    // Always keep fallback updated
     const rooms = getFallbackRooms();
     rooms.push(newRoom);
     saveFallbackRooms(rooms);
@@ -323,7 +342,7 @@ export const supabaseService = {
         .single();
 
       if (updateError || !joinedRoom) {
-        return { room: null, error: "فشل الانضمام للغرفة. حاول مرة أخرى." };
+        return { room: null, error: `فشل الانضمام للغرفة: ${updateError?.message || "خطأ غير معروف"}` };
       }
 
       return { room: joinedRoom as MatchRoom, error: null };
@@ -519,13 +538,32 @@ export const supabaseService = {
             filter: `id=eq.${roomId}`
           },
           (payload) => {
-            callback(payload.new as MatchRoom);
+            if (payload.new) {
+              callback(payload.new as MatchRoom);
+            }
           }
         )
         .subscribe();
 
+      // Polling fallback to guarantee updates sync even if Realtime replication is disabled
+      const intervalId = setInterval(async () => {
+        try {
+          const { data, error } = await supabase
+            .from("rooms")
+            .select("*")
+            .eq("id", roomId)
+            .single();
+          if (data && !error) {
+            callback(data as MatchRoom);
+          }
+        } catch (e) {
+          console.warn("Polling room update failed:", e);
+        }
+      }, 2000);
+
       return () => {
         supabase.removeChannel(channel);
+        clearInterval(intervalId);
       };
     } else {
       // Local storage sync and BroadcastChannel listener fallback for same browser testing (two tabs)

@@ -42,3 +42,6 @@ ALTER TABLE game_users ENABLE ROW LEVEL SECURITY;
 
 -- Open policies for client-side authentication operations
 CREATE POLICY "Anyone can perform operations on game_users" ON game_users FOR ALL USING (true) WITH CHECK (true);
+
+-- ─── Grant Privileges ─────────────────────────────────
+GRANT ALL ON TABLE public.game_users TO anon, authenticated, service_role;

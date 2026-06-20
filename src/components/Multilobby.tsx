@@ -14,6 +14,39 @@ import { supabaseService, MatchRoom, isSupabaseConfigured } from "../lib/supabas
 import { SoundEffects } from "../utils/sounds";
 import { gameAuth } from "../lib/gameAuth";
 
+// Bulletproof copy helper for mobile browsers & WebViews
+async function copyToClipboard(text: string): Promise<boolean> {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      console.warn("navigator.clipboard failed, using fallback copy:", e);
+    }
+  }
+
+  // Fallback temporary textarea method
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.style.position = "fixed";
+  textArea.style.top = "0";
+  textArea.style.left = "0";
+  textArea.style.opacity = "0";
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+
+  try {
+    const successful = document.execCommand("copy");
+    document.body.removeChild(textArea);
+    return successful;
+  } catch (err) {
+    console.error("Fallback copy failed:", err);
+    document.body.removeChild(textArea);
+    return false;
+  }
+}
+
 interface MultilobbyProps {
   onStartMultiplayerGame: (room: MatchRoom, role: "host" | "opponent") => void;
 }
@@ -777,11 +810,15 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
 
                 <div className="flex gap-2 max-w-xs mx-auto">
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const link = `${window.location.origin}${window.location.pathname}?room=${myHostedRoom.id}`;
-                      navigator.clipboard.writeText(link);
+                      const success = await copyToClipboard(link);
                       SoundEffects.playWhistle();
-                      alert("تم نسخ رابط الغرفة بنجاح! ارسله لمنافسك 🔗");
+                      if (success) {
+                        alert("تم نسخ رابط الغرفة بنجاح! ارسله لمنافسك 🔗");
+                      } else {
+                        alert(`فشل النسخ التلقائي. هذا هو الرابط لنسخه يدوياً:\n${link}`);
+                      }
                     }}
                     className="flex-1 py-2 bg-amber-500 text-black rounded-xl font-bold text-xs flex items-center justify-center gap-1 hover:bg-amber-450 transition-all cursor-pointer"
                   >
@@ -789,10 +826,14 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
                     <span>رابط الغرفة 🔗</span>
                   </button>
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(myHostedRoom.id);
+                    onClick={async () => {
+                      const success = await copyToClipboard(myHostedRoom.id);
                       SoundEffects.playWhistle();
-                      alert("تم نسخ رمز الغرفة بنجاح! 📋");
+                      if (success) {
+                        alert("تم نسخ رمز الغرفة بنجاح! 📋");
+                      } else {
+                        alert(`فشل النسخ التلقائي. هذا هو الرمز لنسخه يدوياً:\n${myHostedRoom.id}`);
+                      }
                     }}
                     className="flex-1 py-2 bg-white/5 text-white border border-white/10 rounded-xl font-bold text-xs flex items-center justify-center gap-1 hover:bg-white/10 transition-all cursor-pointer"
                   >

@@ -38,3 +38,6 @@ CREATE POLICY "Allow public select" ON public.rooms FOR SELECT USING (true);
 CREATE POLICY "Allow public insert" ON public.rooms FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public update" ON public.rooms FOR UPDATE USING (true);
 CREATE POLICY "Allow public delete" ON public.rooms FOR DELETE USING (true);
+
+-- ─── Grant Privileges ─────────────────────────────────
+GRANT ALL ON TABLE public.rooms TO anon, authenticated, service_role;

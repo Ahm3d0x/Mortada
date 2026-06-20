@@ -40,20 +40,11 @@ export async function sha256(message: string): Promise<string> {
 const USER_SESSION_KEY = "mortada_user";
 const OFFLINE_USERS_KEY = "mock_game_users";
 
-// Session-based offline fallback flag to avoid repeated 401/403 errors when Supabase is misconfigured
-let useOfflineFallback = (() => {
-  try {
-    return sessionStorage.getItem("mortada_use_offline") === "true";
-  } catch {
-    return false;
-  }
-})();
+// Session-based offline fallback flag (ONLY active when Supabase is not configured)
+const useOfflineFallback = !isSupabaseConfigured;
 
 function setOfflineFallback(val: boolean) {
-  useOfflineFallback = val;
-  try {
-    sessionStorage.setItem("mortada_use_offline", val ? "true" : "false");
-  } catch {}
+  // No-op: we do not silently fall back to offline mode if Supabase is configured
 }
 
 // Helper to get local mock users database
@@ -103,40 +94,40 @@ export const gameAuth = {
     const current = this.getCurrentUser();
     if (!current) return null;
 
-    if (isSupabaseConfigured && supabase && !useOfflineFallback && isUUID(current.id)) {
+    if (isSupabaseConfigured && supabase) {
       try {
-        const { data, error, status } = await supabase
+        const { data, error } = await supabase
           .from("game_users")
           .select("*")
           .eq("id", current.id)
           .single();
 
         if (error) {
-          if (status === 401 || status === 403) {
-            console.warn("Supabase returned 401/403 on refreshUser, falling back to local storage.", error);
-            setOfflineFallback(true);
-          } else {
-            throw error;
-          }
+          console.error("Supabase returned error on refreshUser:", error);
+          // If the user doesn't exist in Supabase (e.g. database reset/deleted or they were an offline user),
+          // clear the session so they are forced to log in or register online.
+          this.signOut();
+          return null;
         } else if (data) {
           localStorage.setItem(USER_SESSION_KEY, JSON.stringify(data));
           notifyAuthChange();
           return data as GameUser;
         }
       } catch (err) {
-        console.error("Failed to refresh user online, using offline fallback:", err);
+        console.error("Failed to refresh user online:", err);
+        return null;
       }
+    } else {
+      // Offline fallback (ONLY if not configured)
+      const offlineUsers = getOfflineUsers();
+      const updated = offlineUsers.find((u) => u.id === current.id);
+      if (updated) {
+        localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updated));
+        notifyAuthChange();
+        return updated;
+      }
+      return current;
     }
-    
-    // Offline fallback
-    const offlineUsers = getOfflineUsers();
-    const updated = offlineUsers.find((u) => u.id === current.id);
-    if (updated) {
-      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updated));
-      notifyAuthChange();
-      return updated;
-    }
-    return current;
   },
 
   // Sign In Operation
@@ -145,35 +136,35 @@ export const gameAuth = {
       const hashedPassword = await sha256(pass);
       const normalizedEmail = email.trim().toLowerCase();
 
-      if (isSupabaseConfigured && supabase && !useOfflineFallback) {
+      if (isSupabaseConfigured && supabase) {
         try {
-          const { data, error, status } = await supabase
+          const { data, error } = await supabase
             .from("game_users")
             .select("*")
             .eq("email", normalizedEmail)
             .eq("password", hashedPassword)
-            .single();
+            .maybeSingle();
 
           if (error) {
-            if (status === 401 || status === 403) {
-              console.warn("Supabase returned 401/403 on signIn, falling back to local storage.", error);
-              setOfflineFallback(true);
-            } else {
-              return { user: null, error: "البريد الإلكتروني أو كلمة المرور غير صحيحة ❌" };
-            }
-          } else if (data) {
-            // Save session
-            localStorage.setItem(USER_SESSION_KEY, JSON.stringify(data));
-            notifyAuthChange();
-            return { user: data as GameUser, error: null };
+            console.error("Supabase signIn error:", error);
+            return { user: null, error: `خطأ في الاتصال بقاعدة البيانات: ${error.message}` };
           }
+          
+          if (!data) {
+            return { user: null, error: "البريد الإلكتروني أو كلمة المرور غير صحيحة ❌" };
+          }
+
+          // Save session
+          localStorage.setItem(USER_SESSION_KEY, JSON.stringify(data));
+          notifyAuthChange();
+          return { user: data as GameUser, error: null };
         } catch (err: any) {
-          console.error("Supabase signin exception, falling back:", err);
-          setOfflineFallback(true);
+          console.error("Supabase signin exception:", err);
+          return { user: null, error: `فشل تسجيل الدخول: ${err.message}` };
         }
       }
 
-      // Offline fallback
+      // Offline fallback (ONLY if not configured)
       const users = getOfflineUsers();
       const found = users.find((u) => u.email === normalizedEmail && u.password === hashedPassword);
       if (!found) {
@@ -225,66 +216,58 @@ export const gameAuth = {
         halfTimeBreakDuration: 30,
       };
 
-      if (isSupabaseConfigured && supabase && !useOfflineFallback) {
+      if (isSupabaseConfigured && supabase) {
         try {
           // Check if email already exists
-          const { data: existing, error: checkError, status: checkStatus } = await supabase
+          const { data: existing, error: checkError } = await supabase
             .from("game_users")
             .select("id")
             .eq("email", normalizedEmail)
             .maybeSingle();
 
           if (checkError) {
-            if (checkStatus === 401 || checkStatus === 403) {
-              console.warn("Supabase returned 401/403 on signUp email check, falling back to local storage.", checkError);
-              setOfflineFallback(true);
-            } else {
-              throw checkError;
-            }
-          } else {
-            if (existing) {
-              return { user: null, error: "هذا البريد الإلكتروني مسجل بالفعل بالنظام ⚠️" };
-            }
-
-            const newUserPayload = {
-              email: normalizedEmail,
-              password: hashedPassword,
-              name: name.trim(),
-              team_name: cleanTeamName,
-              team_abbreviation: cleanTeamAbbr,
-              team_logo: cleanLogo || "⚽",
-              country,
-              role,
-              coins: 1000,
-              default_match_settings: defaultSettings,
-            };
-
-            const { data, error, status } = await supabase
-              .from("game_users")
-              .insert([newUserPayload])
-              .select()
-              .single();
-
-            if (error || !data) {
-              console.error("Supabase insert user error:", error);
-              if (status === 401 || status === 403) {
-                setOfflineFallback(true);
-              } else {
-                return { user: null, error: "فشل في تسجيل الحساب. يرجى المحاولة مرة أخرى." };
-              }
-            } else {
-              localStorage.setItem(USER_SESSION_KEY, JSON.stringify(data));
-              notifyAuthChange();
-              return { user: data as GameUser, error: null };
-            }
+            console.error("Supabase signUp email check error:", checkError);
+            return { user: null, error: `فشل التحقق من البريد الإلكتروني: ${checkError.message}` };
           }
+
+          if (existing) {
+            return { user: null, error: "هذا البريد الإلكتروني مسجل بالفعل بالنظام ⚠️" };
+          }
+
+          const newUserPayload = {
+            email: normalizedEmail,
+            password: hashedPassword,
+            name: name.trim(),
+            team_name: cleanTeamName,
+            team_abbreviation: cleanTeamAbbr,
+            team_logo: cleanLogo || "⚽",
+            country,
+            role,
+            coins: 1000,
+            default_match_settings: defaultSettings,
+          };
+
+          const { data, error } = await supabase
+            .from("game_users")
+            .insert([newUserPayload])
+            .select()
+            .single();
+
+          if (error || !data) {
+            console.error("Supabase insert user error:", error);
+            return { user: null, error: `فشل في تسجيل الحساب: ${error?.message || "بيانات فارغة"}` };
+          }
+
+          localStorage.setItem(USER_SESSION_KEY, JSON.stringify(data));
+          notifyAuthChange();
+          return { user: data as GameUser, error: null };
         } catch (err: any) {
-          console.error("Supabase signup exception, falling back:", err);
-          setOfflineFallback(true);
+          console.error("Supabase signup exception:", err);
+          return { user: null, error: `فشل تسجيل الحساب: ${err.message}` };
         }
       }
 
-      // Offline fallback
+      // Offline fallback (ONLY if not configured)
       const users = getOfflineUsers();
       const existing = users.find((u) => u.email === normalizedEmail);
       if (existing) {
@@ -340,9 +323,9 @@ export const gameAuth = {
       country,
     };
 
-    if (isSupabaseConfigured && supabase && !useOfflineFallback && isUUID(current.id)) {
+    if (isSupabaseConfigured && supabase) {
       try {
-        const { data, error, status } = await supabase
+        const { data, error } = await supabase
           .from("game_users")
           .update(updates)
           .eq("id", current.id)
@@ -350,41 +333,38 @@ export const gameAuth = {
           .single();
 
         if (error) {
-          if (status === 401 || status === 403) {
-            console.warn("Supabase 401/403 on profile update, falling back to offline", error);
-            setOfflineFallback(true);
-          } else {
-            return { user: null, error: "فشل في تحديث الملف الشخصي سحابياً." };
-          }
+          console.error("Supabase updateProfile error:", error);
+          return { user: null, error: `فشل تحديث الملف الشخصي سحابياً: ${error.message}` };
         } else if (data) {
           localStorage.setItem(USER_SESSION_KEY, JSON.stringify(data));
           notifyAuthChange();
           return { user: data as GameUser, error: null };
         }
       } catch (err: any) {
-        console.error("Supabase profile update exception, falling back:", err);
-        setOfflineFallback(true);
+        console.error("Supabase profile update exception:", err);
+        return { user: null, error: err.message || "حدث خطأ أثناء تحديث الملف الشخصي." };
       }
+    } else {
+      // Offline fallback (ONLY if not configured)
+      const users = getOfflineUsers();
+      const idx = users.findIndex((u) => u.id === current.id);
+      if (idx === -1) {
+        return { user: null, error: "المستخدم غير موجود بالنظام المحلي." };
+      }
+
+      const updatedUser = {
+        ...users[idx],
+        ...updates,
+      };
+
+      users[idx] = updatedUser;
+      saveOfflineUsers(users);
+
+      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updatedUser));
+      notifyAuthChange();
+      return { user: updatedUser, error: null };
     }
-
-    // Offline fallback
-    const users = getOfflineUsers();
-    const idx = users.findIndex((u) => u.id === current.id);
-    if (idx === -1) {
-      return { user: null, error: "المستخدم غير موجود بالنظام المحلي." };
-    }
-
-    const updatedUser = {
-      ...users[idx],
-      ...updates,
-    };
-
-    users[idx] = updatedUser;
-    saveOfflineUsers(users);
-
-    localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updatedUser));
-    notifyAuthChange();
-    return { user: updatedUser, error: null };
+    return { user: null, error: "فشل غير معروف في التحديث." };
   },
 
   // Update Match Settings
@@ -392,9 +372,9 @@ export const gameAuth = {
     const current = this.getCurrentUser();
     if (!current) return { user: null, error: "لا توجد جلسة مستخدم نشطة ❌" };
 
-    if (isSupabaseConfigured && supabase && !useOfflineFallback && isUUID(current.id)) {
+    if (isSupabaseConfigured && supabase) {
       try {
-        const { data, error, status } = await supabase
+        const { data, error } = await supabase
           .from("game_users")
           .update({ default_match_settings: settings })
           .eq("id", current.id)
@@ -402,41 +382,38 @@ export const gameAuth = {
           .single();
 
         if (error) {
-          if (status === 401 || status === 403) {
-            console.warn("Supabase 401/403 on settings update, falling back to offline", error);
-            setOfflineFallback(true);
-          } else {
-            return { user: null, error: "فشل في تحديث الإعدادات الافتراضية سحابياً." };
-          }
+          console.error("Supabase updateDefaultSettings error:", error);
+          return { user: null, error: `فشل تحديث الإعدادات سحابياً: ${error.message}` };
         } else if (data) {
           localStorage.setItem(USER_SESSION_KEY, JSON.stringify(data));
           notifyAuthChange();
           return { user: data as GameUser, error: null };
         }
       } catch (err: any) {
-        console.error("Supabase settings update exception, falling back:", err);
-        setOfflineFallback(true);
+        console.error("Supabase settings update exception:", err);
+        return { user: null, error: err.message || "حدث خطأ أثناء تحديث الإعدادات الافتراضية." };
       }
+    } else {
+      // Offline fallback
+      const users = getOfflineUsers();
+      const idx = users.findIndex((u) => u.id === current.id);
+      if (idx === -1) {
+        return { user: null, error: "المستخدم غير موجود بالنظام المحلي." };
+      }
+
+      const updatedUser = {
+        ...users[idx],
+        default_match_settings: settings,
+      };
+
+      users[idx] = updatedUser;
+      saveOfflineUsers(users);
+
+      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updatedUser));
+      notifyAuthChange();
+      return { user: updatedUser, error: null };
     }
-
-    // Offline fallback
-    const users = getOfflineUsers();
-    const idx = users.findIndex((u) => u.id === current.id);
-    if (idx === -1) {
-      return { user: null, error: "المستخدم غير موجود بالنظام المحلي." };
-    }
-
-    const updatedUser = {
-      ...users[idx],
-      default_match_settings: settings,
-    };
-
-    users[idx] = updatedUser;
-    saveOfflineUsers(users);
-
-    localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updatedUser));
-    notifyAuthChange();
-    return { user: updatedUser, error: null };
+    return { user: null, error: "فشل غير معروف في التحديث." };
   },
 
   // Change Password with old/new matching check
@@ -448,71 +425,64 @@ export const gameAuth = {
       const hashedOld = await sha256(oldPass);
       const hashedNew = await sha256(newPass);
 
-      if (isSupabaseConfigured && supabase && !useOfflineFallback && isUUID(current.id)) {
+      if (isSupabaseConfigured && supabase) {
         try {
           // Verify old password first
-          const { data: userRecord, error: fetchErr, status: fetchStatus } = await supabase
+          const { data: userRecord, error: fetchErr } = await supabase
             .from("game_users")
             .select("password")
             .eq("id", current.id)
             .single();
 
           if (fetchErr || !userRecord) {
-            if (fetchStatus === 401 || fetchStatus === 403) {
-              console.warn("Supabase 401/403 on password change check, falling back to offline", fetchErr);
-              setOfflineFallback(true);
-            } else {
-              return { success: false, error: "فشل التحقق من المستخدم." };
-            }
-          } else {
-            if (userRecord.password !== hashedOld) {
-              return { success: false, error: "كلمة المرور القديمة التي أدخلتها غير صحيحة ❌" };
-            }
-
-            // Update to new password
-            const { error: updateErr, status: updateStatus } = await supabase
-              .from("game_users")
-              .update({ password: hashedNew })
-              .eq("id", current.id);
-
-            if (updateErr) {
-              if (updateStatus === 401 || updateStatus === 403) {
-                setOfflineFallback(true);
-              } else {
-                return { success: false, error: "فشل في تحديث كلمة المرور في قاعدة البيانات." };
-              }
-            } else {
-              return { success: true, error: null };
-            }
+            console.error("Supabase changePassword verification error:", fetchErr);
+            return { success: false, error: `فشل التحقق من كلمة المرور: ${fetchErr?.message || "المستخدم غير موجود"}` };
           }
+
+          if (userRecord.password !== hashedOld) {
+            return { success: false, error: "كلمة المرور القديمة التي أدخلتها غير صحيحة ❌" };
+          }
+
+          // Update to new password
+          const { error: updateErr } = await supabase
+            .from("game_users")
+            .update({ password: hashedNew })
+            .eq("id", current.id);
+
+          if (updateErr) {
+            console.error("Supabase changePassword update error:", updateErr);
+            return { success: false, error: `فشل تحديث كلمة المرور: ${updateErr.message}` };
+          }
+
+          return { success: true, error: null };
         } catch (err: any) {
-          console.error("Supabase password change exception, falling back:", err);
-          setOfflineFallback(true);
+          console.error("Supabase password change exception:", err);
+          return { success: false, error: err.message || "حدث خطأ أثناء تغيير كلمة المرور." };
         }
+      } else {
+        // Offline fallback
+        const users = getOfflineUsers();
+        const idx = users.findIndex((u) => u.id === current.id);
+        if (idx === -1) {
+          return { success: false, error: "المستخدم غير موجود بالنظام المحلي." };
+        }
+
+        if (users[idx].password !== hashedOld) {
+          return { success: false, error: "كلمة المرور القديمة التي أدخلتها غير صحيحة ❌" };
+        }
+
+        users[idx].password = hashedNew;
+        saveOfflineUsers(users);
+
+        // Update active session memory too
+        const updatedUser = {
+          ...current,
+          password: hashedNew,
+        };
+        localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updatedUser));
+
+        return { success: true, error: null };
       }
-
-      // Offline fallback
-      const users = getOfflineUsers();
-      const idx = users.findIndex((u) => u.id === current.id);
-      if (idx === -1) {
-        return { success: false, error: "المستخدم غير موجود بالنظام المحلي." };
-      }
-
-      if (users[idx].password !== hashedOld) {
-        return { success: false, error: "كلمة المرور القديمة التي أدخلتها غير صحيحة ❌" };
-      }
-
-      users[idx].password = hashedNew;
-      saveOfflineUsers(users);
-
-      // Update active session memory too
-      const updatedUser = {
-        ...current,
-        password: hashedNew,
-      };
-      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updatedUser));
-
-      return { success: true, error: null };
     } catch (err: any) {
       return { success: false, error: err.message || "حدث خطأ غير متوقع أثناء تغيير كلمة المرور." };
     }
@@ -525,34 +495,34 @@ export const gameAuth = {
 
     const newBalance = current.coins + amount;
     try {
-      if (isSupabaseConfigured && supabase && !useOfflineFallback && isUUID(current.id)) {
-        try {
-          const { error, status } = await supabase
-            .from("game_users")
-            .update({ coins: newBalance })
-            .eq("id", current.id);
+      if (isSupabaseConfigured && supabase) {
+        const { error } = await supabase
+          .from("game_users")
+          .update({ coins: newBalance })
+          .eq("id", current.id);
 
-          if (error && (status === 401 || status === 403)) {
-            console.warn("Supabase 401/403 on addCoins, falling back to offline", error);
-            setOfflineFallback(true);
-          }
-        } catch (err) {
-          console.error("Supabase addCoins exception, falling back:", err);
-          setOfflineFallback(true);
+        if (error) {
+          console.error("Supabase addCoins error:", error);
+          return current.coins;
         }
-      }
-      
-      const offlineUsers = getOfflineUsers();
-      const idx = offlineUsers.findIndex((u) => u.id === current.id);
-      if (idx !== -1) {
-        offlineUsers[idx].coins = newBalance;
-        saveOfflineUsers(offlineUsers);
-      }
 
-      const updatedUser = { ...current, coins: newBalance };
-      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updatedUser));
-      notifyAuthChange();
-      return newBalance;
+        const updatedUser = { ...current, coins: newBalance };
+        localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updatedUser));
+        notifyAuthChange();
+        return newBalance;
+      } else {
+        const offlineUsers = getOfflineUsers();
+        const idx = offlineUsers.findIndex((u) => u.id === current.id);
+        if (idx !== -1) {
+          offlineUsers[idx].coins = newBalance;
+          saveOfflineUsers(offlineUsers);
+        }
+
+        const updatedUser = { ...current, coins: newBalance };
+        localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updatedUser));
+        notifyAuthChange();
+        return newBalance;
+      }
     } catch {
       return current.coins;
     }
