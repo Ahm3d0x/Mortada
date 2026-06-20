@@ -615,5 +615,46 @@ export const supabaseService = {
       return (data || []) as MatchRoom[];
     }
     return getFallbackRooms().filter((r) => r.status === "waiting" && (r.is_private === false || r.is_private === undefined));
+  },
+
+  async updateRoomHeartbeat(roomId: string, key: "host_last_active" | "opponent_last_active", timestamp: number): Promise<void> {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: room } = await supabase
+          .from("rooms")
+          .select("game_state")
+          .eq("id", roomId)
+          .single();
+        const currentGS = room?.game_state || {};
+        const updatedGS = {
+          ...currentGS,
+          [key]: timestamp
+        };
+        await supabase
+          .from("rooms")
+          .update({
+            game_state: updatedGS,
+            last_activity: Date.now()
+          })
+          .eq("id", roomId);
+      } catch (err) {
+        console.error("Error updating heartbeat in Supabase:", err);
+      }
+    } else {
+      const rooms = getFallbackRooms();
+      const idx = rooms.findIndex((r) => r.id === roomId);
+      if (idx !== -1) {
+        const currentGS = rooms[idx].game_state || {};
+        rooms[idx].game_state = {
+          ...currentGS,
+          [key]: timestamp
+        };
+        rooms[idx].last_activity = Date.now();
+        saveFallbackRooms(rooms);
+      }
+      if (localBroadcast) {
+        localBroadcast.postMessage({ type: "state_updated", roomId, updates: { last_activity: Date.now() } });
+      }
+    }
   }
 };

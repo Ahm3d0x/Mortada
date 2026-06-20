@@ -451,7 +451,7 @@ export async function getPackageStats(packageId: string): Promise<PackageStats> 
 // GAME INTEGRATION
 // ═══════════════════════════════════════════════════════════
 
-function getMockPlayerCards(packageIds?: string[]): PlayerCard[] {
+export function getMockPlayerCards(packageIds?: string[]): PlayerCard[] {
   const pkgs = packageIds && packageIds.length > 0 ? packageIds : ["pkg_egypt", "pkg_legends", "pkg_europe"];
   const list: PlayerCard[] = [];
 
@@ -646,7 +646,7 @@ function getMockPlayerCards(packageIds?: string[]): PlayerCard[] {
   return list;
 }
 
-function getMockSpecialCards(packageIds?: string[]): SpecialCard[] {
+export function getMockSpecialCards(packageIds?: string[]): SpecialCard[] {
   const pkgs = packageIds && packageIds.length > 0 ? packageIds : ["pkg_tactics_classic", "pkg_tactics_modern"];
   const list: SpecialCard[] = [];
 

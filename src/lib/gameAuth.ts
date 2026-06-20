@@ -13,6 +13,10 @@ export interface MatchSettings {
   winningGoals?: number;
   totalRounds?: number;
   halfTimeBreakDuration?: number;
+  turnTimeLimit?: number;
+  warmupTimeLimit?: number;
+  selectedPlayerPkgs?: string[];
+  selectedSpecialPkgs?: string[];
 }
 
 export interface GameUser {
