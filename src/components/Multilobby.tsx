@@ -6,41 +6,31 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  Users, Key, LogIn, UserPlus, LogOut, RefreshCw, Star, 
-  Sparkles, Trophy, PlusCircle, Gamepad2, AlertCircle, PlayCircle,
-  Copy, Link, Globe, Shield, Settings, Check
+  Users, Key, RefreshCw, Sparkles, Trophy, PlusCircle, Gamepad2, 
+  AlertCircle, PlayCircle, Copy, Link, Globe, Shield, Settings, 
+  Check, ArrowLeft, ArrowRight, User, Eye, EyeOff, X
 } from "lucide-react";
 import { supabaseService, MatchRoom, isSupabaseConfigured } from "../lib/supabase";
 import { SoundEffects } from "../utils/sounds";
+import { gameAuth } from "../lib/gameAuth";
 
 interface MultilobbyProps {
   onStartMultiplayerGame: (room: MatchRoom, role: "host" | "opponent") => void;
 }
 
 export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) {
-  // Auth states
-  const [user, setUser] = useState<any>(null);
-  const [authMode, setAuthMode] = useState<"login" | "register">("register");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [age, setAge] = useState<number | "">("");
-  const [gender, setGender] = useState<"male" | "female">("male");
-  const [acceptTerms, setAcceptTerms] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [authLoading, setAuthLoading] = useState(false);
+  const currentUser = gameAuth.getCurrentUser();
 
   // Lobby states
   const [activeRooms, setActiveRooms] = useState<MatchRoom[]>([]);
   const [joinCode, setJoinCode] = useState("");
-  const [selectedVibe, setSelectedVibe] = useState("الفراعنة");
+  const [selectedVibe, setSelectedVibe] = useState(currentUser?.team_name || "الفراعنة");
   const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Custom Match Settings states
+  // Custom Match Settings states (Config Panel)
   const [showConfig, setShowConfig] = useState(false);
   const [roomName, setRoomName] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
@@ -56,13 +46,19 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
   const [legendBurnLimit, setLegendBurnLimit] = useState<number>(2);
   const [maxBonusValue, setMaxBonusValue] = useState<number>(10);
 
+  // Active Hosted Room (waiting state)
+  const [myHostedRoom, setMyHostedRoom] = useState<MatchRoom | null>(null);
+  const [showRoomSettings, setShowRoomSettings] = useState(false);
+
+  const TEAM_VIBES = ["الفراعنة", "أسود الأطلس", "نجوم السامبا", "راقصو التانغو", "كتائب الأخضر", "الملكي"];
+
   // Pre-populate settings from user defaults
   useEffect(() => {
-    if (user) {
-      const usernameVal = user.user_metadata?.username || user.email.split("@")[0] || "مدرب تكتيكي";
-      setRoomName(`غرفة الكابتن ${usernameVal}`);
+    if (currentUser) {
+      const usernameVal = currentUser.name || "مدرب تكتيكي";
+      setRoomName(`ملعب الكابتن ${usernameVal}`);
       
-      const defaults = user.default_match_settings || user.user_metadata?.default_match_settings;
+      const defaults = currentUser.default_match_settings;
       if (defaults) {
         if (defaults.matchDuration !== undefined) setMatchDuration(defaults.matchDuration);
         if (defaults.gameMode !== undefined) setGameMode(defaults.gameMode);
@@ -77,7 +73,7 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
         if (defaults.maxBonusValue !== undefined) setMaxBonusValue(defaults.maxBonusValue);
       }
     }
-  }, [user]);
+  }, [currentUser]);
 
   // URL query parameter detection
   useEffect(() => {
@@ -86,27 +82,6 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
     if (roomParam) {
       setJoinCode(roomParam.toUpperCase());
     }
-  }, []);
-
-  // Active Hosted Room (waiting state)
-  const [myHostedRoom, setMyHostedRoom] = useState<MatchRoom | null>(null);
-
-  const TEAM_VIBES = ["الفراعنة", "أسود الأطلس", "نجوم السامبا", "راقصو التانغو", "كتائب الأخضر", "الملكي"];
-
-  // Handle auth subscriber
-  useEffect(() => {
-    const unsubscribe = supabaseService.onAuthStateChange((currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        setAuthError(null);
-      }
-    });
-
-    refreshLobbies();
-
-    return () => {
-      unsubscribe();
-    };
   }, []);
 
   // Poll room check if hosting and waiting for opponent
@@ -129,62 +104,10 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
     };
   }, [myHostedRoom]);
 
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-    setAuthLoading(true);
-
-    try {
-      if (authMode === "register") {
-        if (!username.trim()) {
-          setAuthError("يرجى إدخال اسم كابتن مميز ⚠️");
-          setAuthLoading(false);
-          return;
-        }
-        if (!fullName.trim()) {
-          setAuthError("يرجى إدخال الاسم الكامل بالكامل ⚠️");
-          setAuthLoading(false);
-          return;
-        }
-        if (!age || Number(age) < 8) {
-          setAuthError("يرجى إدخال عمر صحيح (8 سنوات على الأقل) ⚠️");
-          setAuthLoading(false);
-          return;
-        }
-        if (!acceptTerms) {
-          setAuthError("يجب الموافقة على شروط الاستخدام وسياسة الخصوصية بالموقع ⚠️");
-          setAuthLoading(false);
-          return;
-        }
-        const { user: newUser, error } = await supabaseService.signUp(
-          email,
-          password,
-          username,
-          fullName,
-          Number(age),
-          gender,
-          acceptTerms
-        );
-        if (error) setAuthError(error);
-        else setUser(newUser);
-      } else {
-        const { user: signedUser, error } = await supabaseService.signIn(email, password);
-        if (error) setAuthError(error);
-        else setUser(signedUser);
-      }
-    } catch (err: any) {
-      setAuthError(err.message || "حدث خطأ غير متوقع");
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleSignOut = async () => {
-    SoundEffects.playCardDraw();
-    await supabaseService.signOut();
-    setUser(null);
-    setMyHostedRoom(null);
-  };
+  // Initial fetch of active rooms
+  useEffect(() => {
+    refreshLobbies();
+  }, []);
 
   const refreshLobbies = async () => {
     setIsRefreshing(true);
@@ -200,16 +123,13 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
   };
 
   const handleCreateRoom = async () => {
-    if (!user) {
-      setLobbyError("يرجى إنشاء حساب أو تسجيل الدخول أولاً للمبارزة أونلاين 🔒");
-      return;
-    }
+    if (!currentUser) return;
     setIsCreating(true);
     setLobbyError(null);
     SoundEffects.playWhistle();
 
     try {
-      const name = user.user_metadata?.username || user.email.split("@")[0] || "مدرب تكتيكي";
+      const name = currentUser.name || "مدرب تكتيكي";
       const settingsPayload = {
         matchDuration,
         gameMode,
@@ -225,7 +145,7 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
       };
 
       const room = await supabaseService.createRoom(
-        user.id,
+        currentUser.id,
         name,
         selectedVibe,
         roomName.trim() || `${name} - مباراة مبارزة`,
@@ -233,7 +153,7 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
         settingsPayload
       );
       setMyHostedRoom(room);
-      setShowConfig(false); // Close settings configuration form
+      setShowConfig(false); // Close settings panel
     } catch (err: any) {
       setLobbyError(err.message || "فشل إنشاء غرفة اللعب");
     } finally {
@@ -264,20 +184,18 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
     }
   };
 
-  const handleJoinByCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) {
-      setLobbyError("يرجى تسجيل الدخول أولاً 🔒");
-      return;
-    }
+  const handleJoinByCode = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!currentUser) return;
     if (!joinCode.trim()) return;
 
     setIsJoining(true);
     setLobbyError(null);
 
     try {
-      const name = user.user_metadata?.username || user.email.split("@")[0] || "مبارز أونلاين";
-      const { room, error } = await supabaseService.joinRoom(joinCode.trim(), user.id, name, selectedVibe);
+      const name = currentUser.name || "مبارز أونلاين";
+      const vibe = currentUser.team_name || "الفراعنة";
+      const { room, error } = await supabaseService.joinRoom(joinCode.trim(), currentUser.id, name, vibe);
       
       if (error) {
         setLobbyError(error);
@@ -293,16 +211,14 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
   };
 
   const handleQuickJoin = async (room: MatchRoom) => {
-    if (!user) {
-      setLobbyError("يرجى تسجيل الدخول أولاً 🔒");
-      return;
-    }
+    if (!currentUser) return;
     setIsJoining(true);
     setLobbyError(null);
 
     try {
-      const name = user.user_metadata?.username || user.email.split("@")[0] || "مبارز أونلاين";
-      const { room: joinedRoom, error } = await supabaseService.joinRoom(room.id, user.id, name, selectedVibe);
+      const name = currentUser.name || "مبارز أونلاين";
+      const vibe = currentUser.team_name || "الفراعنة";
+      const { room: joinedRoom, error } = await supabaseService.joinRoom(room.id, currentUser.id, name, vibe);
       
       if (error) {
         setLobbyError(error);
@@ -359,25 +275,25 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
     const currentMaxBonus = getValue("maxBonusValue", 10);
 
     return (
-      <div className="space-y-3 text-right" dir="rtl">
+      <div className="space-y-4 text-right" dir="rtl">
         {/* Goals Target slider */}
         <div className="space-y-1">
-          <div className="flex items-center justify-between text-[10px] text-amber-400">
-            <span>{currentGoals} أهداف</span>
+          <div className="flex items-center justify-between text-xs text-amber-400">
+            <span className="font-extrabold">{currentGoals} أهداف</span>
             <span className="font-bold">أهداف الفوز:</span>
           </div>
           <input
             type="range" min={3} max={10} step={1}
             value={currentGoals}
             onChange={(e) => updateValue("winningGoals", Number(e.target.value), setWinningGoals)}
-            className="w-full h-1 bg-black/50 rounded appearance-none cursor-pointer accent-amber-500"
+            className="w-full h-1.5 bg-black/60 rounded-lg appearance-none cursor-pointer accent-amber-500"
           />
         </div>
 
         {/* Game Mode */}
-        <div className="space-y-1">
-          <label className="block text-[10px] text-[#e0e0e0]/60 font-bold mb-1">نظام تحديد وقت ومده المباراة:</label>
-          <div className="grid grid-cols-2 gap-1.5">
+        <div className="space-y-1.5">
+          <label className="block text-[11px] text-[#e0e0e0]/70 font-black">نظام وقت المباراة:</label>
+          <div className="grid grid-cols-2 gap-2">
             {[
               { id: "time", label: "نظام زمني ⏱️" },
               { id: "rounds", label: "نظام جولات 🔁" }
@@ -387,8 +303,8 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
                 <button
                   key={m.id} type="button"
                   onClick={() => updateValue("gameMode", m.id, setGameMode)}
-                  className={`py-1 rounded text-center font-bold text-[9px] cursor-pointer transition-all ${
-                    isSelected ? "border border-amber-500 text-amber-400 bg-amber-950/20" : "border border-white/5 bg-black/25 text-slate-400 hover:text-white"
+                  className={`py-1.5 rounded-xl text-center font-extrabold text-[11px] cursor-pointer transition-all border ${
+                    isSelected ? "border-amber-500 text-amber-450 bg-amber-950/20" : "border-white/5 bg-black/45 text-slate-400 hover:text-white"
                   }`}
                 >
                   {m.label}
@@ -400,13 +316,13 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
 
         {/* Mode Dependent Options */}
         {currentGameMode === "time" ? (
-          <div className="grid grid-cols-2 gap-2 bg-black/25 p-1.5 border border-white/5 rounded">
+          <div className="grid grid-cols-2 gap-3 bg-black/40 p-2.5 border border-white/5 rounded-2xl">
             <div className="space-y-1">
-              <label className="block text-[9px] text-slate-400">وقت المباراة:</label>
+              <label className="block text-[10px] text-slate-400 font-bold">وقت اللعب:</label>
               <select
                 value={currentDuration}
                 onChange={(e) => updateValue("matchDuration", Number(e.target.value), setMatchDuration)}
-                className="w-full bg-black border border-white/10 rounded p-0.5 text-[9px] text-[#e0e0e0] font-bold text-right cursor-pointer"
+                className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg p-1.5 text-xs text-[#e0e0e0] font-bold text-right cursor-pointer"
               >
                 <option value={180}>3 دقائق</option>
                 <option value={300}>5 دقائق</option>
@@ -414,40 +330,39 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
               </select>
             </div>
             <div className="space-y-1">
-              <label className="block text-[9px] text-slate-400">استراحة الشوطين:</label>
+              <label className="block text-[10px] text-slate-400 font-bold">الاستراحة الشوطية:</label>
               <select
                 value={currentHalfTimeBreak}
                 onChange={(e) => updateValue("halfTimeBreakDuration", Number(e.target.value), setHalfTimeBreakDuration)}
-                className="w-full bg-black border border-white/10 rounded p-0.5 text-[9px] text-[#e0e0e0] font-bold text-right cursor-pointer"
+                className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg p-1.5 text-xs text-[#e0e0e0] font-bold text-right cursor-pointer"
               >
                 <option value={30}>30 ثانية</option>
                 <option value={45}>45 ثانية</option>
-                <option value={60}>دقيقة</option>
+                <option value={60}>دقيقة كاملة</option>
               </select>
             </div>
           </div>
         ) : (
-          <div className="space-y-1 bg-black/25 p-1.5 border border-white/5 rounded">
-            <label className="block text-[9px] text-slate-400">عدد الجولات:</label>
+          <div className="space-y-1 bg-black/40 p-2.5 border border-white/5 rounded-2xl">
+            <label className="block text-[10px] text-slate-400 font-bold">إجمالي عدد الجولات:</label>
             <select
               value={currentRounds}
               onChange={(e) => updateValue("totalRounds", Number(e.target.value), setTotalRounds)}
-              className="w-full bg-black border border-white/10 rounded p-0.5 text-[9px] text-[#e0e0e0] font-bold text-right cursor-pointer"
+              className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg p-1.5 text-xs text-[#e0e0e0] font-bold text-right cursor-pointer"
             >
               <option value={6}>6 جولات</option>
               <option value={8}>8 جولات</option>
               <option value={10}>10 جولات</option>
               <option value={12}>12 جولة</option>
-              <option value={14}>14 جولة</option>
             </select>
           </div>
         )}
 
         {/* Legend Pct & Booster Slider */}
-        <div className="grid grid-cols-2 gap-2 bg-black/25 p-1.5 border border-white/5 rounded">
+        <div className="grid grid-cols-2 gap-3 bg-black/40 p-2.5 border border-white/5 rounded-2xl">
           <div className="space-y-1">
-            <div className="flex items-center justify-between text-[9px] text-amber-300">
-              <span>{currentLegendPct}%</span>
+            <div className="flex items-center justify-between text-[10px] text-amber-300">
+              <span className="font-extrabold">{currentLegendPct}%</span>
               <span className="font-bold">نسبة الأساطير:</span>
             </div>
             <input
@@ -458,8 +373,8 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
             />
           </div>
           <div className="space-y-1">
-            <div className="flex items-center justify-between text-[9px] text-emerald-450">
-              <span>+{currentMaxBonus}</span>
+            <div className="flex items-center justify-between text-[10px] text-emerald-400">
+              <span className="font-extrabold">+{currentMaxBonus}</span>
               <span className="font-bold">حد المعزز:</span>
             </div>
             <input
@@ -472,11 +387,11 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
         </div>
 
         {/* Turn parameters (Draws / Moves) */}
-        <div className="grid grid-cols-2 gap-2 bg-black/25 p-2 border border-white/5 rounded">
+        <div className="grid grid-cols-2 gap-3 bg-black/40 p-2.5 border border-white/5 rounded-2xl">
           <div className="space-y-1">
-            <div className="flex items-center justify-between text-[9px] text-emerald-450">
-              <span>{currentMaxDraws} سحبات</span>
-              <span className="font-bold">السحبات:</span>
+            <div className="flex items-center justify-between text-[10px] text-emerald-400">
+              <span className="font-extrabold">{currentMaxDraws} سحبات</span>
+              <span className="font-bold">السحبات/الدور:</span>
             </div>
             <input
               type="range" min={1} max={5} step={1}
@@ -486,9 +401,9 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
             />
           </div>
           <div className="space-y-1">
-            <div className="flex items-center justify-between text-[9px] text-emerald-450">
-              <span>{currentMaxMoves} حركات</span>
-              <span className="font-bold">الحركات:</span>
+            <div className="flex items-center justify-between text-[10px] text-emerald-400">
+              <span className="font-extrabold">{currentMaxMoves} حركات</span>
+              <span className="font-bold">حركات الدور:</span>
             </div>
             <input
               type="range" min={1} max={5} step={1}
@@ -499,11 +414,11 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
           </div>
         </div>
 
-        {/* Legend Burn Limit & Initial Cards */}
-        <div className="grid grid-cols-2 gap-2 bg-black/25 p-1.5 border border-white/5 rounded">
+        {/* Legend Burn & Initial cards count */}
+        <div className="grid grid-cols-2 gap-3 bg-black/40 p-2.5 border border-white/5 rounded-2xl">
           <div className="space-y-1">
-            <div className="flex items-center justify-between text-[9px] text-amber-400">
-              <span>{currentLegendBurn} كروت</span>
+            <div className="flex items-center justify-between text-[10px] text-amber-400">
+              <span className="font-extrabold">{currentLegendBurn} كروت</span>
               <span className="font-bold">حرق الأسطورة:</span>
             </div>
             <input
@@ -514,9 +429,9 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
             />
           </div>
           <div className="space-y-1">
-            <div className="flex items-center justify-between text-[9px] text-emerald-450">
-              <span>{currentInitialCards} أوراق</span>
-              <span className="font-bold">كروت البداية:</span>
+            <div className="flex items-center justify-between text-[10px] text-emerald-400">
+              <span className="font-extrabold">{currentInitialCards} أوراق</span>
+              <span className="font-bold">أوراق البداية:</span>
             </div>
             <input
               type="range" min={3} max={7} step={1}
@@ -531,756 +446,384 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
   };
 
   return (
-    <div className="space-y-6" id="multiplayer_lobby_wrapper">
+    <div className="w-full flex flex-col gap-6 relative" id="multiplayer_lobby_container">
       
-      {/* SUPABASE DEPLOYMENT STATUS INFO INDICATOR */}
+      {/* 1. ANONYMOUS SIMULATION ADVISORY (If not online supabase) */}
       {!isSupabaseConfigured && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-right text-xs text-amber-300 flex items-start gap-2.5">
-          <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-3.5 text-right text-[11px] text-amber-300 flex items-start gap-2.5 relative overflow-hidden backdrop-blur-md">
+          <AlertCircle className="w-4.5 h-4.5 text-amber-400 shrink-0 mt-0.5" />
           <div>
-            <span className="font-bold">وضع المحاكاة المحلي نشّط ⚡:</span> يرجى العلم بأن مفاتيح Supabase غير مضافة لملف البيئة بعد. قمنا ببناء نظام محاكاة تكتيكي متكامل يسمح لك باختبار إنشاء الغرف، مشاركة الأكواد، وبدء اللعب أونلاين بين تابات (Tabs) المتصفح نفسه فوراً لمحاكاة اللعب الفعلي بدقة 100%!
+            <span className="font-black text-amber-400 block mb-0.5">وضع التجربة المحلي نشّط ⚡</span>
+            لم تقم بربط Supabase بعد. لقد دمجنا محاكي ذكي يتيح لك فتح نافذة متصفح أخرى وتجربة إنشاء الغرف واللعب الكامل مع صديق وهمي مباشرة!
           </div>
         </div>
       )}
 
-      {/* 1. AUTH PANEL OR PROFILE VIEW */}
-      <div className="bg-[#0c0d0c] border border-white/5 rounded-xl p-5 text-right relative overflow-hidden" id="lobby_auth_panel">
-        
-        <AnimatePresence mode="wait">
-          {!user ? (
-            <motion.div
-              key="auth_anonymous"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="space-y-4"
-            >
-              <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                <span className="text-[10px] text-[#e0e0e0]/40 font-mono tracking-wider">SECURE REGISTER & AUTH 🔒</span>
-                <span className="text-sm font-semibold flex items-center gap-1.5 text-white">
-                  <span>لوحة حساب مدربين أونلاين</span>
-                  <Users className="w-4 h-4 text-emerald-400" />
-                </span>
-              </div>
+      {/* 2. DOCK ACTIONS: CREATE ROOM vs JOIN CODE */}
+      <div className="flex flex-row items-center gap-2 bg-black/40 border border-white/5 rounded-xl p-1.5 w-full">
+        {/* CREATE ROOM BUTTON (SMALL) */}
+        <button
+          onClick={() => { SoundEffects.playWhistle(); setShowConfig(true); }}
+          className="px-3 py-1.5 bg-linear-to-br from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-black font-extrabold rounded-lg text-[10px] cursor-pointer flex items-center gap-1 transition-all shadow-md shrink-0"
+        >
+          <PlusCircle className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">إنشاء ملعب</span>
+          <span className="sm:hidden">إنشاء</span>
+        </button>
 
-              {authError && (
-                <div className="bg-red-500/15 border border-red-500/30 rounded-lg p-2.5 text-xs text-red-400 font-medium">
-                  {authError}
-                </div>
-              )}
-
-              <form onSubmit={handleAuth} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {authMode === "register" && (
-                    <>
-                      <div className="space-y-1">
-                        <label className="block text-[11px] text-[#e0e0e0]/60 font-semibold text-right">الاسم الكامل:</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="الاسم الثلاثي أو الثنائي"
-                          value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
-                          className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-white focus:outline-none focus:border-emerald-500 text-right"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-[11px] text-[#e0e0e0]/60 font-semibold text-right">اسم الكابتن المميز (اللقب):</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="مثال: AbouTrika_7"
-                          value={username}
-                          onChange={(e) => setUsername(e.target.value)}
-                          className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-white focus:outline-none focus:border-emerald-500 text-right"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-[11px] text-[#e0e0e0]/60 font-semibold text-right">السن / العمر:</label>
-                        <input
-                          type="number"
-                          required
-                          min={8}
-                          max={120}
-                          placeholder="السن بالسنوات"
-                          value={age}
-                          onChange={(e) => setAge(e.target.value === "" ? "" : Number(e.target.value))}
-                          className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-white focus:outline-none focus:border-emerald-500 text-right"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-[11px] text-[#e0e0e0]/60 font-semibold text-right">الجنس:</label>
-                        <select
-                          value={gender}
-                          onChange={(e) => setGender(e.target.value as any)}
-                          className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-[#e0e0e0]/80 focus:outline-none focus:border-emerald-500 text-right"
-                        >
-                          <option value="male" className="bg-[#121412] text-white">ذكر ♂</option>
-                          <option value="female" className="bg-[#121412] text-white">أنثى ♀</option>
-                        </select>
-                      </div>
-                    </>
-                  )}
-                  <div className="space-y-1">
-                    <label className="block text-[11px] text-[#e0e0e0]/60 font-semibold text-right">البريد الإلكتروني:</label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="name@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-white focus:outline-none focus:border-emerald-500 text-left"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-[11px] text-[#e0e0e0]/60 font-semibold text-right">كلمة السر:</label>
-                    <input
-                      type="password"
-                      required
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded bg-black/45 border border-white/5 text-white focus:outline-none focus:border-emerald-500 text-left"
-                    />
-                  </div>
-                </div>
-
-                {authMode === "register" && (
-                  <div className="flex items-center justify-end gap-2 py-1.5 border-t border-white/5">
-                    <label htmlFor="accept-terms-checkbox" className="text-[11px] text-[#e0e0e0]/70 cursor-pointer select-none text-right">
-                      أوافق على <span className="text-emerald-400 font-bold hover:underline">شروط الاستخدام</span> و <span className="text-emerald-400 font-bold hover:underline">سياسة الخصوصية</span> الخاصة بلعبة مرتدة التكتيكية ⚽
-                    </label>
-                    <input
-                      id="accept-terms-checkbox"
-                      type="checkbox"
-                      checked={acceptTerms}
-                      onChange={(e) => setAcceptTerms(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-500"
-                    />
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between gap-4 pt-2 border-t border-white/5">
-                  <button
-                    type="button"
-                    onClick={() => setAuthMode(authMode === "register" ? "login" : "register")}
-                    className="text-[11px] text-emerald-400 hover:underline cursor-pointer"
-                  >
-                    {authMode === "register" ? "لديك حساب بالفعل؟ سجل دخولك" : "ليس لديك حساب؟ إنشاء حساب مدرب جديد"}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={authLoading}
-                    className="py-2 px-6 rounded bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white font-bold text-xs cursor-pointer transition-colors"
-                  >
-                    {authLoading ? "جاري التحقق..." : authMode === "register" ? "إنشاء الحساب وتفعيل المدرب" : "تسجيل الدخول للملعب"}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="auth_signed"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="flex flex-col sm:flex-row items-center justify-between gap-4"
-            >
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSignOut}
-                  className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs rounded font-bold cursor-pointer transition-colors flex items-center gap-1"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>تسجيل خروج</span>
-                </button>
-                <div className="text-right">
-                  <div className="text-xs text-[#e0e0e0]/40 font-mono">المدرب النشط حالياً</div>
-                  <div className="text-sm font-bold text-emerald-400 flex items-center gap-1 justify-end">
-                    <span>👑 {user.user_metadata?.username || user.email.split("@")[0]}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-[#e0e0e0]/70 text-xs">شخصية المدرب ومستواه:</span>
-                <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold px-2 py-1 rounded">
-                  المحترف الأسطوري 🌟
-                </span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
+        {/* JOIN BY CODE FORM (LARGER INPUT FIELD) */}
+        <form onSubmit={handleJoinByCode} className="flex-1 flex gap-1.5 items-center justify-end" dir="rtl">
+          <input
+            type="text"
+            maxLength={6}
+            placeholder="أدخل كود الغرفة المكون من 6 رموز..."
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())}
+            className="flex-1 text-right px-3 py-1.5 rounded-lg bg-black/50 border border-white/5 focus:outline-none focus:border-emerald-500 text-[10px] font-bold text-white shadow-inner"
+          />
+          <button
+            type="submit"
+            disabled={isJoining || !joinCode}
+            className="px-4 py-1.5 bg-emerald-650 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg font-black text-[10px] cursor-pointer transition-all flex items-center gap-1 shadow-md shrink-0"
+          >
+            <span>انضمام ⚔️</span>
+          </button>
+        </form>
       </div>
+      {lobbyError && (
+        <div className="text-[9px] text-red-400 font-extrabold text-right -mt-4 pr-2">⚠️ {lobbyError}</div>
+      )}
 
-      {/* 2. MATCHROOM CREATION & FINDER */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6" id="lobby_matchroom_actions">
-        
-        {/* HOST CABINET */}
-        <div className="bg-[#121412] border border-white/10 rounded-xl p-5 text-right flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-end gap-1.5 text-amber-400 mb-2">
-              <span className="text-sm font-bold font-serif">إنشاء غرفة تكتيك ومبارزة صديق</span>
-              <PlusCircle className="w-4 h-4" />
-            </div>
-            {!showConfig && !myHostedRoom && (
-              <p className="text-xs text-[#e0e0e0]/60 leading-relaxed mb-4">
-                أنشئ تكتيك الغرفة الخاص بك واحصل على كود فريد مكون من 6 رموز. شارك الكود أو الرابط المباشر مع صديقك فوراً لينضم لملعب المباراة أونلاين ويقود فريقه لتحديك!
-              </p>
-            )}
-
-            {/* Select Team Vibe for hosting (only visible when not waiting and not in config settings) */}
-            {!showConfig && !myHostedRoom && (
-              <div className="space-y-1.5 mb-4">
-                <label className="block text-[11px] text-[#e0e0e0]/50">اختر أسلوب هويتكم للغرفة:</label>
-                <div className="flex flex-wrap gap-1.5 justify-end">
-                  {TEAM_VIBES.map((v) => (
-                    <button
-                      key={v}
-                      onClick={() => {
-                        SoundEffects.playCardDraw();
-                        setSelectedVibe(v);
-                      }}
-                      className={`px-2.5 py-1 text-[11px] rounded transition-all cursor-pointer ${
-                        selectedVibe === v
-                          ? "bg-amber-500/25 border border-amber-500 text-amber-300 font-bold"
-                          : "bg-[#0c0d0c] border border-white/5 text-[#e0e0e0]/40 hover:text-white"
-                      }`}
-                    >
-                      {v}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="pt-2 border-t border-white/5">
-            <AnimatePresence mode="wait">
-              {showConfig ? (
-                <motion.div
-                  key="create_config"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="space-y-3 bg-black/40 p-4 rounded-lg border border-amber-500/20 text-right overflow-y-auto max-h-[380px] scrollbar-thin scrollbar-thumb-amber-800"
-                >
-                  <h4 className="text-xs font-black text-amber-400 pb-1.5 border-b border-white/5 flex items-center justify-end gap-1.5">
-                    <span>تخصيص قوانين الغرفة</span>
-                    <Settings className="w-3.5 h-3.5" />
-                  </h4>
-                  
-                  {/* Room Name */}
-                  <div className="space-y-1">
-                    <label className="block text-[10px] text-slate-400">اسم الغرفة:</label>
-                    <input
-                      type="text"
-                      value={roomName}
-                      onChange={(e) => setRoomName(e.target.value)}
-                      placeholder="اسم الغرفة..."
-                      className="w-full px-2.5 py-1 rounded bg-[#0c0d0c] border border-white/5 text-white text-right text-xs focus:outline-none focus:border-amber-500 font-bold"
-                    />
-                  </div>
-
-                  {/* Privacy Toggle */}
-                  <div className="flex items-center justify-between bg-black/35 p-1.5 rounded border border-white/5">
-                    <button
-                      type="button"
-                      onClick={() => setIsPrivate(!isPrivate)}
-                      className="px-2.5 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-300 rounded text-[9px] font-bold cursor-pointer"
-                    >
-                      تغيير
-                    </button>
-                    <span className="text-[10px] text-[#e0e0e0]/70 flex items-center gap-1">
-                      {isPrivate ? (
-                        <>
-                          <span>غرفة خاصة (بالرمز فقط) 🔒</span>
-                          <Shield className="w-3.5 h-3.5 text-amber-500" />
-                        </>
-                      ) : (
-                        <>
-                          <span>غرفة عامة (في الساحة) 🌐</span>
-                          <Globe className="w-3.5 h-3.5 text-emerald-400" />
-                        </>
-                      )}
-                    </span>
-                  </div>
-
-                  {/* Render Sliders Form */}
-                  {renderSettingsForm(false)}
-
-                  <div className="flex gap-2 pt-2 border-t border-white/5">
-                    <button
-                      type="button"
-                      onClick={() => setShowConfig(false)}
-                      className="flex-1 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded text-[11px] font-bold transition-all cursor-pointer"
-                    >
-                      إلغاء
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCreateRoom}
-                      disabled={isCreating}
-                      className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:bg-amber-800 text-black font-extrabold rounded text-[11px] transition-all cursor-pointer"
-                    >
-                      {isCreating ? "جاري حجز الغرفة..." : "تأكيد وإنشاء ⚽"}
-                    </button>
-                  </div>
-                </motion.div>
-              ) : myHostedRoom ? (
-                <motion.div
-                  key="my_hosted"
-                  initial={{ scale: 0.95 }}
-                  animate={{ scale: 1 }}
-                  className="space-y-3 bg-black/45 p-4 rounded-lg border border-amber-500/20 text-center"
-                >
-                  <div className="text-[10px] text-amber-400 font-mono tracking-widest uppercase flex items-center justify-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                    <span>بانتظار انضمام الخصم...</span>
-                  </div>
-                  
-                  <h3 className="text-2xl font-mono font-extrabold text-white tracking-widest flex items-center justify-center gap-2">
-                    <span className="bg-amber-500/10 px-4 py-1.5 rounded border border-amber-500/20">{myHostedRoom.id}</span>
-                  </h3>
-                  
-                  <div className="flex items-center gap-2 justify-center">
-                    <button
-                      onClick={() => {
-                        const link = `${window.location.origin}${window.location.pathname}?room=${myHostedRoom.id}`;
-                        navigator.clipboard.writeText(link);
-                        SoundEffects.playWhistle();
-                        alert("تم نسخ رابط الغرفة بنجاح! شاركه مع منافسك للانضمام فوراً 🔗");
-                      }}
-                      className="px-3 py-1.5 bg-amber-500 text-black rounded font-bold text-xs flex items-center gap-1 hover:bg-amber-400 transition-all cursor-pointer"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>نسخ رابط الغرفة 🔗</span>
-                    </button>
-                  </div>
-
-                  {/* Accordion to edit settings live */}
-                  <div className="mt-4 border-t border-white/5 pt-2 text-right">
-                    <details className="group">
-                      <summary className="text-[11px] text-amber-400/80 hover:text-amber-400 cursor-pointer font-bold select-none list-none flex items-center justify-between">
-                        <span className="text-[10px] opacity-65 transition-transform group-open:rotate-180">▼</span>
-                        <span className="flex items-center gap-1">
-                          <span>تعديل إشراف وقواعد الغرفة الحية ⚙️</span>
-                        </span>
-                      </summary>
-                      <div className="mt-2.5 p-2 bg-black/20 rounded border border-white/5 max-h-[220px] overflow-y-auto scrollbar-thin">
-                        {renderSettingsForm(true)}
-                      </div>
-                    </details>
-                  </div>
-
-                  <p className="text-[10px] text-[#e0e0e0]/40 leading-normal pt-2">
-                    مباراتك: <strong className="text-white">{myHostedRoom.room_name}</strong> ({myHostedRoom.is_private ? "غرفة خاصة" : "غرفة عامة"})
-                  </p>
-                  
-                  <button
-                    onClick={() => { SoundEffects.playCardDraw(); setMyHostedRoom(null); }}
-                    className="text-xs text-red-400 hover:underline cursor-pointer pt-1"
-                  >
-                    إلغاء حجز الغرفة والعودة
-                  </button>
-                </motion.div>
-              ) : (
-                <motion.div key="create_panel" className="flex flex-col items-stretch">
-                  <button
-                    onClick={() => { SoundEffects.playWhistle(); setShowConfig(true); }}
-                    className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-amber-800 text-black font-extrabold rounded text-xs cursor-pointer flex items-center justify-center gap-1.5 transition-all shadow-md"
-                  >
-                    <span>تخصيص وإنشاء غرفة لعب ⚽</span>
-                    <Gamepad2 className="w-4 h-4" />
-                  </button>
-                  {lobbyError && (
-                    <div className="mt-2 text-xs text-red-400 font-medium">{lobbyError}</div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-
-        {/* JOIN CABINET */}
-        <div className="bg-[#121412] border border-white/10 rounded-xl p-5 text-right flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-end gap-1.5 text-emerald-400 mb-2">
-              <span className="text-sm font-bold font-serif">انضمام لغرفة صديق بالرمز</span>
-              <Key className="w-4 h-4" />
-            </div>
-            <p className="text-xs text-[#e0e0e0]/60 leading-relaxed mb-4">
-              صديقك شارك كوداً أو رابطاً معك؟ أدخل الكود المكون من 6 رموز بالأسفل لتنضم فوراً وتتحداه في معركة تكتيكية حية!
-            </p>
-
-            <form onSubmit={handleJoinByCode} className="space-y-3">
-              <div>
-                <input
-                  type="text"
-                  required
-                  maxLength={6}
-                  placeholder="مثال: A8X9F2"
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())}
-                  className="w-full tracking-widest text-center px-4 py-2.5 rounded bg-[#0c0d0c] border border-white/5 focus:outline-none focus:border-emerald-500 text-lg font-mono font-bold text-white shadow-inner"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={isJoining || !joinCode}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white font-bold text-xs cursor-pointer transition-colors flex items-center justify-center gap-1.5"
-              >
-                <span>{isJoining ? "جاري دخول الغرفة..." : "انضم للمباراة وواجه الخصم!"}</span>
-                <PlayCircle className="w-4 h-4" />
-              </button>
-            </form>
-          </div>
-
-          <div className="pt-2">
-            {!user && (
-              <span className="text-[10px] text-amber-400 font-medium block text-center">
-                🔒 يرجى تسجيل الدخول أولاً لتفعيل اللعب والربط التلقائي.
-              </span>
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      {/* 3. OPEN PUBLIC LOBBIES FINDER LIST */}
-      <div className="bg-[#0c0d0c] border border-white/5 rounded-xl p-5 text-right" id="lobby_active_rooms_finder">
-        
-        <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+      {/* 3. ACTIVE PUBLIC ROOMS PITCH LIST */}
+      <div className="bg-black/40 border border-white/5 rounded-xl p-2.5 px-3 text-right" id="lobby_active_pitches">
+        <div className="flex items-center justify-between border-b border-white/5 pb-1.5 mb-2">
           <button
             onClick={refreshLobbies}
-            className="p-1 px-2.5 rounded bg-transparent hover:bg-white/5 border border-white/10 text-[#e0e0e0]/60 hover:text-white transition-all text-xs flex items-center gap-1.5 cursor-pointer"
-            id="refresh_lobbies_btn"
             disabled={isRefreshing}
+            className="py-0.5 px-2 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition-all text-[9px] flex items-center gap-1 cursor-pointer font-bold"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-            <span>تحديث الغرف</span>
+            <RefreshCw className={`w-3 h-3 ${isRefreshing ? "animate-spin" : ""}`} />
+            <span>تحديث الساحة</span>
           </button>
           
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-bold text-white">غرف متاحة حالياً بانتظار لاعب</span>
-            <Users className="w-4 h-4 text-emerald-400" />
+            <span className="text-[10px] font-black text-white">الساحة العامة للمباريات الحية 🌐</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           </div>
         </div>
 
         {activeRooms.length === 0 ? (
-          <div className="py-8 text-center text-xs text-[#e0e0e0]/40">
-            {isRefreshing ? "جاري جلب القائمة الفنية..." : "لا توجد غرف انتظار نشطة أونلاين حالياً. كن السبّاق وأنشئ غرفتك بالضغط فوق! ⚽"}
+          <div className="py-4 text-center text-[9px] text-slate-500">
+            {isRefreshing ? "جاري كشّف الغرف..." : "لا توجد ملاعب نشطة حالياً. أنشئ ملعبك الآن! ⚽"}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 max-h-[100px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-emerald-800/40">
             {activeRooms.map((room) => (
               <div
                 key={room.id}
-                className="p-3 bg-[#121412] border border-white/5 rounded-lg flex items-center justify-between gap-2 hover:border-white/10 transition-all"
+                className="p-1.5 px-2 bg-[#060806] border border-white/5 rounded-lg flex items-center justify-between hover:border-emerald-500/20 transition-all shadow-sm group"
               >
                 <button
                   onClick={() => handleQuickJoin(room)}
                   disabled={isJoining}
-                  className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/20 hover:border-emerald-500/40 text-emerald-300 text-xs font-bold rounded cursor-pointer transition-colors"
+                  className="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/20 hover:border-emerald-500/50 text-emerald-350 text-[9px] font-black rounded cursor-pointer transition-colors"
                 >
-                  تحدي المدرب!
+                  تحدي ⚔️
                 </button>
 
-                <div className="text-right">
-                  <div className="text-xs font-bold text-white font-serif">{room.host_name}</div>
-                  <div className="text-[10px] text-[#e0e0e0]/55 flex items-center justify-end gap-1 mt-0.5">
+                <div className="text-right truncate flex-1 pl-2">
+                  <div className="text-[9.5px] font-bold text-white truncate">{room.room_name || room.host_name}</div>
+                  <div className="text-[8px] text-slate-400 font-medium flex items-center justify-end gap-1 mt-0.5">
                     <span>{room.host_vibe}</span>
                     <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                    <span className="font-mono bg-black/40 px-1 py-0.5 rounded text-white text-[9px]">G: {room.id}</span>
+                    <span className="font-mono bg-white/5 px-1 py-0.2 rounded text-white text-[7.5px] font-bold">#{room.id}</span>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         )}
-
       </div>
 
-      {/* 4. SUPABASE SQL SETUP GUIDE HELPER */}
-      <div className="bg-[#121415] border border-amber-500/10 rounded-xl p-5 text-right space-y-3" id="supabase_sql_helper">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => {
-              const guideEl = document.getElementById("sql_instructions_guide");
-              if (guideEl) {
-                if (guideEl.classList.contains("hidden")) {
-                  guideEl.classList.remove("hidden");
-                } else {
-                  guideEl.classList.add("hidden");
-                }
-              }
-            }}
-            className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded text-xs cursor-pointer font-bold transition-all"
+      {/* 5. LIVE CONFIGURATION OVERLAY DRAWER */}
+      <AnimatePresence>
+        {showConfig && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
           >
-            عرض / إخفاء كود الـ SQL 📋
-          </button>
-          
-          <div className="flex items-center gap-1.5 text-amber-400">
-            <span className="text-xs font-bold font-serif">دليل إعداد قاعدة بيانات مبارزة التكتيكية (Supabase SQL)</span>
-            <Sparkles className="w-4 h-4" />
-          </div>
-        </div>
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-[#050605] border border-white/10 rounded-3xl p-5 max-w-md w-full text-right relative flex flex-col max-h-[90vh]"
+            >
+              <button
+                onClick={() => setShowConfig(false)}
+                className="absolute top-4 left-4 p-1 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer border border-white/5 transition-all"
+              >
+                <X className="w-4.5 h-4.5" />
+              </button>
 
-        <p className="text-xs text-[#e0e0e0]/60 leading-relaxed">
-          لتشغيل ميزة اللعب الفوري ومزامنة الغرف أونلاين، يجب عليك إنشاء جدول <code className="bg-black/40 text-rose-300 font-mono px-1 rounded">rooms</code> في مشروعك بـ Supabase وتفعيل ميزة الـ <code className="text-emerald-300">Realtime</code>.
-        </p>
+              <h4 className="text-sm font-black text-amber-400 pb-2.5 border-b border-white/5 mb-4 flex items-center justify-end gap-1.5 shrink-0">
+                <span>تخصيص قواعد اللعب للمبارزة</span>
+                <Settings className="w-4 h-4" />
+              </h4>
 
-        <div id="sql_instructions_guide" className="hidden space-y-4 pt-2 border-t border-white/5">
-          <div className="text-xs text-[#e0e0e0]/70 space-y-1.5 leading-relaxed">
-            <div>1️⃣ اذهب إلى لوحة تحكم مشروعك في <strong className="text-white">Supabase</strong>.</div>
-            <div>2️⃣ اضغط على خيار <strong className="text-emerald-400">SQL Editor</strong> من القائمة الجانبية اليسرى.</div>
-            <div>3️⃣ أنشئ استعلاماً جديداً بالضغط على <strong className="text-white">New Query</strong>.</div>
-            <div>4️⃣ الصق الكود البرمجي البرتقالي بالأسفل كاملاً، ثم اضغط على زر التشغيل <strong className="text-[#f59e0b]">Run</strong>.</div>
-          </div>
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin scrollbar-thumb-amber-800/40">
+                {/* Room Name */}
+                <div className="space-y-1">
+                  <label className="block text-[10px] text-slate-400 font-bold">اسم الغرفة / الملعب:</label>
+                  <input
+                    type="text"
+                    value={roomName}
+                    onChange={(e) => setRoomName(e.target.value)}
+                    placeholder="اسم الملعب..."
+                    className="w-full px-3 py-2 rounded-xl bg-black border border-white/10 text-white text-right text-xs focus:outline-none focus:border-amber-500 font-bold"
+                  />
+                </div>
 
-          <div className="relative">
-            <pre className="p-3.5 bg-black/80 text-amber-400 border border-white/5 rounded-lg text-[10px] font-mono select-all overflow-x-auto text-left leading-normal max-h-80" dir="ltr">
-{`-- =======================================================================
--- 1. ENUMS & CUSTOM TYPES (أنواع البيانات المخصصة للعبة مرتدة)
--- =======================================================================
+                {/* Privacy Toggle */}
+                <div className="flex items-center justify-between bg-black/45 p-2 rounded-xl border border-white/5">
+                  <button
+                    type="button"
+                    onClick={() => setIsPrivate(!isPrivate)}
+                    className="px-3 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-300 rounded-lg text-[10px] font-bold cursor-pointer"
+                  >
+                    تعديل
+                  </button>
+                  <span className="text-[11px] text-[#e0e0e0]/70 flex items-center gap-1.5">
+                    {isPrivate ? (
+                      <>
+                        <span>غرفة خاصة (بالدعوة فقط) 🔒</span>
+                        <Shield className="w-4 h-4 text-amber-500" />
+                      </>
+                    ) : (
+                      <>
+                        <span>غرفة عامة (تظهر بالساحة) 🌐</span>
+                        <Globe className="w-4 h-4 text-emerald-400" />
+                      </>
+                    )}
+                  </span>
+                </div>
 
--- مراحل اللعبة المختلفة لتتبع تدفق الجيم
-DO $$ BEGIN
-    CREATE TYPE public.game_phase AS ENUM (
-        'warm_up',          -- مرحلة التسخين (تبديل حر متاح)
-        'turn_start',       -- بداية الدور (انتظار سحب كارتين)
-        'player_actions',    -- مرحلة تنفيذ الـ 3 حركات كحد أقصى للمهاجم
-        'opponent_defense',  -- مرحلة رد المدافع (3 حركات للرد على الهجوم)
-        'resolution',        -- حسم النتيجة وحساب الهجمات المرتدة الناجحة
-        'game_over'         -- انتهاء المباراة وفوز أحد اللاعبين
-    );
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+                {/* Select Team Vibe */}
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] text-slate-400 font-bold">هوية وتكتيك ملعبك:</label>
+                  <div className="flex flex-wrap gap-1.5 justify-end">
+                    {TEAM_VIBES.map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => {
+                          SoundEffects.playCardDraw();
+                          setSelectedVibe(v);
+                        }}
+                        className={`px-3 py-1 text-[10px] rounded-lg transition-all cursor-pointer font-bold ${
+                          selectedVibe === v
+                            ? "bg-amber-500/20 border border-amber-500 text-amber-300"
+                            : "bg-black border border-white/5 text-slate-500 hover:text-white"
+                        }`}
+                      >
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
--- أنواع الكروت المتاحة في اللعبة
-DO $$ BEGIN
-    CREATE TYPE public.card_type AS ENUM (
-        'player',   -- لاعب عادي
-        'legend',   -- لاعب أسطورة (يتطلب حرق كارتين)
-        'special',  -- كارت خاص
-        'bonto'     -- كارت البونطو المستخدم لزيادة قوة الهجوم
-    );
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+                {/* Settings Sliders */}
+                {renderSettingsForm(false)}
+              </div>
 
--- أماكن تواجد الكروت أثناء المباراة
-DO $$ BEGIN
-    CREATE TYPE public.card_location AS ENUM (
-        'deck',       -- داخل مجموعة السحب العمومية
-        'hand',       -- في يد اللاعب
-        'field',      -- في الملعب (الـ 5 كروت أمامه)
-        'discarded'   -- محروق / خارج اللعب تماماً
-    );
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+              <div className="flex gap-3 pt-3 border-t border-white/5 mt-4 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowConfig(false)}
+                  className="flex-1 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-bold transition-all cursor-pointer border border-white/5"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateRoom}
+                  disabled={isCreating}
+                  className="flex-1 py-2 bg-amber-500 hover:bg-amber-450 disabled:opacity-50 text-black font-extrabold rounded-xl text-xs transition-all cursor-pointer shadow-lg"
+                >
+                  {isCreating ? "جاري إنشاء الملعب..." : "تأكيد وبدء الغرفة 🏟️"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
--- أنواع شروط تشغيل القدرة الخاصة للكارت
-DO $$ BEGIN
-    CREATE TYPE public.ability_trigger AS ENUM (
-        'on_reveal',   -- عند كشف الكارت في الملعب
-        'on_attack',   -- عند البدء بالهجوم به
-        'on_defense',  -- عند استخدامه لصد هجوم
-        'instant'      -- كارت خاص يلعب من اليد مباشرة ويموت
-    );
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
--- تحديد جنس اللاعب عند التسجيل
-DO $$ BEGIN
-    CREATE TYPE public.user_gender AS ENUM ('male', 'female');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
--- =======================================================================
--- 2. CREATE OR ALTER EXISTING ROOMS TABLE (تحديث وتطوير جدول الغرف الحالي)
--- =======================================================================
-
-CREATE TABLE IF NOT EXISTS public.rooms (
-    id text PRIMARY KEY,
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-    host_id text NOT NULL,
-    host_name text NOT NULL,
-    host_vibe text NOT NULL,
-    opponent_id text,
-    opponent_name text,
-    opponent_vibe text,
-    status text NOT NULL DEFAULT 'waiting',
-    current_turn text NOT NULL DEFAULT 'host',
-    game_state jsonb,
-    last_activity bigint NOT NULL,
-    host_confirmed boolean DEFAULT false,
-    opponent_confirmed boolean DEFAULT false,
-    room_name text DEFAULT 'غرفة مرتدة',
-    is_private boolean DEFAULT false
-);
-
--- إضافة الأعمدة الجديدة المطلوبة لإدارة الـ Game Logic دون تغيير الأعمدة القديمة
-ALTER TABLE public.rooms 
-    ADD COLUMN IF NOT EXISTS current_attacker text NULL, -- معرف المهاجم الحالي
-    ADD COLUMN IF NOT EXISTS phase public.game_phase DEFAULT 'warm_up'::public.game_phase, -- مرحلة الجيم
-    ADD COLUMN IF NOT EXISTS p1_counter_attacks INT DEFAULT 0 CHECK (p1_counter_attacks >= 0 AND p1_counter_attacks <= 5), -- أهداف المضيف
-    ADD COLUMN IF NOT EXISTS p2_counter_attacks INT DEFAULT 0 CHECK (p2_counter_attacks >= 0 AND p2_counter_attacks <= 5), -- أهداف الضيف
-    ADD COLUMN IF NOT EXISTS moves_left INT DEFAULT 3 CHECK (moves_left >= 0 AND moves_left <= 3), -- الـ 3 حركات
-    ADD COLUMN IF NOT EXISTS current_attack_score INT DEFAULT 0, -- حساب قوة الهجوم لحظياً
-    ADD COLUMN IF NOT EXISTS current_defense_score INT DEFAULT 0, -- حساب قوة الدفاع لحظياً
-    ADD COLUMN IF NOT EXISTS winner_id text NULL, -- معرف الفائز النهائي
-    ADD COLUMN IF NOT EXISTS room_name text DEFAULT 'غرفة مرتدة',
-    ADD COLUMN IF NOT EXISTS is_private boolean DEFAULT false,
-    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone default now();
-
--- =======================================================================
--- 3. CREATING NEW TABLES (إنشاء الجداول الجديدة المتوافقة)
--- =======================================================================
-
---- أ. جدول الملف الشخصي للاعبين (Profiles)
-CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    full_name VARCHAR(100) NOT NULL,
-    age INT NOT NULL CHECK (age >= 8),
-    gender public.user_gender NOT NULL,
-    terms_accepted BOOLEAN NOT NULL DEFAULT true CHECK (terms_accepted = true),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
---- ب. جدول الكروت الثابتة (Static Cards Metadata)
-CREATE TABLE IF NOT EXISTS public.cards_catalog (
-    card_id VARCHAR(50) PRIMARY KEY, -- معرف فريد مثل 'c_messi'
-    name VARCHAR(100) NOT NULL,
-    type public.card_type NOT NULL,
-    attack_power INT DEFAULT 0,
-    defense_power INT DEFAULT 0,
-    description TEXT,
-    image_url TEXT,
-    ability_trigger public.ability_trigger DEFAULT NULL, -- شرط تفعيل القدرة
-    ability_value INT DEFAULT 0, -- القيمة الرقمية للتأثير الخاص
-    max_uses_per_game INT DEFAULT 1
-);
-
---- ج. جدول الكروت الحية للمباراة (Live Game Cards State)
--- تم ضبط الـ room_id ليكون TEXT ليتوافق تماماً مع الـ Primary Key لجدول الغرف القديم عندك
-CREATE TABLE IF NOT EXISTS public.game_cards (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    room_id text NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE,
-    card_id VARCHAR(50) NOT NULL REFERENCES public.cards_catalog(card_id),
-    owner_id text, -- تم ضبطه كـ text تماشياً مع الـ ID المستخدم في جدول الـ rooms القديم
-    location public.card_location DEFAULT 'deck'::public.card_location,
-    field_position INT CHECK (field_position >= 1 AND field_position <= 5),
-    is_face_up BOOLEAN DEFAULT false,
-    deck_order INT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
---- د. جدول سجل الحركات (Game Logs)
-CREATE TABLE IF NOT EXISTS public.game_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    room_id text NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE,
-    player_id text,
-    action_type VARCHAR(50) NOT NULL,
-    message TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- =======================================================================
--- 4. POLICIES & SECURITY (سياسات الأمان RLS)
--- =======================================================================
-
-ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.cards_catalog ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.game_cards ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.game_logs ENABLE ROW LEVEL SECURITY;
-
--- سياسات عامة لتسهيل اللعب والربط دون تعقيدات صلاحيات
-DROP POLICY IF EXISTS "Allow public select" ON public.rooms;
-DROP POLICY IF EXISTS "Allow public insert" ON public.rooms;
-DROP POLICY IF EXISTS "Allow public update" ON public.rooms;
-DROP POLICY IF EXISTS "Allow public delete" ON public.rooms;
-
-CREATE POLICY "Allow public select" ON public.rooms FOR SELECT USING (true);
-CREATE POLICY "Allow public insert" ON public.rooms FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update" ON public.rooms FOR UPDATE USING (true);
-CREATE POLICY "Allow public delete" ON public.rooms FOR DELETE USING (true);
-
--- سياسات Profiles
-DROP POLICY IF EXISTS "Allow profiles select" ON public.profiles;
-DROP POLICY IF EXISTS "Allow profiles insert" ON public.profiles;
-DROP POLICY IF EXISTS "Allow profiles update" ON public.profiles;
-CREATE POLICY "Allow profiles select" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Allow profiles insert" ON public.profiles FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow profiles update" ON public.profiles FOR UPDATE USING (true);
-
--- سياسات Catalog
-DROP POLICY IF EXISTS "Allow catalog select" ON public.cards_catalog;
-CREATE POLICY "Allow catalog select" ON public.cards_catalog FOR SELECT USING (true);
-
--- سياسات Game Cards
-DROP POLICY IF EXISTS "Allow game_cards select" ON public.game_cards;
-DROP POLICY IF EXISTS "Allow game_cards insert" ON public.game_cards;
-DROP POLICY IF EXISTS "Allow game_cards update" ON public.game_cards;
-DROP POLICY IF EXISTS "Allow game_cards delete" ON public.game_cards;
-CREATE POLICY "Allow game_cards select" ON public.game_cards FOR SELECT USING (true);
-CREATE POLICY "Allow game_cards insert" ON public.game_cards FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow game_cards update" ON public.game_cards FOR UPDATE USING (true);
-CREATE POLICY "Allow game_cards delete" ON public.game_cards FOR DELETE USING (true);
-
--- سياسات Game Logs
-DROP POLICY IF EXISTS "Allow game_logs select" ON public.game_logs;
-DROP POLICY IF EXISTS "Allow game_logs insert" ON public.game_logs;
-CREATE POLICY "Allow game_logs select" ON public.game_logs FOR SELECT USING (true);
-CREATE POLICY "Allow game_logs insert" ON public.game_logs FOR INSERT WITH CHECK (true);
-
--- =======================================================================
--- 5. TRIGGERS & REALTIME ENABLEMENT (التحديث التلقائي والبث اللحظي)
--- =======================================================================
-
--- فانكشن لتحديث عمود updated_at تلقائياً
-CREATE OR REPLACE FUNCTION public.update_modified_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- ربط التريجر بجدول الـ rooms
-DROP TRIGGER IF EXISTS update_rooms_modtime ON public.rooms;
-CREATE TRIGGER update_rooms_modtime
-    BEFORE UPDATE ON public.rooms
-    FOR EACH ROW
-    EXECUTE FUNCTION public.update_modified_column();
-
--- تفعيل ميزة الـ Realtime للبث اللحظي على الجداول الأساسية
-ALTER TABLE public.rooms REPLICA IDENTITY FULL;
-ALTER TABLE public.game_cards REPLICA IDENTITY FULL;
-ALTER TABLE public.game_logs REPLICA IDENTITY FULL;
-ALTER TABLE public.profiles REPLICA IDENTITY FULL;
-
--- إضافة الجداول لبث السوبربيز اللحظي
-BEGIN;
-  DO $$
-  BEGIN
-    IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
-      ALTER PUBLICATION supabase_realtime ADD TABLE public.rooms, public.game_cards, public.game_logs, public.profiles;
-    ELSE
-      CREATE PUBLICATION supabase_realtime FOR TABLE public.rooms, public.game_cards, public.game_logs, public.profiles;
-    END IF;
-  EXCEPTION WHEN others THEN
-    -- Fallback safety edge-case
-    NULL;
-  END $$;
-COMMIT;`}
-            </pre>
-            <div className="absolute top-2 right-2 bg-black/60 text-white/50 text-[9px] px-1.5 py-0.5 rounded pointer-events-none">
-              SQL EDITOR CODE
+      {/* 6. DEDICATED ROOM WAITING PANEL (Host Screen) */}
+      <AnimatePresence>
+        {myHostedRoom && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 bg-[#020503] flex flex-col justify-between overflow-y-auto"
+            id="multiplayer_dedicated_room_overlay"
+          >
+            {/* Background art */}
+            <div className="absolute inset-0 pointer-events-none z-0 opacity-10">
+              <div className="absolute inset-4 border border-white/20 rounded-3xl" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border border-white/25" />
+              <div className="absolute top-1/2 left-4 right-4 h-px bg-white/25" />
             </div>
-          </div>
 
-          <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-300 text-[11px] text-right">
-            🎉 بمجرد تشغيل الاستعلام بنجاح وإعادة تحميل هذه اللوحة، ستعمل ميزة تسجيل الحسابات، وصالات اللاعبين، والمنافسات التكتيكية أونلاين بكفاءة البرق!
-          </div>
-        </div>
-      </div>
+            {/* HEADER */}
+            <header className="relative z-10 w-full flex items-center justify-between px-6 py-3 bg-black/60 border-b border-white/10 backdrop-blur-md">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+                <span className="text-[10px] font-black tracking-widest text-amber-400">WAITING LOBBY...</span>
+              </div>
+              <h2 className="text-sm font-black text-white truncate max-w-[200px]">
+                {myHostedRoom.room_name}
+              </h2>
+            </header>
+
+            {/* MIDDLE: THE PVP MATCHUP */}
+            <main className="relative z-10 flex-1 flex flex-col justify-center px-4 max-w-lg mx-auto w-full py-4 gap-6">
+              
+              {/* VS matchup box */}
+              <div className="grid grid-cols-7 gap-1 items-center">
+                {/* Left Card: Host (Me) */}
+                <div className="col-span-3 flex flex-col items-center bg-[#0a0d0a] border-2 border-emerald-500/20 p-4 rounded-3xl text-center shadow-lg min-h-[140px] justify-between">
+                  <div className="text-4xl">👑</div>
+                  <div>
+                    <h4 className="text-xs font-black text-white">{myHostedRoom.host_name}</h4>
+                    <p className="text-[8px] text-slate-400 font-extrabold uppercase mt-0.5 tracking-wider">{myHostedRoom.host_vibe}</p>
+                  </div>
+                  <div className="mt-1 inline-block text-[8px] font-bold px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20">
+                    مستضيف الملعب
+                  </div>
+                </div>
+
+                {/* VS Middle Circle */}
+                <div className="col-span-1 flex flex-col items-center justify-center">
+                  <motion.div 
+                    className="w-10 h-10 rounded-full bg-linear-to-tr from-amber-500 to-yellow-400 flex items-center justify-center font-black text-sm text-black shadow-[0_0_15px_rgba(245,158,11,0.5)] border border-black z-10"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                  >
+                    VS
+                  </motion.div>
+                </div>
+
+                {/* Right Card: Opponent */}
+                <div className="col-span-3 flex flex-col items-center bg-[#0d0a0d] border-2 border-dashed border-slate-700/30 p-4 rounded-3xl text-center min-h-[140px] justify-between relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-linear-to-br from-amber-500/5 to-transparent pointer-events-none opacity-50" />
+                  
+                  {myHostedRoom.opponent_id ? (
+                    <>
+                      <div className="text-4xl animate-bounce">⚔️</div>
+                      <div>
+                        <h4 className="text-xs font-black text-white">{myHostedRoom.opponent_name}</h4>
+                        <p className="text-[8px] text-slate-400 font-extrabold uppercase mt-0.5 tracking-wider">{myHostedRoom.opponent_vibe}</p>
+                      </div>
+                      <div className="mt-1 inline-block text-[8px] font-bold px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded-full border border-amber-500/20">
+                        الخصم المنافس
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-10 h-10 border-2 border-amber-500/20 border-t-amber-500 rounded-full animate-spin"></div>
+                      <div>
+                        <span className="text-[10px] font-black text-amber-400/80 animate-pulse">جاري البحث عن منافس...</span>
+                        <p className="text-[7.5px] text-slate-500 leading-normal mt-1 pr-1 pl-1">
+                          شارك الكود أو الرابط لدخول صديقك فوراً
+                        </p>
+                      </div>
+                      <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Share Code panel */}
+              <div className="bg-black/55 border border-white/10 rounded-2xl p-4 text-center space-y-3.5 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-12 h-12 bg-amber-500/5 rounded-full blur-xl pointer-events-none" />
+                
+                <div>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-0.5">رمز غرفة المباراة ⚽</span>
+                  <div className="text-3xl font-mono font-black text-white tracking-widest bg-[#060807] py-2.5 rounded-xl border border-white/5 inline-block px-8 relative shadow-inner">
+                    {myHostedRoom.id}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 max-w-xs mx-auto">
+                  <button
+                    onClick={() => {
+                      const link = `${window.location.origin}${window.location.pathname}?room=${myHostedRoom.id}`;
+                      navigator.clipboard.writeText(link);
+                      SoundEffects.playWhistle();
+                      alert("تم نسخ رابط الغرفة بنجاح! ارسله لمنافسك 🔗");
+                    }}
+                    className="flex-1 py-2 bg-amber-500 text-black rounded-xl font-bold text-xs flex items-center justify-center gap-1 hover:bg-amber-450 transition-all cursor-pointer"
+                  >
+                    <Link className="w-3.5 h-3.5" />
+                    <span>رابط الغرفة 🔗</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(myHostedRoom.id);
+                      SoundEffects.playWhistle();
+                      alert("تم نسخ رمز الغرفة بنجاح! 📋");
+                    }}
+                    className="flex-1 py-2 bg-white/5 text-white border border-white/10 rounded-xl font-bold text-xs flex items-center justify-center gap-1 hover:bg-white/10 transition-all cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>نسخ الرمز 📋</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* COLLAPSIBLE LIVE SETTINGS */}
+              <div className="border border-white/10 rounded-2xl bg-black/40 overflow-hidden shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => setShowRoomSettings(!showRoomSettings)}
+                  className="w-full p-3 px-4 flex items-center justify-between text-xs font-black text-amber-400 bg-black/60 border-b border-white/5 select-none"
+                >
+                  <span className="text-[10px] transition-transform text-slate-500" style={{ transform: showRoomSettings ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+                  <div className="flex items-center gap-1.5">
+                    <span>قوانين وإشراف المباراة النشط</span>
+                    <Settings className="w-3.5 h-3.5" />
+                  </div>
+                </button>
+
+                <AnimatePresence>
+                  {showRoomSettings && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="p-4 overflow-y-auto max-h-[220px] scrollbar-thin scrollbar-thumb-amber-800/40 bg-black/30"
+                    >
+                      {renderSettingsForm(true)}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+            </main>
+
+            {/* FOOTER: CANCEL BUTTON */}
+            <footer className="relative z-10 p-4 border-t border-white/10 bg-black/40 text-center shrink-0">
+              <button
+                onClick={() => { SoundEffects.playCardDraw(); setMyHostedRoom(null); }}
+                className="py-2.5 px-8 bg-red-650 hover:bg-red-600 text-white rounded-xl text-xs font-black transition-all cursor-pointer shadow-md inline-flex items-center gap-1.5"
+              >
+                <span>إلغاء ومغادرة الملعب ❌</span>
+              </button>
+            </footer>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

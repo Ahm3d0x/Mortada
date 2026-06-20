@@ -5,12 +5,15 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Shield, Sparkles, Trophy, Users, Zap, Bot, ArrowRight, ArrowLeft, BookOpen, Settings, PlayCircle, Layers, Volume2, VolumeX, ChevronUp, ChevronDown, Lock, User, Image, Coins, LogOut } from "lucide-react";
+import { Shield, Sparkles, Trophy, Users, Zap, Bot, ArrowRight, ArrowLeft, BookOpen, Settings, PlayCircle, Layers, Volume2, VolumeX, ChevronUp, ChevronDown, Lock, User, Image, Coins, LogOut, Globe } from "lucide-react";
 import { SoundEffects } from "../utils/sounds";
 import { getPackages } from "../admin/adminStore";
 import { isSupabaseConfigured, MatchRoom } from "../lib/supabase";
 import { gameAuth } from "../lib/gameAuth";
 import Multilobby from "./Multilobby";
+import PVAPng from "../images/PVA.png";
+import PVPPng from "../images/PVP.png";
+
 
 const COUNTRIES = [
   { code: "EG", name: "مصر", flag: "🇪🇬" },
@@ -103,13 +106,16 @@ export default function WelcomeMenu({ onStartGame, onStartMultiplayerGame, isMob
   const defaultSettings = currentUser?.default_match_settings;
 
   // Navigation Tabs State
-  const [activeTab, setActiveTab] = useState<"home" | "play" | "multiplayer" | "decks" | "rules" | "settings">(() => {
+  const [activeTab, setActiveTab] = useState<"home" | "play" | "decks" | "rules" | "settings">(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.has("room") ? "multiplayer" : "home";
+    return params.has("room") ? "play" : "home";
   });
 
   // Game Setup States (Wizard under "Play" Tab)
-  const [playStep, setPlayStep] = useState<"coach" | "packages" | "match">("packages");
+  const [playStep, setPlayStep] = useState<"mode_selection" | "coach" | "packages" | "match" | "online_lobby">(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.has("room") ? "online_lobby" : "mode_selection";
+  });
   const [coachName, setCoachName] = useState(currentUser?.name || "");
   const [selectedVibe, setSelectedVibe] = useState(() => {
     const userTeam = currentUser?.team_name || "";
@@ -747,7 +753,107 @@ export default function WelcomeMenu({ onStartGame, onStartMultiplayerGame, isMob
               exit={{ opacity: 0, scale: 0.96 }}
               className="w-full"
             >
-              <form onSubmit={handleSubmit} className="w-full flex flex-col justify-between">
+              {playStep === "mode_selection" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-3.5 text-center max-w-lg mx-auto"
+                >
+                  <div className="text-right border-b border-white/5 pb-2">
+                    <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">الخطوة الأولى: اختيار نمط اللعب</span>
+                    <h3 className="text-xs font-black text-white">اختر نمط التحدي التكتيكي ⚽</h3>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3.5 mt-1.5">
+                    {/* Offline Card */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        SoundEffects.playWhistle();
+                        setPlayStep("packages"); // Proceed with AI game wizard
+                      }}
+                      className="group relative flex flex-col items-center justify-between overflow-hidden rounded-2xl border border-emerald-500/20 bg-black/60 p-1.5 cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:border-emerald-500 hover:shadow-[0_0_15px_rgba(16,185,129,0.25)]"
+                    >
+                      <div className="w-full aspect-4/3 rounded-xl overflow-hidden bg-emerald-950/20 relative">
+                        <img 
+                          src={PVAPng} 
+                          alt="مباراة ودية" 
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                        />
+                        <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/20 to-transparent" />
+                        <div className="absolute bottom-2 right-2 text-right">
+                          <span className="text-[10px] font-black text-white block">مباراة ودية 🤖</span>
+                          <span className="text-[8px] text-emerald-400 font-bold block">ضد الكمبيوتر</span>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Online Card */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        SoundEffects.playWhistle();
+                        setPlayStep("online_lobby"); // Go to online lobby!
+                      }}
+                      className="group relative flex flex-col items-center justify-between overflow-hidden rounded-2xl border border-amber-500/20 bg-black/60 p-1.5 cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:border-amber-500 hover:shadow-[0_0_15px_rgba(245,158,11,0.25)]"
+                    >
+                      <div className="w-full aspect-4/3 rounded-xl overflow-hidden bg-amber-950/20 relative">
+                        <img 
+                          src={PVPPng} 
+                          alt="مباراة أونلاين" 
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                        />
+                        <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/20 to-transparent" />
+                        <div className="absolute bottom-2 right-2 text-right">
+                          <span className="text-[10px] font-black text-white block">مبارزة حية 🌐</span>
+                          <span className="text-[8px] text-amber-400 font-bold block">أونلاين 1 ضد 1</span>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div className="flex justify-start pt-2 border-t border-white/5 mt-3">
+                    <button
+                      type="button"
+                      onClick={() => { SoundEffects.playCardDraw(); setActiveTab("home"); }}
+                      className="px-3.5 py-1 bg-white/5 hover:bg-white/10 text-white font-extrabold text-[9px] rounded-lg transition-colors cursor-pointer border border-white/5"
+                    >
+                      العودة للرئيسية
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {playStep === "online_lobby" && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="w-full text-right"
+                >
+                  <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        SoundEffects.playCardDraw();
+                        setPlayStep("mode_selection");
+                      }}
+                      className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[9px] font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      <ArrowRight className="w-3 h-3" />
+                      <span>تغيير نمط اللعب</span>
+                    </button>
+                    <h3 className="text-xs font-black text-[#e0e0e0] flex items-center gap-1.5 justify-end">
+                      <span>ساحة المبارزة أونلاين</span>
+                      <Globe className="w-3.5 h-3.5 text-amber-500" />
+                    </h3>
+                  </div>
+
+                  <Multilobby onStartMultiplayerGame={onStartMultiplayerGame} />
+                </motion.div>
+              )}
+
+              {playStep !== "mode_selection" && playStep !== "online_lobby" && (
+                <form onSubmit={handleSubmit} className="w-full flex flex-col justify-between">
                 
                 {/* Play Wizard Step 1: Coach Info */}
                 {playStep === "coach" && (
@@ -1062,7 +1168,7 @@ export default function WelcomeMenu({ onStartGame, onStartMultiplayerGame, isMob
                     <div className="flex items-center justify-between border-t border-white/5 pt-2 mt-3">
                       <button
                         type="button"
-                        onClick={() => { SoundEffects.playCardDraw(); setActiveTab("home"); }}
+                        onClick={() => { SoundEffects.playCardDraw(); setPlayStep("mode_selection"); }}
                         className="px-4 py-1 bg-white/5 hover:bg-white/10 text-white font-extrabold text-[9px] rounded-lg transition-colors cursor-pointer"
                       >
                         السابق
@@ -1371,6 +1477,7 @@ export default function WelcomeMenu({ onStartGame, onStartMultiplayerGame, isMob
                 )}
 
               </form>
+              )}
             </motion.div>
           )}
 
@@ -2010,22 +2117,12 @@ export default function WelcomeMenu({ onStartGame, onStartMultiplayerGame, isMob
         </AnimatePresence>
       </main>
 
-      {/* Render Multiplayer Lobby Tab */}
-      <AnimatePresence mode="wait">
-        {activeTab === "multiplayer" && (
-          <div className="absolute inset-0 top-[35px] bottom-14 z-20 bg-[#020503] overflow-y-auto px-4 py-2 w-full flex flex-col justify-start">
-            <Multilobby onStartMultiplayerGame={onStartMultiplayerGame} />
-          </div>
-        )}
-      </AnimatePresence>
-
       {/* FIXED BOTTOM NAVIGATION BAR */}
       {activeTab !== "play" && (
         <div className="fixed bottom-0 left-0 right-0 bg-[#060807]/95 border-t border-white/5 h-14 w-full px-2 shrink-0 z-30 backdrop-blur-md flex justify-around items-center">
           {[
             { id: "home", label: "الرئيسية", icon: "🏠" },
             { id: "play", label: "اللعب", icon: "⚔️" },
-            { id: "multiplayer", label: "أونلاين", icon: "🌐" },
             { id: "decks", label: "الباقات", icon: "🎴" },
             { id: "rules", label: "القوانين", icon: "📜" },
             { id: "settings", label: "الإعدادات", icon: "⚙️" }
