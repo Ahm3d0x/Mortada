@@ -75,14 +75,41 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
     }
   }, [currentUser?.id]);
 
-  // URL query parameter detection
+  // URL query parameter detection & Auto Join
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get("room");
     if (roomParam) {
-      setJoinCode(roomParam.toUpperCase());
+      const code = roomParam.toUpperCase();
+      setJoinCode(code);
+      
+      if (currentUser) {
+        const performAutoJoin = async () => {
+          setIsJoining(true);
+          setLobbyError(null);
+          try {
+            const name = currentUser.name || "مبارز أونلاين";
+            const vibe = currentUser.team_name || "الفراعنة";
+            console.log(`Auto-joining room ${code} as player:`, name);
+            const { room, error } = await supabaseService.joinRoom(code, currentUser.id, name, vibe);
+            if (error) {
+              setLobbyError(error);
+            } else if (room) {
+              SoundEffects.playWhistle();
+              onStartMultiplayerGame(room, "opponent");
+            }
+          } catch (err: any) {
+            setLobbyError(err.message || "فشل الانضمام التلقائي للغرفة");
+          } finally {
+            setIsJoining(false);
+          }
+        };
+        // Delay slightly to ensure layout and other subscriptions settle
+        const timer = setTimeout(performAutoJoin, 550);
+        return () => clearTimeout(timer);
+      }
     }
-  }, []);
+  }, [currentUser?.id]);
 
   // Poll room check if hosting and waiting for opponent
   useEffect(() => {
@@ -113,10 +140,17 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
     setIsRefreshing(true);
     try {
       const rooms = await supabaseService.queryActiveRooms();
-      // Filter out stale local rooms
-      setActiveRooms(rooms.filter(r => Date.now() - r.last_activity < 15 * 60 * 1000));
+      console.log("Rooms fetched from database:", rooms);
+      // Filter out stale local rooms (Safely converting BIGINT string/number to Number)
+      const filtered = rooms.filter(r => {
+        const lastAct = Number(r.last_activity) || 0;
+        const diff = Date.now() - lastAct;
+        return diff < 15 * 60 * 1000;
+      });
+      console.log("Filtered rooms:", filtered);
+      setActiveRooms(filtered);
     } catch (e) {
-      console.error(e);
+      console.error("Error refreshing lobbies:", e);
     } finally {
       setIsRefreshing(false);
     }

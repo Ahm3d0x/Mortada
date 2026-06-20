@@ -564,15 +564,18 @@ export const supabaseService = {
 
   async queryActiveRooms(): Promise<MatchRoom[]> {
     if (isSupabaseConfigured && supabase) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("rooms")
         .select("*")
         .eq("status", "waiting")
-        .eq("is_private", false)
+        .or("is_private.eq.false,is_private.is.null")
         .order("created_at", { ascending: false })
         .limit(20);
+      if (error) {
+        console.error("Error querying active rooms from Supabase:", error);
+      }
       return (data || []) as MatchRoom[];
     }
-    return getFallbackRooms().filter((r) => r.status === "waiting" && !r.is_private);
+    return getFallbackRooms().filter((r) => r.status === "waiting" && (r.is_private === false || r.is_private === undefined));
   }
 };
