@@ -327,9 +327,22 @@ export function generateUniqueDecks(
     }
   }
 
+  const playerShuffled = playerSelected.sort(() => Math.random() - 0.5);
+  const aiShuffled = aiSelected.sort(() => Math.random() - 0.5);
+
+  const filterWarmup = (deck: PlayerCard[]) => {
+    const normal = deck.filter((c) => !c.isLegend);
+    const legend = deck.filter((c) => c.isLegend);
+    return [
+      ...normal.slice(0, 5),
+      ...legend,
+      ...normal.slice(5)
+    ];
+  };
+
   return {
-    playerDeck: playerSelected.sort(() => Math.random() - 0.5),
-    aiDeck: aiSelected.sort(() => Math.random() - 0.5),
+    playerDeck: filterWarmup(playerShuffled),
+    aiDeck: filterWarmup(aiShuffled),
   };
 }
 

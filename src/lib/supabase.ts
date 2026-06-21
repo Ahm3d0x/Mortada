@@ -37,6 +37,7 @@ export interface MatchRoom {
   opponent_vibe: string | null;
   status: "waiting" | "playing" | "finished";
   current_turn: "host" | "opponent";
+  current_turn_auth_id?: string | null;
   game_state: any; // Entire serialized Tactical Card State
   last_activity: number;
   host_confirmed?: boolean;
@@ -811,6 +812,10 @@ export const supabaseService = {
         gameState.host_moves = hostStarts ? (gameState.room_settings.maxMovesPerTurn ?? 3) : 0;
         gameState.opponent_moves = hostStarts ? 0 : (gameState.room_settings.maxMovesPerTurn ?? 3);
 
+        const kickoffAuthId = startRole === "host" ? room.host_id : room.opponent_id;
+        gameState.current_turn_auth_id = kickoffAuthId;
+        updates.current_turn_auth_id = kickoffAuthId;
+
         gameState.logs.push({
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
@@ -882,6 +887,11 @@ export const supabaseService = {
         const attackerName = isHostAttacker ? room.host_name : (room.opponent_name || "الخصم");
         const defenderName = isHostAttacker ? (room.opponent_name || "الخصم") : room.host_name;
 
+        const attackerMoves = isHostAttacker ? gameState.host_moves : gameState.opponent_moves;
+        const attackerSlots = isHostAttacker ? hostSlots : opponentSlots;
+        const hasUnrevealedCards = attackerSlots.some((s: any) => s && s.card && !s.isRevealed);
+        const canReinforce = attackerMoves > 0 && hasUnrevealedCards;
+
         if (isGoal) {
           if (isHostAttacker) {
             gameState.host_score += 1;
@@ -894,26 +904,59 @@ export const supabaseService = {
             text: `⚽ جـوووول! تسديدة ${attackerName} المتقنة (${attackPower}) تتغلب على الدفاع المستميت لـ ${defenderName} (${defensePower})!`,
             type: "success",
           });
-        } else {
-          gameState.logs.push({
-            id: Math.random().toString(),
-            timestamp: getFormattedTime(),
-            text: `🧤 إنقاذ بطولي! جدار صد دفاع ${defenderName} (${defensePower}) يقطع محاولة تسديد ${attackerName} (${attackPower})!`,
-            type: "neutral",
+
+          const applySpent = (slots: any[]) => slots.map((s: any) => {
+            if (s && (s.revealedInAttack || s.confirmedInAttack)) {
+              return { ...s, spent: true, revealedInAttack: false, confirmedInAttack: false };
+            }
+            return s;
           });
-        }
 
-        const applySpent = (slots: any[]) => slots.map((s: any) => {
-          if (s && s.revealedInAttack) {
-            return { ...s, spent: true, revealedInAttack: false, confirmedInAttack: false };
+          gameState.host_slots = applySpent(hostSlots);
+          gameState.opponent_slots = applySpent(opponentSlots);
+          gameState.is_shot_declared = false;
+          gameState.phase = "resolution";
+        } else {
+          if (canReinforce) {
+            gameState.logs.push({
+              id: Math.random().toString(),
+              timestamp: getFormattedTime(),
+              text: `🧤 إنقاذ! صد دفاع ${defenderName} (${defensePower}) محاولة تسديد ${attackerName} (${attackPower})! وبما أنه متبقي لدى المهاجم حركات وكروت مقلوبة، يستمر النزاع!`,
+              type: "neutral",
+            });
+
+            const lockSlots = (slots: any[]) => slots.map((s: any) => {
+              if (s && s.revealedInAttack) {
+                return { ...s, confirmedInAttack: true, revealedInAttack: false };
+              }
+              return s;
+            });
+
+            gameState.host_slots = lockSlots(hostSlots);
+            gameState.opponent_slots = lockSlots(opponentSlots);
+            gameState.is_shot_declared = false;
+            gameState.phase = isHostAttacker ? "attacking" : "ai_attacking";
+          } else {
+            gameState.logs.push({
+              id: Math.random().toString(),
+              timestamp: getFormattedTime(),
+              text: `🧤 إنقاذ بطولي نهائي! جدار صد دفاع ${defenderName} (${defensePower}) يقطع تماماً محاولة تسديد ${attackerName} (${attackPower})!`,
+              type: "neutral",
+            });
+
+            const applySpent = (slots: any[]) => slots.map((s: any) => {
+              if (s && (s.revealedInAttack || s.confirmedInAttack)) {
+                return { ...s, spent: true, revealedInAttack: false, confirmedInAttack: false };
+              }
+              return s;
+            });
+
+            gameState.host_slots = applySpent(hostSlots);
+            gameState.opponent_slots = applySpent(opponentSlots);
+            gameState.is_shot_declared = false;
+            gameState.phase = "resolution";
           }
-          return s;
-        });
-
-        gameState.host_slots = applySpent(hostSlots);
-        gameState.opponent_slots = applySpent(opponentSlots);
-        gameState.is_shot_declared = false;
-        gameState.phase = "resolution";
+        }
 
         const filterSpecials = (specials: any[]) => specials.filter((s: any) => {
           const mainAction = s.ability?.actions?.[0];
@@ -950,6 +993,9 @@ export const supabaseService = {
         type: "info",
       });
 
+      const nextTurnAuthId = nextTurn === "host" ? room.host_id : room.opponent_id;
+      gameState.current_turn_auth_id = nextTurnAuthId;
+      updates.current_turn_auth_id = nextTurnAuthId;
       updates.current_turn = nextTurn;
       gameState.last_updated_by = "referee";
       updates.game_state = gameState;

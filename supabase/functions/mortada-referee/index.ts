@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
       }
 
       // Format cards into game-ready schemas with ability parsing
-      const parseAbility = (c: any) => {
+      const parsePlayerCard = (c: any) => {
         let ability = undefined
         let description = c.description || ''
         try {
@@ -98,11 +98,41 @@ Deno.serve(async (req) => {
             ability = parsed.ability || undefined
           }
         } catch { /* ignored */ }
-        return { ...c, description, ability }
+        return {
+          ...c,
+          id: `db_${c.id}_${Math.random().toString(36).substr(2, 6)}`,
+          type: 'player',
+          isLegend: !!c.is_legend,
+          roleArabic: c.role_arabic || '',
+          imageUrl: c.image_url || '',
+          description,
+          ability
+        }
       }
 
-      const playerPool = fetchedPlayers.map(parseAbility)
-      const specialPool = fetchedSpecials.map(parseAbility)
+      const parseSpecialCard = (c: any) => {
+        let ability = undefined
+        let description = c.description || ''
+        try {
+          if (c.description && c.description.trim().startsWith('{')) {
+            const parsed = JSON.parse(c.description)
+            description = parsed.text || ''
+            ability = parsed.ability || undefined
+          }
+        } catch { /* ignored */ }
+        return {
+          ...c,
+          id: `db_spec_${c.id}_${Math.random().toString(36).substr(2, 6)}`,
+          type: 'special',
+          effectArabic: c.effect_arabic || '',
+          imageUrl: c.image_url || '',
+          description,
+          ability
+        }
+      }
+
+      const playerPool = fetchedPlayers.map(parsePlayerCard)
+      const specialPool = fetchedSpecials.map(parseSpecialCard)
 
       // 3. Shuffling and deck splitting
       const { playerDeck: hostDeck, aiDeck: oppDeck } = generateUniqueDecks(playerPool, legendRatio)
@@ -218,6 +248,10 @@ Deno.serve(async (req) => {
         gameState.host_moves = hostStarts ? (gameState.room_settings.maxMovesPerTurn ?? 3) : 0
         gameState.opponent_moves = hostStarts ? 0 : (gameState.room_settings.maxMovesPerTurn ?? 3)
 
+        const kickoffAuthId = startRole === 'host' ? room.host_id : room.opponent_id
+        gameState.current_turn_auth_id = kickoffAuthId
+        updates.current_turn_auth_id = kickoffAuthId
+
         gameState.logs.push({
           id: Math.random().toString(),
           timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
@@ -295,6 +329,11 @@ Deno.serve(async (req) => {
         let attackerName = isHostAttacker ? room.host_name : (room.opponent_name || 'الخصم')
         let defenderName = isHostAttacker ? (room.opponent_name || 'الخصم') : room.host_name
         
+        const attackerMoves = isHostAttacker ? gameState.host_moves : gameState.opponent_moves
+        const attackerSlots = isHostAttacker ? hostSlots : opponentSlots
+        const hasUnrevealedCards = attackerSlots.some((s: any) => s && s.card && !s.isRevealed)
+        const canReinforce = attackerMoves > 0 && hasUnrevealedCards
+
         if (isGoal) {
           if (isHostAttacker) {
             gameState.host_score += 1
@@ -307,27 +346,59 @@ Deno.serve(async (req) => {
             text: `⚽ جـوووول! تسديدة ${attackerName} المتقنة (${attackPower}) تتغلب على الدفاع المستميت لـ ${defenderName} (${defensePower})!`,
             type: 'success',
           })
-        } else {
-          gameState.logs.push({
-            id: Math.random().toString(),
-            timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
-            text: `🧤 إنقاذ بطولي! جدار صد دفاع ${defenderName} (${defensePower}) يقطع محاولة تسديد ${attackerName} (${attackPower})!`,
-            type: 'neutral',
+
+          const applySpent = (slots: any[]) => slots.map((s: any) => {
+            if (s && (s.revealedInAttack || s.confirmedInAttack)) {
+              return { ...s, spent: true, revealedInAttack: false, confirmedInAttack: false }
+            }
+            return s
           })
-        }
 
-        // Apply spent statuses
-        const applySpent = (slots: any[]) => slots.map((s: any) => {
-          if (s && s.revealedInAttack) {
-            return { ...s, spent: true, revealedInAttack: false, confirmedInAttack: false }
+          gameState.host_slots = applySpent(hostSlots)
+          gameState.opponent_slots = applySpent(opponentSlots)
+          gameState.is_shot_declared = false
+          gameState.phase = 'resolution'
+        } else {
+          if (canReinforce) {
+            gameState.logs.push({
+              id: Math.random().toString(),
+              timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
+              text: `🧤 إنقاذ! صد دفاع ${defenderName} (${defensePower}) محاولة تسديد ${attackerName} (${attackPower})! وبما أنه متبقي لدى المهاجم حركات وكروت مقلوبة، يستمر النزاع!`,
+              type: 'neutral',
+            })
+
+            const lockSlots = (slots: any[]) => slots.map((s: any) => {
+              if (s && s.revealedInAttack) {
+                return { ...s, confirmedInAttack: true, revealedInAttack: false }
+              }
+              return s
+            })
+
+            gameState.host_slots = lockSlots(hostSlots)
+            gameState.opponent_slots = lockSlots(opponentSlots)
+            gameState.is_shot_declared = false
+            gameState.phase = isHostAttacker ? 'attacking' : 'ai_attacking'
+          } else {
+            gameState.logs.push({
+              id: Math.random().toString(),
+              timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
+              text: `🧤 إنقاذ بطولي نهائي! جدار صد دفاع ${defenderName} (${defensePower}) يقطع تماماً محاولة تسديد ${attackerName} (${attackPower})!`,
+              type: 'neutral',
+            })
+
+            const applySpent = (slots: any[]) => slots.map((s: any) => {
+              if (s && (s.revealedInAttack || s.confirmedInAttack)) {
+                return { ...s, spent: true, revealedInAttack: false, confirmedInAttack: false }
+              }
+              return s
+            })
+
+            gameState.host_slots = applySpent(hostSlots)
+            gameState.opponent_slots = applySpent(opponentSlots)
+            gameState.is_shot_declared = false
+            gameState.phase = 'resolution'
           }
-          return s
-        })
-
-        gameState.host_slots = applySpent(hostSlots)
-        gameState.opponent_slots = applySpent(opponentSlots)
-        gameState.is_shot_declared = false
-        gameState.phase = 'resolution'
+        }
         
         // Remove temporary active specials that expire
         const filterSpecials = (specials: any[]) => specials.filter((s: any) => {
@@ -369,6 +440,9 @@ Deno.serve(async (req) => {
         type: 'info',
       })
 
+      const nextTurnAuthId = nextTurn === 'host' ? room.host_id : room.opponent_id
+      gameState.current_turn_auth_id = nextTurnAuthId
+      updates.current_turn_auth_id = nextTurnAuthId
       updates.current_turn = nextTurn
       gameState.last_updated_by = 'referee'
       updates.game_state = gameState
@@ -417,41 +491,78 @@ function generateUniqueDecks(pool: any[], legendRatio: number) {
     }
   })
 
-  const legendCards = uniquePool.filter(c => c.is_legend).sort(() => Math.random() - 0.5)
-  const normalCards = uniquePool.filter(c => !c.is_legend).sort(() => Math.random() - 0.5)
+  // Deno pool elements have already been parsed, so we check isLegend or is_legend
+  const legendCards = uniquePool.filter(c => c.isLegend || c.is_legend).sort(() => Math.random() - 0.5)
+  const normalCards = uniquePool.filter(c => !(c.isLegend || c.is_legend)).sort(() => Math.random() - 0.5)
 
-  const targetSizePerDeck = Math.max(15, Math.floor(uniquePool.length / 2))
-  const numLegendsPerDeck = Math.round((legendRatio / 100) * targetSizePerDeck)
+  const targetSizePerDeck = Math.max(20, Math.floor(uniquePool.length / 2))
+  const numLegendsPerDeck = Math.min(
+    Math.floor(legendCards.length / 2),
+    Math.max(0, Math.round((legendRatio / 100) * targetSizePerDeck))
+  )
+  const numNormalsPerDeck = Math.max(0, targetSizePerDeck - numLegendsPerDeck)
 
   const playerSelected: any[] = []
   const aiSelected: any[] = []
 
-  // Assign legends
-  for (let i = 0; i < numLegendsPerDeck; i++) {
-    if (legendCards.length > 0) playerSelected.push(legendCards.pop())
-    if (legendCards.length > 0) aiSelected.push(legendCards.pop())
-  }
-
-  // Assign normals
-  const remainingTarget = targetSizePerDeck - playerSelected.length
-  for (let i = 0; i < remainingTarget; i++) {
-    if (normalCards.length > 0) playerSelected.push(normalCards.pop())
-    if (normalCards.length > 0) aiSelected.push(normalCards.pop())
-  }
-
-  const remainder = [...legendCards, ...normalCards].sort(() => Math.random() - 0.5)
-  for (let i = 0; i < remainder.length; i++) {
-    const card = remainder[i]
-    if (playerSelected.length <= aiSelected.length) {
+  // Assign legends alternately
+  const legendPool = [...legendCards]
+  for (let i = 0; i < legendPool.length; i++) {
+    const card = legendPool[i]
+    if (playerSelected.filter(c => c.isLegend || c.is_legend).length < numLegendsPerDeck) {
       playerSelected.push(card)
-    } else {
+    } else if (aiSelected.filter(c => c.isLegend || c.is_legend).length < numLegendsPerDeck) {
       aiSelected.push(card)
     }
   }
 
+  // Fill remaining legend slots from leftover legends
+  let legendRemainder = legendPool.slice(numLegendsPerDeck * 2)
+  legendRemainder.forEach((card, i) => {
+    if (i % 2 === 0 && playerSelected.filter(c => c.isLegend || c.is_legend).length < numLegendsPerDeck + 2) {
+      playerSelected.push(card)
+    } else if (aiSelected.filter(c => c.isLegend || c.is_legend).length < numLegendsPerDeck + 2) {
+      aiSelected.push(card)
+    }
+  })
+
+  // Assign normals
+  const normalPool = [...normalCards]
+  const halfNormals = Math.floor(normalPool.length / 2)
+  for (let i = 0; i < normalPool.length; i++) {
+    const card = normalPool[i]
+    if (i < halfNormals && playerSelected.filter(c => !(c.isLegend || c.is_legend)).length < numNormalsPerDeck) {
+      playerSelected.push(card)
+    } else if (i >= halfNormals && aiSelected.filter(c => !(c.isLegend || c.is_legend)).length < numNormalsPerDeck) {
+      aiSelected.push(card)
+    } else {
+      if (playerSelected.filter(c => !(c.isLegend || c.is_legend)).length <= aiSelected.filter(c => !(c.isLegend || c.is_legend)).length) {
+        playerSelected.push(card)
+      } else {
+        aiSelected.push(card)
+      }
+    }
+  }
+
+  const playerShuffled = playerSelected.sort(() => Math.random() - 0.5)
+  const aiShuffled = aiSelected.sort(() => Math.random() - 0.5)
+
+  const filterWarmup = (deck: any[]) => {
+    const normal = deck.filter((c) => !(c.isLegend || c.is_legend))
+    const legend = deck.filter((c) => c.isLegend || c.is_legend)
+    return [
+      ...normal.slice(0, 5),
+      ...legend,
+      ...normal.slice(5)
+    ]
+  }
+
+  const pDeck = filterWarmup(playerShuffled)
+  const oDeck = filterWarmup(aiShuffled)
+
   return {
-    playerDeck: playerSelected.map((c, idx) => ({ ...c, id: `p_c_${idx}_${Math.random().toString(36).substr(2, 6)}` })),
-    aiDeck: aiSelected.map((c, idx) => ({ ...c, id: `o_c_${idx}_${Math.random().toString(36).substr(2, 6)}` }))
+    playerDeck: pDeck.map((c, idx) => ({ ...c, id: `p_c_${idx}_${Math.random().toString(36).substr(2, 6)}` })),
+    aiDeck: oDeck.map((c, idx) => ({ ...c, id: `o_c_${idx}_${Math.random().toString(36).substr(2, 6)}` }))
   }
 }
 
@@ -472,7 +583,7 @@ function runRefereeRulesEngine(
 
   if (isAttackingStage) {
     slots.forEach((slot) => {
-      if (slot && slot.card && slot.isRevealed && slot.revealedInAttack) {
+      if (slot && slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
         if (slot.card.frozen || slot.card.stunned || slot.card.silenced) return
         score += slot.card.attack ?? 0
       }
@@ -482,7 +593,7 @@ function runRefereeRulesEngine(
     }
   } else {
     slots.forEach((slot) => {
-      if (slot && slot.card && slot.isRevealed && slot.revealedInAttack) {
+      if (slot && slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
         if (slot.card.frozen || slot.card.stunned || slot.card.silenced) return
         score += slot.card.defense ?? 0
       }
@@ -604,7 +715,7 @@ function runRefereeRulesEngine(
     if (cancelStrongestAttacker) {
       let maxAttStrength = 0
       slots.forEach((s) => {
-        if (s && s.card && s.isRevealed && s.revealedInAttack) {
+        if (s && s.card && s.isRevealed && (s.revealedInAttack || s.confirmedInAttack)) {
           maxAttStrength = Math.max(maxAttStrength, s.card.attack ?? 0)
         }
       })

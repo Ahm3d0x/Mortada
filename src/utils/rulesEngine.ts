@@ -440,8 +440,8 @@ export function runRefereeRulesEngine(
   activeBooster: BoosterCard | null,
   playerActiveSpecials: SpecialCard[],
   aiActiveSpecials: SpecialCard[],
-  playerSlots: { card: PlayerCard | null; isRevealed: boolean; revealedInAttack?: boolean; spent?: boolean }[],
-  aiSlots: { card: PlayerCard | null; isRevealed: boolean; revealedInAttack?: boolean; spent?: boolean }[],
+  playerSlots: { card: PlayerCard | null; isRevealed: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean; spent?: boolean }[],
+  aiSlots: { card: PlayerCard | null; isRevealed: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean; spent?: boolean }[],
   isPlayerAttacker: boolean
 ): number {
   let score = 0;
@@ -450,7 +450,7 @@ export function runRefereeRulesEngine(
   if (isAttackingStage) {
     // Base attack score: sum of attack of all revealed player cards on the attacking side
     slots.forEach((slot) => {
-      if (slot.card && slot.isRevealed && slot.revealedInAttack) {
+      if (slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
         if (slot.card.frozen || slot.card.stunned || (slot.card as any).silenced) return;
         score += slot.card.attack;
       }
@@ -461,7 +461,7 @@ export function runRefereeRulesEngine(
   } else {
     // Base defense score: sum of defense of all revealed player cards on the defending side
     slots.forEach((slot) => {
-      if (slot.card && slot.isRevealed && slot.revealedInAttack) {
+      if (slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
         if (slot.card.frozen || slot.card.stunned || (slot.card as any).silenced) return;
         score += slot.card.defense;
       }
@@ -616,7 +616,7 @@ export function runRefereeRulesEngine(
     if (cancelStrongestAttacker) {
       let maxAttStrength = 0;
       slots.forEach((s) => {
-        if (s.card && s.isRevealed && s.revealedInAttack) {
+        if (s.card && s.isRevealed && (s.revealedInAttack || s.confirmedInAttack)) {
           maxAttStrength = Math.max(maxAttStrength, s.card.attack);
         }
       });

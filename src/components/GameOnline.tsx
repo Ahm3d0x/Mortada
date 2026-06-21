@@ -1069,7 +1069,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const [isHandExpanded, setIsHandExpanded] = useState<boolean>(false);
 
   // Package Loading States
-  const [isGameLoading, setIsGameLoading] = useState<boolean>(config.role === "opponent");
+  const [isGameLoading, setIsGameLoading] = useState<boolean>(false);
   const [gameLoadError, setGameLoadError] = useState<string | null>(null);
 
   // Zooms and inspects selected card detailed stats
@@ -1142,6 +1142,9 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   // Apply incoming room updates to local state
   const applyIncomingRoomUpdate = (updatedRoom: MatchRoom) => {
     const resolvedRole = multiplayerRoleRef.current || multiplayerRole;
+    if (updatedRoom.current_turn_auth_id && currentUser && updatedRoom.current_turn_auth_id === currentUser.id) {
+      setIsRefereeResolving(false);
+    }
     // Warmup state confirmation updates
     const hostConfirm = !!updatedRoom.host_confirmed;
     const oppConfirm = !!updatedRoom.opponent_confirmed;
@@ -2245,7 +2248,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
     if (isHost) {
       setPhase("warmup");
-      setIsGameLoading(true);
+      setIsGameLoading(false);
       setGameLoadError(null);
       supabaseService.invokeReferee({
         action: "init_match",
@@ -2265,11 +2268,9 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
           setPlayerHand([]);
           setAiHand([]);
         }
-        setIsGameLoading(false);
       }).catch((err: any) => {
         console.error("Error starting match via referee:", err);
         setGameLoadError(err.message || "Failed to start match via referee");
-        setIsGameLoading(false);
       });
     } else {
       // Opponent is waiting for host to sync
@@ -2284,9 +2285,6 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         if (initialHostDeck) setAiDeck(initialHostDeck);
         if (initialSpecialDeck) setSpecialDeck(initialSpecialDeck);
         if (initialBoosterDeck) setBoosterDeck(initialBoosterDeck);
-        setIsGameLoading(false);
-      } else {
-        setIsGameLoading(true);
       }
 
       setPhase("warmup");
@@ -3106,7 +3104,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     if (isAttackingStage) {
       // Base attack score: sum of attack of all revealed player cards on the attacking side
       slots.forEach((slot) => {
-        if (slot.card && slot.isRevealed && slot.revealedInAttack) {
+        if (slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
           if (slot.card.frozen || slot.card.stunned) return;
           score += slot.card.attack;
         }
@@ -3117,7 +3115,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     } else {
       // Base defense score: sum of defense of all revealed player cards on the defending side
       slots.forEach((slot) => {
-        if (slot.card && slot.isRevealed && slot.revealedInAttack) {
+        if (slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
           if (slot.card.frozen || slot.card.stunned) return;
           score += slot.card.defense;
         }
@@ -3274,7 +3272,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       if (cancelStrongestAttacker) {
         let maxAttStrength = 0;
         slots.forEach((s) => {
-          if (s.card && s.isRevealed && s.revealedInAttack) {
+          if (s.card && s.isRevealed && (s.revealedInAttack || s.confirmedInAttack)) {
             maxAttStrength = Math.max(maxAttStrength, s.card.attack);
           }
         });
@@ -6032,7 +6030,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
                 >
                   <span className="text-sm">🏃‍♂️</span>
                   <span className="bg-black/10 text-[10px] px-2 py-0.5 rounded font-mono font-black leading-none">
-                    {playerDeck.length}
+                    {(phase === "warmup" && playerDeck.length === 0) ? "⏳" : playerDeck.length}
                   </span>
                 </button>
 
@@ -6052,7 +6050,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
                 >
                   <span className="text-sm">🪄</span>
                   <span className="bg-black/20 text-[10px] text-purple-200 px-2 py-0.5 rounded font-mono font-black leading-none">
-                    {specialDeck.length}
+                    {(phase === "warmup" && specialDeck.length === 0) ? "⏳" : specialDeck.length}
                   </span>
                 </button>
 
