@@ -1142,8 +1142,18 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   // Apply incoming room updates to local state
   const applyIncomingRoomUpdate = (updatedRoom: MatchRoom) => {
     const resolvedRole = multiplayerRoleRef.current || multiplayerRole;
-    if (updatedRoom.current_turn_auth_id && currentUser && updatedRoom.current_turn_auth_id === currentUser.id) {
+    
+    // Forcefully clear user-input blocks and loading screens immediately when active play starts or turn is assigned
+    const gs = updatedRoom.game_state;
+    if (gs) {
+      const isPlayTurn = gs.phase === "player_turn" || gs.phase === "ai_turn" || gs.phase === "attacking" || gs.phase === "ai_attacking";
+      if (isPlayTurn || updatedRoom.current_turn_auth_id) {
+        setIsRefereeResolving(false);
+        setIsGameLoading(false);
+      }
+    } else if (updatedRoom.current_turn_auth_id) {
       setIsRefereeResolving(false);
+      setIsGameLoading(false);
     }
     // Warmup state confirmation updates
     const hostConfirm = !!updatedRoom.host_confirmed;
@@ -1153,7 +1163,6 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     setMyConfirmed(isMeHost ? hostConfirm : oppConfirm);
     setOtherConfirmed(isMeHost ? oppConfirm : hostConfirm);
 
-    const gs = updatedRoom.game_state;
     if (gs) {
       const hostLastActive = gs.host_last_active || 0;
       const opponentLastActive = gs.opponent_last_active || 0;

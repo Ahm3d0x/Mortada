@@ -90,12 +90,28 @@ Deno.serve(async (req) => {
       // Format cards into game-ready schemas with ability parsing
       const parsePlayerCard = (c: any) => {
         let ability = undefined
+        // Support direct ability or ability_type columns if present
+        const rawAbility = c.ability || c.ability_type || c.abilityType
+        if (rawAbility) {
+          if (typeof rawAbility === 'string') {
+            try {
+              ability = JSON.parse(rawAbility)
+            } catch {
+              ability = rawAbility
+            }
+          } else {
+            ability = rawAbility
+          }
+        }
+
         let description = c.description || ''
         try {
           if (c.description && c.description.trim().startsWith('{')) {
             const parsed = JSON.parse(c.description)
             description = parsed.text || ''
-            ability = parsed.ability || undefined
+            if (parsed.ability) {
+              ability = parsed.ability
+            }
           }
         } catch { /* ignored */ }
         return {
@@ -112,12 +128,28 @@ Deno.serve(async (req) => {
 
       const parseSpecialCard = (c: any) => {
         let ability = undefined
+        // Support direct ability or ability_type columns if present
+        const rawAbility = c.ability || c.ability_type || c.abilityType
+        if (rawAbility) {
+          if (typeof rawAbility === 'string') {
+            try {
+              ability = JSON.parse(rawAbility)
+            } catch {
+              ability = rawAbility
+            }
+          } else {
+            ability = rawAbility
+          }
+        }
+
         let description = c.description || ''
         try {
           if (c.description && c.description.trim().startsWith('{')) {
             const parsed = JSON.parse(c.description)
             description = parsed.text || ''
-            ability = parsed.ability || undefined
+            if (parsed.ability) {
+              ability = parsed.ability
+            }
           }
         } catch { /* ignored */ }
         return {
@@ -334,6 +366,11 @@ Deno.serve(async (req) => {
         const hasUnrevealedCards = attackerSlots.some((s: any) => s && s.card && !s.isRevealed)
         const canReinforce = attackerMoves > 0 && hasUnrevealedCards
 
+        const filterSpecials = (specials: any[]) => specials.filter((s: any) => {
+          const mainAction = s.ability?.actions?.[0]
+          return mainAction && mainAction.duration !== 'Instant' && mainAction.duration !== 'CurrentPhase'
+        })
+
         if (isGoal) {
           if (isHostAttacker) {
             gameState.host_score += 1
@@ -358,6 +395,9 @@ Deno.serve(async (req) => {
           gameState.opponent_slots = applySpent(opponentSlots)
           gameState.is_shot_declared = false
           gameState.phase = 'resolution'
+
+          gameState.active_specials_host = filterSpecials(hostSpecials)
+          gameState.active_specials_opponent = filterSpecials(opponentSpecials)
         } else {
           if (canReinforce) {
             gameState.logs.push({
@@ -378,6 +418,9 @@ Deno.serve(async (req) => {
             gameState.opponent_slots = lockSlots(opponentSlots)
             gameState.is_shot_declared = false
             gameState.phase = isHostAttacker ? 'attacking' : 'ai_attacking'
+
+            gameState.active_specials_host = hostSpecials
+            gameState.active_specials_opponent = opponentSpecials
           } else {
             gameState.logs.push({
               id: Math.random().toString(),
@@ -397,16 +440,11 @@ Deno.serve(async (req) => {
             gameState.opponent_slots = applySpent(opponentSlots)
             gameState.is_shot_declared = false
             gameState.phase = 'resolution'
+
+            gameState.active_specials_host = filterSpecials(hostSpecials)
+            gameState.active_specials_opponent = filterSpecials(opponentSpecials)
           }
         }
-        
-        // Remove temporary active specials that expire
-        const filterSpecials = (specials: any[]) => specials.filter((s: any) => {
-          const mainAction = s.ability?.actions?.[0]
-          return mainAction && mainAction.duration !== 'Instant' && mainAction.duration !== 'CurrentPhase'
-        })
-        gameState.active_specials_host = filterSpecials(hostSpecials)
-        gameState.active_specials_opponent = filterSpecials(opponentSpecials)
       }
 
       gameState.last_updated_by = 'referee'
@@ -479,50 +517,96 @@ Deno.serve(async (req) => {
 
 // Fisher-Yates Shuffling and Deck Split helper
 function generateUniqueDecks(pool: any[], legendRatio: number) {
+  if (!pool || !Array.isArray(pool) || pool.length === 0) {
+    return { playerDeck: [], aiDeck: [] }
+  }
+
+  // Deduplicate pool by name to prevent player duplicates across the game
   const seenNames = new Set<string>()
-  const uniquePool: any[] = []
+  const allCards: any[] = []
   pool.forEach((card) => {
     if (card && card.name) {
       const normalizedName = card.name.trim().toLowerCase()
       if (!seenNames.has(normalizedName)) {
         seenNames.add(normalizedName)
-        uniquePool.push(card)
+        allCards.push(card)
       }
     }
   })
 
-  // Deno pool elements have already been parsed, so we check isLegend or is_legend
-  const legendCards = uniquePool.filter(c => c.isLegend || c.is_legend).sort(() => Math.random() - 0.5)
-  const normalCards = uniquePool.filter(c => !(c.isLegend || c.is_legend)).sort(() => Math.random() - 0.5)
+  // 1. Filter warmup pool (non-legendary player cards)
+  let warmupPool = []
+  try {
+    warmupPool = allCards.filter(card => card && card.rarity !== 'legendary' && !card.isLegend && !card.is_legend && card.type === 'player')
+  } catch (e) {
+    console.error("Warmup pool filtering failed in referee:", e)
+  }
 
-  const targetSizePerDeck = Math.max(20, Math.floor(uniquePool.length / 2))
+  if (!warmupPool || warmupPool.length === 0) {
+    warmupPool = allCards.filter(card => card && card.type === 'player')
+  }
+  if (!warmupPool || warmupPool.length === 0) {
+    warmupPool = allCards.filter(Boolean)
+  }
+
+  // Shuffle warmup pool
+  const shuffledWarmup = [...warmupPool].sort(() => Math.random() - 0.5)
+
+  // Extract warmup cards safely
+  const hostWarmup: any[] = []
+  const oppWarmup: any[] = []
+  
+  const targetWarmupCount = Math.min(5, Math.floor(shuffledWarmup.length / 2))
+  for (let i = 0; i < targetWarmupCount; i++) {
+    if (shuffledWarmup.length > 0) {
+      const c = shuffledWarmup.pop()
+      if (c) hostWarmup.push(c)
+    }
+    if (shuffledWarmup.length > 0) {
+      const c = shuffledWarmup.pop()
+      if (c) oppWarmup.push(c)
+    }
+  }
+
+  // Remaining pool of cards
+  const selectedWarmupIds = new Set<string>()
+  hostWarmup.forEach(c => { if (c) selectedWarmupIds.add(c.id) })
+  oppWarmup.forEach(c => { if (c) selectedWarmupIds.add(c.id) })
+
+  const mainPool = allCards.filter(card => card && !selectedWarmupIds.has(card.id))
+
+  // Split the main pool using the legend ratio
+  const legendCards = mainPool.filter(c => c.isLegend || c.is_legend || c.rarity === 'legendary').sort(() => Math.random() - 0.5)
+  const normalCards = mainPool.filter(c => !c.isLegend && !c.is_legend && c.rarity !== 'legendary').sort(() => Math.random() - 0.5)
+
+  const targetSizePerDeck = Math.max(15, Math.floor(mainPool.length / 2))
   const numLegendsPerDeck = Math.min(
     Math.floor(legendCards.length / 2),
     Math.max(0, Math.round((legendRatio / 100) * targetSizePerDeck))
   )
   const numNormalsPerDeck = Math.max(0, targetSizePerDeck - numLegendsPerDeck)
 
-  const playerSelected: any[] = []
-  const aiSelected: any[] = []
+  const hostMain: any[] = []
+  const oppMain: any[] = []
 
   // Assign legends alternately
   const legendPool = [...legendCards]
   for (let i = 0; i < legendPool.length; i++) {
     const card = legendPool[i]
-    if (playerSelected.filter(c => c.isLegend || c.is_legend).length < numLegendsPerDeck) {
-      playerSelected.push(card)
-    } else if (aiSelected.filter(c => c.isLegend || c.is_legend).length < numLegendsPerDeck) {
-      aiSelected.push(card)
+    if (hostMain.filter(c => c.isLegend || c.is_legend || c.rarity === 'legendary').length < numLegendsPerDeck) {
+      hostMain.push(card)
+    } else if (oppMain.filter(c => c.isLegend || c.is_legend || c.rarity === 'legendary').length < numLegendsPerDeck) {
+      oppMain.push(card)
     }
   }
 
-  // Fill remaining legend slots from leftover legends
+  // Fill remaining legend slots
   let legendRemainder = legendPool.slice(numLegendsPerDeck * 2)
   legendRemainder.forEach((card, i) => {
-    if (i % 2 === 0 && playerSelected.filter(c => c.isLegend || c.is_legend).length < numLegendsPerDeck + 2) {
-      playerSelected.push(card)
-    } else if (aiSelected.filter(c => c.isLegend || c.is_legend).length < numLegendsPerDeck + 2) {
-      aiSelected.push(card)
+    if (i % 2 === 0 && hostMain.filter(c => c.isLegend || c.is_legend || c.rarity === 'legendary').length < numLegendsPerDeck + 2) {
+      hostMain.push(card)
+    } else if (oppMain.filter(c => c.isLegend || c.is_legend || c.rarity === 'legendary').length < numLegendsPerDeck + 2) {
+      oppMain.push(card)
     }
   })
 
@@ -531,38 +615,28 @@ function generateUniqueDecks(pool: any[], legendRatio: number) {
   const halfNormals = Math.floor(normalPool.length / 2)
   for (let i = 0; i < normalPool.length; i++) {
     const card = normalPool[i]
-    if (i < halfNormals && playerSelected.filter(c => !(c.isLegend || c.is_legend)).length < numNormalsPerDeck) {
-      playerSelected.push(card)
-    } else if (i >= halfNormals && aiSelected.filter(c => !(c.isLegend || c.is_legend)).length < numNormalsPerDeck) {
-      aiSelected.push(card)
+    if (i < halfNormals && hostMain.filter(c => !c.isLegend && !c.is_legend && c.rarity !== 'legendary').length < numNormalsPerDeck) {
+      hostMain.push(card)
+    } else if (i >= halfNormals && oppMain.filter(c => !c.isLegend && !c.is_legend && c.rarity !== 'legendary').length < numNormalsPerDeck) {
+      oppMain.push(card)
     } else {
-      if (playerSelected.filter(c => !(c.isLegend || c.is_legend)).length <= aiSelected.filter(c => !(c.isLegend || c.is_legend)).length) {
-        playerSelected.push(card)
+      if (hostMain.filter(c => !c.isLegend && !c.is_legend && c.rarity !== 'legendary').length <= oppMain.filter(c => !c.isLegend && !c.is_legend && c.rarity !== 'legendary').length) {
+        hostMain.push(card)
       } else {
-        aiSelected.push(card)
+        oppMain.push(card)
       }
     }
   }
 
-  const playerShuffled = playerSelected.sort(() => Math.random() - 0.5)
-  const aiShuffled = aiSelected.sort(() => Math.random() - 0.5)
+  const hostShuffledMain = hostMain.filter(Boolean).sort(() => Math.random() - 0.5)
+  const oppShuffledMain = oppMain.filter(Boolean).sort(() => Math.random() - 0.5)
 
-  const filterWarmup = (deck: any[]) => {
-    const normal = deck.filter((c) => !(c.isLegend || c.is_legend))
-    const legend = deck.filter((c) => c.isLegend || c.is_legend)
-    return [
-      ...normal.slice(0, 5),
-      ...legend,
-      ...normal.slice(5)
-    ]
-  }
-
-  const pDeck = filterWarmup(playerShuffled)
-  const oDeck = filterWarmup(aiShuffled)
+  const finalHostDeck = [...hostWarmup.filter(Boolean), ...hostShuffledMain]
+  const finalOppDeck = [...oppWarmup.filter(Boolean), ...oppShuffledMain]
 
   return {
-    playerDeck: pDeck.map((c, idx) => ({ ...c, id: `p_c_${idx}_${Math.random().toString(36).substr(2, 6)}` })),
-    aiDeck: oDeck.map((c, idx) => ({ ...c, id: `o_c_${idx}_${Math.random().toString(36).substr(2, 6)}` }))
+    playerDeck: finalHostDeck.map((c, idx) => ({ ...c, id: `p_c_${idx}_${Math.random().toString(36).substr(2, 6)}` })),
+    aiDeck: finalOppDeck.map((c, idx) => ({ ...c, id: `o_c_${idx}_${Math.random().toString(36).substr(2, 6)}` }))
   }
 }
 
@@ -584,7 +658,7 @@ function runRefereeRulesEngine(
   if (isAttackingStage) {
     slots.forEach((slot) => {
       if (slot && slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
-        if (slot.card.frozen || slot.card.stunned || slot.card.silenced) return
+        if (slot.card.frozen || slot.card.stunned) return
         score += slot.card.attack ?? 0
       }
     })
@@ -594,7 +668,7 @@ function runRefereeRulesEngine(
   } else {
     slots.forEach((slot) => {
       if (slot && slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
-        if (slot.card.frozen || slot.card.stunned || slot.card.silenced) return
+        if (slot.card.frozen || slot.card.stunned) return
         score += slot.card.defense ?? 0
       }
     })
@@ -628,17 +702,22 @@ function runRefereeRulesEngine(
     const { card, isPlayerOwned } = src
     if (!card) return
 
-    if (card.ability) {
+    const ability = card.ability || card.ability_type || card.abilityType
+    if (ability) {
       const opponentActiveSpecials = isPlayerOwned ? aiActiveSpecials : playerActiveSpecials
       const opponentSlots = isPlayerOwned ? aiSlots : playerSlots
       
-      const isAbilityBlocked = opponentActiveSpecials.some(c => c && c.ability?.actions?.some((a: any) => a.type === 'BlockAbility')) ||
-                                opponentSlots.some(s => s && s.card && s.isRevealed && !s.card.silenced && s.card.ability?.actions?.some((a: any) => a.type === 'BlockAbility'))
+      const getAbility = (c: any) => c && (c.ability || c.ability_type || c.abilityType)
+      const isAbilityBlocked = opponentActiveSpecials.some(c => {
+        const a = getAbility(c)
+        return a?.actions?.some((act: any) => act.type === 'BlockAbility')
+      }) || opponentSlots.some(s => {
+        const a = s && s.card && s.isRevealed && !s.card.silenced && getAbility(s.card)
+        return a?.actions?.some((act: any) => act.type === 'BlockAbility')
+      })
 
       const isSilenced = card.silenced || card.abilityBlocked || isAbilityBlocked
       if (isSilenced) return
-
-      const ability = card.ability
       const triggerMatches = 
         ((ability.trigger === 'CardRevealed' || ability.trigger === 'CardPlayed') && card.type === 'player') ||
         (ability.trigger === 'CardPlayed' && card.type === 'special') ||

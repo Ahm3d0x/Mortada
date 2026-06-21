@@ -892,6 +892,11 @@ export const supabaseService = {
         const hasUnrevealedCards = attackerSlots.some((s: any) => s && s.card && !s.isRevealed);
         const canReinforce = attackerMoves > 0 && hasUnrevealedCards;
 
+        const filterSpecials = (specials: any[]) => specials.filter((s: any) => {
+          const mainAction = s.ability?.actions?.[0];
+          return mainAction && mainAction.duration !== "Instant" && mainAction.duration !== "CurrentPhase";
+        });
+
         if (isGoal) {
           if (isHostAttacker) {
             gameState.host_score += 1;
@@ -916,6 +921,9 @@ export const supabaseService = {
           gameState.opponent_slots = applySpent(opponentSlots);
           gameState.is_shot_declared = false;
           gameState.phase = "resolution";
+
+          gameState.active_specials_host = filterSpecials(hostSpecials);
+          gameState.active_specials_opponent = filterSpecials(opponentSpecials);
         } else {
           if (canReinforce) {
             gameState.logs.push({
@@ -936,6 +944,9 @@ export const supabaseService = {
             gameState.opponent_slots = lockSlots(opponentSlots);
             gameState.is_shot_declared = false;
             gameState.phase = isHostAttacker ? "attacking" : "ai_attacking";
+
+            gameState.active_specials_host = hostSpecials;
+            gameState.active_specials_opponent = opponentSpecials;
           } else {
             gameState.logs.push({
               id: Math.random().toString(),
@@ -955,15 +966,11 @@ export const supabaseService = {
             gameState.opponent_slots = applySpent(opponentSlots);
             gameState.is_shot_declared = false;
             gameState.phase = "resolution";
+
+            gameState.active_specials_host = filterSpecials(hostSpecials);
+            gameState.active_specials_opponent = filterSpecials(opponentSpecials);
           }
         }
-
-        const filterSpecials = (specials: any[]) => specials.filter((s: any) => {
-          const mainAction = s.ability?.actions?.[0];
-          return mainAction && mainAction.duration !== "Instant" && mainAction.duration !== "CurrentPhase";
-        });
-        gameState.active_specials_host = filterSpecials(hostSpecials);
-        gameState.active_specials_opponent = filterSpecials(opponentSpecials);
       }
 
       gameState.last_updated_by = "referee";

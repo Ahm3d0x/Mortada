@@ -250,99 +250,126 @@ export function generateUniqueDecks(
   pool: PlayerCard[],
   legendRatio: number
 ): { playerDeck: PlayerCard[]; aiDeck: PlayerCard[] } {
-  if (pool.length === 0) {
+  if (!pool || !Array.isArray(pool) || pool.length === 0) {
     return { playerDeck: [], aiDeck: [] };
   }
 
   // Deduplicate pool by name to prevent player duplicates across the game
   const seenNames = new Set<string>();
-  const uniquePool: PlayerCard[] = [];
+  const allCards: PlayerCard[] = [];
   pool.forEach((card) => {
     if (card && card.name) {
       const normalizedName = card.name.trim().toLowerCase();
       if (!seenNames.has(normalizedName)) {
         seenNames.add(normalizedName);
-        uniquePool.push(card);
+        allCards.push(card);
       }
     }
   });
 
-  if (uniquePool.length === 0) {
-    return { playerDeck: [], aiDeck: [] };
+  // 1. Filter warmup pool (non-legendary player cards)
+  let warmupPool: PlayerCard[] = [];
+  try {
+    warmupPool = allCards.filter(card => card && (card as any).rarity !== 'legendary' && !card.isLegend && card.type === 'player');
+  } catch (e) {
+    console.error("Warmup pool filtering failed in client:", e);
   }
 
-  // Separate legends and normals
-  const legendCards = uniquePool.filter(c => c.isLegend).sort(() => Math.random() - 0.5);
-  const normalCards = uniquePool.filter(c => !c.isLegend).sort(() => Math.random() - 0.5);
+  if (!warmupPool || warmupPool.length === 0) {
+    warmupPool = allCards.filter(card => card && card.type === 'player');
+  }
+  if (!warmupPool || warmupPool.length === 0) {
+    warmupPool = allCards.filter(Boolean);
+  }
 
-  const targetSizePerDeck = Math.max(20, Math.floor(uniquePool.length / 2));
+  // Shuffle warmup pool
+  const shuffledWarmup = [...warmupPool].sort(() => Math.random() - 0.5);
+
+  // Extract warmup cards safely
+  const hostWarmup: PlayerCard[] = [];
+  const oppWarmup: PlayerCard[] = [];
+  
+  const targetWarmupCount = Math.min(5, Math.floor(shuffledWarmup.length / 2));
+  for (let i = 0; i < targetWarmupCount; i++) {
+    if (shuffledWarmup.length > 0) {
+      const c = shuffledWarmup.pop();
+      if (c) hostWarmup.push(c);
+    }
+    if (shuffledWarmup.length > 0) {
+      const c = shuffledWarmup.pop();
+      if (c) oppWarmup.push(c);
+    }
+  }
+
+  // Remaining pool of cards
+  const selectedWarmupIds = new Set<string>();
+  hostWarmup.forEach(c => { if (c) selectedWarmupIds.add(c.id); });
+  oppWarmup.forEach(c => { if (c) selectedWarmupIds.add(c.id); });
+
+  const mainPool = allCards.filter(card => card && !selectedWarmupIds.has(card.id));
+
+  // Split the main pool using the legend ratio
+  const legendCards = mainPool.filter(c => c.isLegend || (c as any).rarity === 'legendary').sort(() => Math.random() - 0.5);
+  const normalCards = mainPool.filter(c => !c.isLegend && (c as any).rarity !== 'legendary').sort(() => Math.random() - 0.5);
+
+  const targetSizePerDeck = Math.max(15, Math.floor(mainPool.length / 2));
   const numLegendsPerDeck = Math.min(
     Math.floor(legendCards.length / 2),
     Math.max(0, Math.round((legendRatio / 100) * targetSizePerDeck))
   );
   const numNormalsPerDeck = Math.max(0, targetSizePerDeck - numLegendsPerDeck);
 
-  const playerSelected: PlayerCard[] = [];
-  const aiSelected: PlayerCard[] = [];
+  const hostMain: PlayerCard[] = [];
+  const oppMain: PlayerCard[] = [];
 
-  // Assign legends alternately between player and ai
+  // Assign legends alternately
   const legendPool = [...legendCards];
   for (let i = 0; i < legendPool.length; i++) {
     const card = legendPool[i];
-    if (playerSelected.filter(c => c.isLegend).length < numLegendsPerDeck) {
-      playerSelected.push({ ...card, id: `p_leg_${i}_${Math.random().toString(36).substr(2, 9)}` });
-    } else if (aiSelected.filter(c => c.isLegend).length < numLegendsPerDeck) {
-      aiSelected.push({ ...card, id: `a_leg_${i}_${Math.random().toString(36).substr(2, 9)}` });
+    if (hostMain.filter(c => c.isLegend).length < numLegendsPerDeck) {
+      hostMain.push(card);
+    } else if (oppMain.filter(c => c.isLegend).length < numLegendsPerDeck) {
+      oppMain.push(card);
     }
-    // Extra legends go alternately
   }
 
-  // Fill remaining legend slots from leftover legends (each goes to only one side)
+  // Fill remaining legend slots
   let legendRemainder = legendPool.slice(numLegendsPerDeck * 2);
   legendRemainder.forEach((card, i) => {
-    if (i % 2 === 0 && playerSelected.filter(c => c.isLegend).length < numLegendsPerDeck + 2) {
-      playerSelected.push({ ...card, id: `p_leg_r${i}_${Math.random().toString(36).substr(2, 9)}` });
-    } else if (aiSelected.filter(c => c.isLegend).length < numLegendsPerDeck + 2) {
-      aiSelected.push({ ...card, id: `a_leg_r${i}_${Math.random().toString(36).substr(2, 9)}` });
+    if (i % 2 === 0 && hostMain.filter(c => c.isLegend).length < numLegendsPerDeck + 2) {
+      hostMain.push(card);
+    } else if (oppMain.filter(c => c.isLegend).length < numLegendsPerDeck + 2) {
+      oppMain.push(card);
     }
   });
 
-  // Assign normals: first half to player, second half to ai
+  // Assign normals
   const normalPool = [...normalCards];
   const halfNormals = Math.floor(normalPool.length / 2);
-
   for (let i = 0; i < normalPool.length; i++) {
     const card = normalPool[i];
-    if (i < halfNormals && playerSelected.filter(c => !c.isLegend).length < numNormalsPerDeck) {
-      playerSelected.push({ ...card, id: `p_n${i}_${Math.random().toString(36).substr(2, 9)}` });
-    } else if (i >= halfNormals && aiSelected.filter(c => !c.isLegend).length < numNormalsPerDeck) {
-      aiSelected.push({ ...card, id: `a_n${i}_${Math.random().toString(36).substr(2, 9)}` });
+    if (i < halfNormals && hostMain.filter(c => !c.isLegend).length < numNormalsPerDeck) {
+      hostMain.push(card);
+    } else if (i >= halfNormals && oppMain.filter(c => !c.isLegend).length < numNormalsPerDeck) {
+      oppMain.push(card);
     } else {
-      // Fill whichever is short
-      if (playerSelected.filter(c => !c.isLegend).length <= aiSelected.filter(c => !c.isLegend).length) {
-        playerSelected.push({ ...card, id: `p_fill${i}_${Math.random().toString(36).substr(2, 9)}` });
+      if (hostMain.filter(c => !c.isLegend).length <= oppMain.filter(c => !c.isLegend).length) {
+        hostMain.push(card);
       } else {
-        aiSelected.push({ ...card, id: `a_fill${i}_${Math.random().toString(36).substr(2, 9)}` });
+        oppMain.push(card);
       }
     }
   }
 
-  const playerShuffled = playerSelected.sort(() => Math.random() - 0.5);
-  const aiShuffled = aiSelected.sort(() => Math.random() - 0.5);
+  const hostShuffledMain = hostMain.filter(Boolean).sort(() => Math.random() - 0.5);
+  const oppShuffledMain = oppMain.filter(Boolean).sort(() => Math.random() - 0.5);
 
-  const filterWarmup = (deck: PlayerCard[]) => {
-    const normal = deck.filter((c) => !c.isLegend);
-    const legend = deck.filter((c) => c.isLegend);
-    return [
-      ...normal.slice(0, 5),
-      ...legend,
-      ...normal.slice(5)
-    ];
-  };
+  const finalHostDeck = [...hostWarmup.filter(Boolean), ...hostShuffledMain];
+  const finalOppDeck = [...oppWarmup.filter(Boolean), ...oppShuffledMain];
 
   return {
-    playerDeck: filterWarmup(playerShuffled),
-    aiDeck: filterWarmup(aiShuffled),
+    playerDeck: finalHostDeck.map((c, idx) => ({ ...c, id: `p_c_${idx}_${Math.random().toString(36).substr(2, 6)}` })),
+    aiDeck: finalOppDeck.map((c, idx) => ({ ...c, id: `o_c_${idx}_${Math.random().toString(36).substr(2, 6)}` }))
   };
 }
 
