@@ -96,8 +96,8 @@ export default function TacticalPitch({
     const selectable = isSelectable(idx, true);
     const isSelected = phase === "attacking" && currentAttackerIdx === idx;
     const isSpent = !!slot.spent;
-    const isActiveInPlay = !!slot.revealedInAttack;
-    const isOpponentCardRevealed = !!(slot.revealedInAttack || slot.spent || (slot as any).revealedByAbility);
+    const isActiveInPlay = !!(slot.revealedInAttack || slot.confirmedInAttack);
+    const isOpponentCardRevealed = !!(slot.revealedInAttack || slot.confirmedInAttack || slot.spent || (slot as any).revealedByAbility);
     
     // Determine active role in the current attack/defense
     const isAttacker = phase === "ai_attacking";
@@ -191,7 +191,7 @@ export default function TacticalPitch({
     const isSelected = selectedSlotIdx === idx;
     const isActiveAttacker = phase === "attacking" && currentAttackerIdx === idx;
     const isSpent = !!slot.spent;
-    const isActiveInPlay = !!slot.revealedInAttack;
+    const isActiveInPlay = !!(slot.revealedInAttack || slot.confirmedInAttack);
 
     const peekingThisCard = isPeekMode && !slot.isRevealed;
 

@@ -2014,18 +2014,63 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     pScore: number,
     aScore: number
   ) => {
+    const playerPitch = playerSlots.map((s) => {
+      if (s && s.card) {
+        return {
+          name: s.card.name,
+          attack: s.card.attack,
+          defense: s.card.defense,
+          role: s.card.role,
+          isRevealed: !!s.isRevealed,
+          spent: !!s.spent
+        };
+      }
+      return null;
+    });
+
+    const aiPitch = aiSlots.map((s) => {
+      if (s && s.card) {
+        return {
+          name: s.card.name,
+          attack: s.card.attack,
+          defense: s.card.defense,
+          role: s.card.role,
+          isRevealed: !!s.isRevealed,
+          spent: !!s.spent
+        };
+      }
+      return null;
+    });
+
+    const playerHandNames = playerHand.map((c) => c ? c.name : null);
+    const aiHandNames = aiHand.map((c) => c ? c.name : null);
+
+    const moves = attacker === "player" ? Math.max(0, 3 - playerMovesLeft) : Math.max(0, 3 - aiMovesLeft);
+    const draws = attacker === "player" ? cardsDrawnThisTurn : aiCardsDrawnThisTurn;
+
     setMatchRounds((prev) => {
       const nextRound = {
         roundNumber: prev.length + 1,
         attacker,
         attackPower,
         defensePower,
-        pontoValue,
-        pontoText,
+        boosterValue: pontoValue,
+        boosterText: pontoText,
         isGoal,
         attackerName,
         defenders,
-        scoreAfter: { player: pScore, ai: aScore }
+        scoreAfter: { player: pScore, ai: aScore },
+        movesPlayed: moves,
+        cardsDrawn: draws,
+        pitchSnapshot: {
+          player: playerPitch,
+          ai: aiPitch
+        },
+        handSnapshot: {
+          player: playerHandNames,
+          ai: aiHandNames
+        },
+        timestamp: getFormattedTime()
       };
       return [...prev, nextRound];
     });
@@ -2148,19 +2193,15 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       };
 
       const aiPitchInit = prepareInitialPitchSlots(aDeckInit);
+      const playerPitchInit = prepareInitialPitchSlots(pDeck);
 
-      // Player slots start empty, requiring manual drawing of covered cards
-      const initialPlayerSlots = Array.from({ length: initialCards }, () => ({
-        card: null,
-        isRevealed: false
-      }));
-      setPlayerSlots(initialPlayerSlots);
+      setPlayerSlots(playerPitchInit.slots.map((card) => ({ card, isRevealed: false })));
       setAiSlots(aiPitchInit.slots.map((card) => ({ card, isRevealed: false })));
 
       setPlayerHand([]);
       setAiHand([]);
 
-      setPlayerDeck(pDeck);
+      setPlayerDeck(playerPitchInit.remainingDeck);
       setAiDeck(aiPitchInit.remainingDeck);
       setSpecialDeck(sDeck);
       setBoosterDeck(poDeck);
@@ -2846,18 +2887,18 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       slots.forEach((slot) => {
         if (slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
           if (slot.card.frozen || slot.card.stunned) return;
-          score += slot.card.attack;
+          score += slot.card.attack || 0;
         }
       });
       if (activeBooster && isPlayerSide === isPlayerAttacker) {
-        score += activeBooster.value;
+        score += activeBooster.value || 0;
       }
     } else {
       // Base defense score: sum of defense of all revealed player cards on the defending side
       slots.forEach((slot) => {
         if (slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
           if (slot.card.frozen || slot.card.stunned) return;
-          score += slot.card.defense;
+          score += slot.card.defense || 0;
         }
       });
     }
@@ -3013,14 +3054,16 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         let maxAttStrength = 0;
         slots.forEach((s) => {
           if (s.card && s.isRevealed && (s.revealedInAttack || s.confirmedInAttack)) {
-            maxAttStrength = Math.max(maxAttStrength, s.card.attack);
+            maxAttStrength = Math.max(maxAttStrength, s.card.attack || 0);
           }
         });
         finalAttack -= maxAttStrength;
       }
-      return Math.max(0, finalAttack);
+      const finalVal = Math.max(0, finalAttack);
+      return isNaN(finalVal) ? 0 : finalVal;
     } else {
-      return Math.max(0, (score * defenseMultiplier) + defenseModifiers);
+      const finalVal = Math.max(0, (score * defenseMultiplier) + defenseModifiers);
+      return isNaN(finalVal) ? 0 : finalVal;
     }
   };
 
@@ -4496,99 +4539,179 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     }
 
     if (gameMode === "rounds") {
-      const nextRounds = completedRounds + 1;
-      setCompletedRounds(nextRounds);
-
-      if (nextRounds >= totalRounds) {
-        setPhase("game_over");
-        if (playerScore > aiScore) {
-          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بنتيجة ${playerScore} - ${aiScore}! ⚽🏆`, "success");
-          setShowConfetti(true);
-        } else if (aiScore > playerScore) {
-          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! للأسف الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`, "danger");
-        } else {
-          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds}) بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}!`, "neutral");
-        }
-        if (isMultiplayer) {
-          syncToSupabaseInstance("game_over");
-        }
-        return;
-      }
-
       setIsAttackBlocked(false);
 
+      const attackerMovesLeft = isPlayerAttacker ? playerMovesLeft : aiMovesLeft;
+      const attackerHasMovesLeft = attackerMovesLeft > 0;
+
       if (isMultiplayer) {
-        const isHost = multiplayerRole === "host";
-        const nextTurnRole = attackerRole === "host" ? "opponent" : "host";
-        const standsAsMe = nextTurnRole === multiplayerRole;
-
-        const nextPhaseState = standsAsMe ? "player_turn" : "ai_turn";
-        setPhase(nextPhaseState as any);
-
-        const nextMoves = standsAsMe ? maxMovesPerTurn : 0;
-        const nextAiMoves = standsAsMe ? 0 : maxMovesPerTurn;
-        const nextTurnCount = turnCount + (standsAsMe ? 1 : 0);
-
-        const roundMsg = `⚽ انتهت جولة الهجوم رقم ${nextRounds}. الدور الآن مع ${standsAsMe ? "فريقك" : "الخصم"}!`;
-        const nextLogs = [
-          ...logs,
-          {
-            id: Math.random().toString(),
-            timestamp: getFormattedTime(),
-            text: roundMsg,
-            type: standsAsMe ? ("success" as const) : ("neutral" as const)
+        if (attackerHasMovesLeft) {
+          const nextTurnRole = attackerRole as "host" | "opponent";
+          const standsAsMe = nextTurnRole === multiplayerRole;
+          const nextPhaseState = standsAsMe ? "player_turn" : "ai_turn";
+          setPhase(nextPhaseState as any);
+          const logText = standsAsMe 
+            ? `⚽ متابعة دور هجومك! متبقي لك عدد ${playerMovesLeft} حركات تكتيكية لإدارتها.`
+            : `⏳ الخصم يتابع دور هجومه مع بقاء حركات لديه. يرجى الانتظار...`;
+          const nextLogs = [
+            ...logs,
+            {
+              id: Math.random().toString(),
+              timestamp: getFormattedTime(),
+              text: logText,
+              type: standsAsMe ? ("success" as const) : ("neutral" as const)
+            }
+          ];
+          setLogs(nextLogs);
+          if (multiplayerRole === "host") {
+            setTimeout(() => {
+              syncToSupabaseInstance(
+                nextPhaseState as any,
+                nextPlayerSlots,
+                nextAiSlots,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                playerMovesLeft,
+                aiMovesLeft,
+                nextLogs,
+                null,
+                null,
+                nextPlayerSpecials,
+                nextAiSpecials,
+                cardsDrawnThisTurn,
+                turnCount,
+                maxMovesPerTurn,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                nextTurnRole
+              );
+            }, 50);
           }
-        ];
-        setLogs(nextLogs);
-        setCardsDrawnThisTurn(0);
-        setPlayerMovesLeft(nextMoves);
-        setAiMovesLeft(nextAiMoves);
-        setAttackerRole(null);
-
-        setTimeout(() => {
-          syncToSupabaseInstance(
-            nextPhaseState as any,
-            nextPlayerSlots,
-            nextAiSlots,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            nextMoves,
-            nextAiMoves,
-            nextLogs,
-            null,
-            null,
-            nextPlayerSpecials,
-            nextAiSpecials,
-            0,
-            nextTurnCount,
-            maxMovesPerTurn,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            null
-          );
-        }, 50);
-      } else {
-        const wasPlayerAttacker = isPlayerAttacker;
-        setIsPlayerAttacker(!wasPlayerAttacker);
-
-        if (wasPlayerAttacker) {
-          phaseRef.current = "ai_turn";
-          setPhase("ai_turn");
-          setAiMovesLeft(maxMovesPerTurn);
-          setAiCardsDrawnThisTurn(0);
-          addLog(`⚽ انتهت جولة هجومك (جولة رقم ${nextRounds}). دور الخصم الآن ليبدأ الهجوم!`, "neutral");
         } else {
-          phaseRef.current = "player_turn";
-          setPhase("player_turn");
-          setPlayerMovesLeft(maxMovesPerTurn);
+          const nextRounds = completedRounds + 1;
+          setCompletedRounds(nextRounds);
+
+          if (nextRounds >= totalRounds) {
+            setPhase("game_over");
+            if (playerScore > aiScore) {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بنتيجة ${playerScore} - ${aiScore}! ⚽🏆`, "success");
+              setShowConfetti(true);
+            } else if (aiScore > playerScore) {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! للأسف الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`, "danger");
+            } else {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds}) بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}!`, "neutral");
+            }
+            if (multiplayerRole === "host") {
+              syncToSupabaseInstance("game_over");
+            }
+            return;
+          }
+
+          const isHost = multiplayerRole === "host";
+          const nextTurnRole = attackerRole === "host" ? "opponent" : "host";
+          const standsAsMe = nextTurnRole === multiplayerRole;
+
+          const nextPhaseState = standsAsMe ? "player_turn" : "ai_turn";
+          setPhase(nextPhaseState as any);
+
+          const nextMoves = standsAsMe ? maxMovesPerTurn : 0;
+          const nextAiMoves = standsAsMe ? 0 : maxMovesPerTurn;
+          const nextTurnCount = turnCount + (standsAsMe ? 1 : 0);
+
+          const roundMsg = `⚽ انتهت جولة الهجوم رقم ${nextRounds}. الدور الآن مع ${standsAsMe ? "فريقك" : "الخصم"}!`;
+          const nextLogs = [
+            ...logs,
+            {
+              id: Math.random().toString(),
+              timestamp: getFormattedTime(),
+              text: roundMsg,
+              type: standsAsMe ? ("success" as const) : ("neutral" as const)
+            }
+          ];
+          setLogs(nextLogs);
           setCardsDrawnThisTurn(0);
-          setHasScoredThisTurn(false);
-          setIsHandExpanded(true);
-          addLog(`⚽ انتهت جولة هجوم الخصم (جولة رقم ${nextRounds}). دورك الآن لتبدأ الهجوم!`, "success");
+          setPlayerMovesLeft(nextMoves);
+          setAiMovesLeft(nextAiMoves);
+          setAttackerRole(null);
+
+          setTimeout(() => {
+            syncToSupabaseInstance(
+              nextPhaseState as any,
+              nextPlayerSlots,
+              nextAiSlots,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              nextMoves,
+              nextAiMoves,
+              nextLogs,
+              null,
+              null,
+              nextPlayerSpecials,
+              nextAiSpecials,
+              0,
+              nextTurnCount,
+              maxMovesPerTurn,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              null
+            );
+          }, 50);
+        }
+      } else {
+        if (attackerHasMovesLeft) {
+          if (isPlayerAttacker) {
+            phaseRef.current = "player_turn";
+            setPhase("player_turn");
+            addLog(`⚽ متابعة دور هجومك! متبقي لك عدد ${playerMovesLeft} حركات تكتيكية لإدارتها.`, "neutral");
+          } else {
+            phaseRef.current = "ai_turn";
+            setPhase("ai_turn");
+            addLog(`⏳ الخصم يتابع دور هجومه مع بقاء حركات لديه. يرجى الانتظار...`, "neutral");
+          }
+        } else {
+          const nextRounds = completedRounds + 1;
+          setCompletedRounds(nextRounds);
+
+          if (nextRounds >= totalRounds) {
+            setPhase("game_over");
+            if (playerScore > aiScore) {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بنتيجة ${playerScore} - ${aiScore}! ⚽🏆`, "success");
+              setShowConfetti(true);
+            } else if (aiScore > playerScore) {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! للأسف الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`, "danger");
+            } else {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds}) بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}!`, "neutral");
+            }
+            return;
+          }
+
+          const wasPlayerAttacker = isPlayerAttacker;
+          setIsPlayerAttacker(!wasPlayerAttacker);
+
+          if (wasPlayerAttacker) {
+            phaseRef.current = "ai_turn";
+            setPhase("ai_turn");
+            setAiMovesLeft(maxMovesPerTurn);
+            setAiCardsDrawnThisTurn(0);
+            addLog(`⚽ انتهت جولة هجومك (جولة رقم ${nextRounds}). دور الخصم الآن ليبدأ الهجوم!`, "neutral");
+          } else {
+            phaseRef.current = "player_turn";
+            setPhase("player_turn");
+            setPlayerSlots(playerSlots.map((s) => ({ ...s, confirmedInAttack: false })));
+            setPlayerMovesLeft(maxMovesPerTurn);
+            setCardsDrawnThisTurn(0);
+            setHasScoredThisTurn(false);
+            setIsHandExpanded(true);
+            addLog(`⚽ انتهت جولة هجوم الخصم (جولة رقم ${nextRounds}). دورك الآن لتبدأ الهجوم!`, "success");
+          }
         }
       }
       return;
@@ -5881,8 +6004,8 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
                     const isSelectable = isSlotSelectable(idx, true);
                     const isChosenToAttack = currentAttackerIdx === idx && phase !== "player_turn";
                     const isSpent = slot.spent;
-                    const isActiveInAttack = !!(slot.card && slot.revealedInAttack);
-                    const isOpponentCardRevealed = !!(slot.revealedInAttack || slot.spent || (slot as any).revealedByAbility);
+                    const isActiveInAttack = !!(slot.card && (slot.confirmedInAttack || slot.revealedInAttack));
+                    const isOpponentCardRevealed = !!(slot.confirmedInAttack || slot.revealedInAttack || slot.spent || (slot as any).revealedByAbility);
                     const hasImage = slot.card ? !!((slot.card as any).imageUrl || (slot.card as any).image_url || (slot.card as any).image) : false;
 
                     const isAttacker = phase === "ai_attacking";
@@ -6286,7 +6409,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
                     const isSelectable = isSlotSelectable(idx, false);
                     const isSelected = selectedPitchSlotIdx === idx;
                     const isSpent = slot.spent;
-                    const isActiveInAttack = !!(slot.card && slot.revealedInAttack);
+                    const isActiveInAttack = !!(slot.card && (slot.confirmedInAttack || slot.revealedInAttack));
                     const hasImage = slot.card ? !!((slot.card as any).imageUrl || (slot.card as any).image_url || (slot.card as any).image) : false;
 
                     const isAttacker = phase === "attacking";

@@ -168,12 +168,12 @@ export default function CoachHand({
             <p className="text-[9px] font-medium leading-relaxed">الحقيبة فارغة حالياً.</p>
           </div>
         ) : (
-          hand.map((card) => {
+          hand.map((card, idx) => {
             const isSelected = selectedCardId === card.id;
             const isBurning = burningCardIds.includes(card.id);
             
             return (
-              <div key={card.id} className="relative flex-shrink-0 font-sans transform hover:scale-[1.03] transition-transform">
+              <div key={`${card.id || ''}_${idx}`} className="relative flex-shrink-0 font-sans transform hover:scale-[1.03] transition-transform">
                 <GameCard
                    card={card}
                    isRevealed={true}

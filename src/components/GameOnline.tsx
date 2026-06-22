@@ -911,6 +911,9 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const [isRefereeResolving, setIsRefereeResolving] = useState<boolean>(false);
   const opponentLastActiveRef = useRef<number>(Date.now() + 10000);
 
+  const currentCombatDetailRef = useRef<any>(null);
+  const latestRoomRef = useRef<MatchRoom>(config.room);
+
   // Realtime Broadcast channel and DB tracking refs
   const gameChannelRef = useRef<any>(null);
   const dbPhaseRef = useRef<GamePhase | null>(null);
@@ -1018,6 +1021,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const [isPlayerAttacker, setIsPlayerAttacker] = useState<boolean>(true);
   const [isAttackBlocked, setIsAttackBlocked] = useState<boolean>(false);
   const [hasScoredThisTurn, setHasScoredThisTurn] = useState<boolean>(false);
+  const [hasAttackedThisTurn, setHasAttackedThisTurn] = useState<boolean>(false);
 
   // Lists of logs
   const [logs, setLogs] = useState<ActionLog[]>([]);
@@ -1141,6 +1145,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
   // Apply incoming room updates to local state
   const applyIncomingRoomUpdate = (updatedRoom: MatchRoom) => {
+    latestRoomRef.current = updatedRoom;
     const resolvedRole = multiplayerRoleRef.current || multiplayerRole;
     
     // Forcefully clear user-input blocks and loading screens immediately when active play starts or turn is assigned
@@ -1185,6 +1190,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       setCardsDrawnThisTurn(0);
       setPlayerMovesLeft(isMyTurn ? maxMovesPerTurn : 0);
       setAiMovesLeft(isMyTurn ? 0 : maxMovesPerTurn);
+      setHasAttackedThisTurn(false);
 
       const starterName = hostStarts ? updatedRoom.host_name : (updatedRoom.opponent_name || "الخصم");
       const startMsg = `🪙 القرعة العشوائية تحدد البداية! ركلة البداية واللعب الأول لصالح [ ${starterName} ]! ⚽`;
@@ -1196,15 +1202,21 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     if (gs.last_updated_by === resolvedRole) return;
 
     isReceivingUpdate.current = true;
+    const isOpponentUpdate = (gs.last_updated_by !== undefined && gs.last_updated_by !== null && gs.last_updated_by !== resolvedRole && gs.last_updated_by !== 'referee');
 
     const canonicalPhase = gs.phase;
-    let incomingLocalPhase = canonicalPhase;
+    const dbCurrentTurn = gs.current_turn || (updatedRoom.current_turn_auth_id === updatedRoom.host_id ? "host" : "opponent");
+    const dbAttackerRole = gs.attacker_role || null;
 
-    if (resolvedRole === "opponent") {
-      if (canonicalPhase === "player_turn") incomingLocalPhase = "ai_turn";
-      else if (canonicalPhase === "ai_turn") incomingLocalPhase = "player_turn";
-      else if (canonicalPhase === "attacking") incomingLocalPhase = "ai_attacking";
-      else if (canonicalPhase === "ai_attacking") incomingLocalPhase = "attacking";
+    let incomingLocalPhase = canonicalPhase;
+    if (canonicalPhase === "player_turn" || canonicalPhase === "ai_turn") {
+      incomingLocalPhase = (resolvedRole === dbCurrentTurn) ? "player_turn" : "ai_turn";
+    } else if (canonicalPhase === "attacking" || canonicalPhase === "ai_attacking") {
+      incomingLocalPhase = (resolvedRole === dbAttackerRole) ? "attacking" : "ai_attacking";
+    }
+
+    if (gs.current_combat_detail !== undefined) {
+      currentCombatDetailRef.current = gs.current_combat_detail;
     }
 
     const my_slots = resolvedRole === "host" ? gs.host_slots : gs.opponent_slots;
@@ -1227,7 +1239,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     if (enemyVibe) setOpponentVibe(enemyVibe);
 
     if (phaseRef.current === "resolution" && incomingLocalPhase !== "resolution") {
-      setCelebrationMessage(null);
+      // Do not clear celebration message here, let user dismiss it manually.
       setSelectedPitchSlotIdx(null);
       setCurrentAttackerIdx(null);
       setCurrentBooster(null);
@@ -1241,40 +1253,68 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       if (lastLog) {
         const text = lastLog.text || "";
         const isGoal = text.includes("جـوووول") || text.includes("⚽");
+        const isMeAttacker = (resolvedRole === gs.attacker_role);
         if (isGoal) {
           SoundEffects.playGoalCelebration();
           setShowConfetti(true);
           triggerScreenShake();
-          setCelebrationMessage({
-            title: "جــوووووول! ⚽🔥",
-            subtitle: text,
-            isGoal: true
-          });
+          if (isMeAttacker) {
+            setCelebrationMessage({
+              title: "جــوووووول! أحرزت هدفاً رائِعاً ⚽🏆",
+              subtitle: text,
+              isGoal: true
+            });
+          } else {
+            setCelebrationMessage({
+              title: "هدف ضدك! استعد للتعويض 🧤💔",
+              subtitle: text,
+              isGoal: true
+            });
+          }
         } else if (text.includes("إنقاذ") || text.includes("🧤") || text.includes("صد")) {
           SoundEffects.playWhistle();
-          setCelebrationMessage({
-            title: "إنقاذ بطولي! 🧤🧱",
-            subtitle: text,
-            isGoal: false
-          });
+          if (isMeAttacker) {
+            setCelebrationMessage({
+              title: "فرصة ضائعة! تصدي بطولي للخصم 🧤🚫",
+              subtitle: text,
+              isGoal: false
+            });
+          } else {
+            setCelebrationMessage({
+              title: "تصدٍّ بطولي! أنقذت مرماك من هدف محقق 🧱🧤",
+              subtitle: text,
+              isGoal: false
+            });
+          }
         }
+      }
+    }
+
+    if (incomingLocalPhase === "player_turn" && phaseRef.current !== "player_turn") {
+      const isStartOfTurn = phaseRef.current === "ai_turn" || phaseRef.current === "warmup";
+      if (isStartOfTurn) {
+        setPlayerMovesLeft(maxMovesPerTurn);
+        setCardsDrawnThisTurn(0);
+        setMaxDrawsPerTurn(defaultMaxDrawsPerTurn);
+        setHasAttackedThisTurn(false);
+        setHasScoredThisTurn(false);
       }
     }
 
     phaseRef.current = incomingLocalPhase;
     setPhase(incomingLocalPhase);
 
-    if (!hasPendingLocalChanges.current) {
-      const isWarmup = incomingLocalPhase === "warmup";
-      if (!isWarmup) {
-        if (my_slots !== undefined && my_slots !== null) setPlayerSlots(my_slots);
-        if (my_hand !== undefined && my_hand !== null) setPlayerHand(my_hand);
-      }
+    if (!hasPendingLocalChanges.current && !isOpponentUpdate) {
+      if (my_slots !== undefined && my_slots !== null) setPlayerSlots(my_slots);
+      if (my_hand !== undefined && my_hand !== null) setPlayerHand(my_hand);
       if (my_score !== undefined) setPlayerScore(my_score);
       if (my_moves !== undefined) setPlayerMovesLeft(my_moves);
       if (my_special !== undefined && my_special !== null) setPlayerActiveSpecial(my_special);
-      if (gs.cards_drawn !== undefined) setCardsDrawnThisTurn(gs.cards_drawn);
+      const isMyTurnNow = (resolvedRole === dbCurrentTurn);
+      setCardsDrawnThisTurn(isMyTurnNow ? (gs.cards_drawn || 0) : 0);
     }
+    const isMyTurnNow = (resolvedRole === dbCurrentTurn);
+    setAiCardsDrawnThisTurn(isMyTurnNow ? 0 : (gs.cards_drawn || 0));
 
     if (enemy_slots !== undefined && enemy_slots !== null) setAiSlots(enemy_slots);
     if (enemy_hand !== undefined && enemy_hand !== null) setAiHand(enemy_hand);
@@ -1289,8 +1329,38 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     if (gs.current_attacker_idx !== undefined) setCurrentAttackerIdx(gs.current_attacker_idx);
     if (enemy_special !== undefined && enemy_special !== null) setAiActiveSpecial(enemy_special);
     if (gs.turn_count !== undefined) setTurnCount(gs.turn_count);
-    if (gs.defense_moves_left !== undefined) setDefenseMovesLeft(gs.defense_moves_left);
+    if (gs.defense_moves_left !== undefined) {
+      const isMyAttackingPhase = (phaseRef.current === "attacking" || incomingLocalPhase === "attacking");
+      if (!isOpponentUpdate || isMyAttackingPhase) {
+        setDefenseMovesLeft(gs.defense_moves_left);
+      }
+    }
     if (gs.is_shot_declared !== undefined) setIsShotDeclared(gs.is_shot_declared);
+
+    if (gs.round_history !== undefined && gs.round_history !== null) {
+      const mappedRounds = gs.round_history.map((r: any) => {
+        const isMeHost = resolvedRole === "host";
+        return {
+          ...r,
+          attacker: r.attacker === "host"
+            ? (isMeHost ? "player" : "ai")
+            : (isMeHost ? "ai" : "player"),
+          scoreAfter: r.scoreAfter ? {
+            player: isMeHost ? r.scoreAfter.host : r.scoreAfter.opponent,
+            ai: isMeHost ? r.scoreAfter.opponent : r.scoreAfter.host
+          } : { player: 0, ai: 0 },
+          pitchSnapshot: r.pitchSnapshot ? {
+            player: isMeHost ? r.pitchSnapshot.host : r.pitchSnapshot.opponent,
+            ai: isMeHost ? r.pitchSnapshot.opponent : r.pitchSnapshot.host
+          } : undefined,
+          handSnapshot: r.handSnapshot ? {
+            player: isMeHost ? r.handSnapshot.host : r.handSnapshot.opponent,
+            ai: isMeHost ? r.handSnapshot.opponent : r.handSnapshot.host
+          } : undefined
+        };
+      });
+      setMatchRounds(mappedRounds);
+    }
 
     if (gs.match_time !== undefined) setMatchTime(gs.match_time);
     if (gs.match_half !== undefined) setMatchHalf(gs.match_half);
@@ -1352,7 +1422,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   };
 
   // Broadcast game event helper
-  const broadcastGameEvent = (eventType: string, syncState: any, extraData: any = null) => {
+  const broadcastGameEvent = (eventType: string, syncState: any, extraData: any = null, currentTurnCol?: string, currentTurnAuthId?: string | null) => {
     const resolvedRoomId = currentRoomIdRef.current || currentRoomId;
     const resolvedRole = multiplayerRoleRef.current || multiplayerRole;
     if (!isMultiplayer || !resolvedRoomId || !resolvedRole) return;
@@ -1369,7 +1439,9 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         host_name: isHost ? coachName : opponentName,
         opponent_name: isHost ? opponentName : coachName,
         host_vibe: isHost ? teamVibe : opponentVibe,
-        opponent_vibe: isHost ? opponentVibe : teamVibe
+        opponent_vibe: isHost ? opponentVibe : teamVibe,
+        current_turn: currentTurnCol !== undefined ? currentTurnCol : (latestRoomRef.current?.current_turn),
+        current_turn_auth_id: currentTurnAuthId !== undefined ? currentTurnAuthId : (latestRoomRef.current?.current_turn_auth_id)
       }
     };
 
@@ -1398,10 +1470,11 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         ...roomMetadata,
         id: currentRoomId!,
         created_at: "",
-        host_id: "",
-        opponent_id: null,
+        host_id: latestRoomRef.current.host_id,
+        opponent_id: latestRoomRef.current.opponent_id,
         status: syncState.phase === "game_over" ? "finished" : "playing",
-        current_turn: syncState.phase === "player_turn" ? "host" : "opponent",
+        current_turn: roomMetadata.current_turn,
+        current_turn_auth_id: roomMetadata.current_turn_auth_id,
         game_state: syncState,
         last_activity: Date.now()
       });
@@ -1640,13 +1713,96 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     const host_deck = resolvedRole === "host" ? resolvedPlayerDeck : resolvedAiDeck;
     const opponent_deck = resolvedRole === "host" ? resolvedAiDeck : resolvedPlayerDeck;
 
-    // Invert phase if Opponent is uploading
+    // Convert local phase perspective to role-agnostic canonical database phase
     let canonicalPhase = finalPhase;
-    if (resolvedRole === "opponent") {
-      if (finalPhase === "player_turn") canonicalPhase = "ai_turn";
-      else if (finalPhase === "ai_turn") canonicalPhase = "player_turn";
-      else if (finalPhase === "attacking") canonicalPhase = "ai_attacking";
-      else if (finalPhase === "ai_attacking") canonicalPhase = "attacking";
+    if (finalPhase === "ai_turn") {
+      canonicalPhase = "player_turn";
+    } else if (finalPhase === "ai_attacking") {
+      canonicalPhase = "attacking";
+    }
+
+    const dbCurrentTurn = (finalPhase === "player_turn" || finalPhase === "attacking")
+      ? (resolvedRole === "host" ? "host" : "opponent")
+      : (finalPhase === "ai_turn" || finalPhase === "ai_attacking"
+          ? (resolvedRole === "host" ? "opponent" : "host")
+          : (resolvedAttackerRole || (resolvedRole === "host" ? "host" : "opponent")));
+
+    let roundHistory = state.matchRounds || [];
+    const isRoundIncremented = resolvedCompletedRounds > state.completedRounds;
+    let finalCurrentCombatDetail = currentCombatDetailRef.current;
+
+    if (isRoundIncremented) {
+      const endedRole = (dbCurrentTurn === "host") ? "opponent" : "host";
+      const hostName = resolvedRole === "host" ? coachName : opponentName;
+      const opponentNameVal = resolvedRole === "host" ? opponentName : coachName;
+
+      const endedMoves = endedRole === "host" ? host_moves : opponent_moves;
+      const movesPlayed = Math.max(0, maxMovesPerTurn - endedMoves);
+
+      const hostPitch = host_slots.map((s: any) => {
+        if (s && s.card) {
+          return {
+            name: s.card.name,
+            attack: s.card.attack,
+            defense: s.card.defense,
+            role: s.card.role,
+            isRevealed: !!s.isRevealed,
+            spent: !!s.spent
+          };
+        }
+        return null;
+      });
+
+      const opponentPitch = opponent_slots.map((s: any) => {
+        if (s && s.card) {
+          return {
+            name: s.card.name,
+            attack: s.card.attack,
+            defense: s.card.defense,
+            role: s.card.role,
+            isRevealed: !!s.isRevealed,
+            spent: !!s.spent
+          };
+        }
+        return null;
+      });
+
+      const hostHand = host_hand.map((c: any) => c ? c.name : null);
+      const opponentHand = opponent_hand.map((c: any) => c ? c.name : null);
+
+      const combat = currentCombatDetailRef.current || null;
+
+      const entry = {
+        roundNumber: state.completedRounds + 1,
+        attacker: combat ? combat.attacker : endedRole,
+        attackerName: combat ? combat.attackerName : (endedRole === "host" ? hostName : opponentNameVal),
+        attackPower: combat ? combat.attackPower : 0,
+        defensePower: combat ? combat.defensePower : 0,
+        boosterValue: combat ? combat.boosterValue : 0,
+        boosterText: combat ? combat.boosterText : "",
+        isGoal: combat ? combat.isGoal : false,
+        defenders: combat ? combat.defenders : [],
+        scoreAfter: {
+          host: host_score,
+          opponent: opponent_score
+        },
+        activePlayer: endedRole,
+        movesPlayed: movesPlayed,
+        cardsDrawn: resolvedDrawn || 0,
+        pitchSnapshot: {
+          host: hostPitch,
+          opponent: opponentPitch
+        },
+        handSnapshot: {
+          host: hostHand,
+          opponent: opponentHand
+        },
+        timestamp: getFormattedTime()
+      };
+
+      roundHistory = [...roundHistory, entry];
+      currentCombatDetailRef.current = null;
+      finalCurrentCombatDetail = null;
     }
 
     const syncState = {
@@ -1662,8 +1818,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       logs: resolvedLogs,
       current_booster: resolvedBooster,
       booster_deck: resolvedBoosterDeck,
-      current_ponto: resolvedBooster, // for backwards compatibility
-      ponto_deck: resolvedBoosterDeck, // for backwards compatibility
+      current_ponto: resolvedBooster,
+      ponto_deck: resolvedBoosterDeck,
       current_attacker_idx: resolvedAttackerIdx,
       active_specials_host: host_special,
       active_specials_opponent: opponent_special,
@@ -1689,12 +1845,16 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       is_half_time_break: resolvedIsHalfTimeBreak,
       half_time_break_left: resolvedHalfTimeBreakLeft,
       match_time: resolvedMatchTime,
-      initial_match_time: resolvedInitialMatchTime
+      initial_match_time: resolvedInitialMatchTime,
+      round_history: roundHistory,
+      current_combat_detail: finalCurrentCombatDetail
     };
+
+    const dbCurrentTurnAuthId = dbCurrentTurn === "host" ? latestRoomRef.current.host_id : latestRoomRef.current.opponent_id;
 
     // Always broadcast the state to the opponent immediately
     const resolvedEventType = opts.eventType !== undefined ? opts.eventType : (accumulatedOverrides.eventType !== undefined ? accumulatedOverrides.eventType : "STATE_UPDATE");
-    broadcastGameEvent(resolvedEventType, syncState);
+    broadcastGameEvent(resolvedEventType, syncState, null, dbCurrentTurn, dbCurrentTurnAuthId);
 
     // Determine checkpoints for database persistence to prevent redundant DB calls
     const currentPhaseVal = syncState.phase;
@@ -1717,13 +1877,15 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       debouncedDbWriteTimeoutId.current = null;
     }
 
-    const isCheckpoint = dbPhaseRef.current === null || isPhaseChanged || isScoreChanged || isGameOver || isConfirmChanged || isShotDeclaredChanged;
+    const isCriticalEvent = resolvedEventType !== "STATE_UPDATE" && resolvedEventType !== "HEARTBEAT";
+    const isCheckpoint = dbPhaseRef.current === null || isPhaseChanged || isScoreChanged || isGameOver || isConfirmChanged || isShotDeclaredChanged || isCriticalEvent;
 
     if (isCheckpoint) {
       try {
         await supabaseService.updateRoomState(resolvedRoomId, {
           game_state: syncState,
-          current_turn: canonicalPhase === "player_turn" ? "host" : "opponent"
+          current_turn: dbCurrentTurn,
+          current_turn_auth_id: dbCurrentTurnAuthId
         });
         
         // Update local DB tracking refs to avoid duplicate writes
@@ -1735,6 +1897,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         dbIsShotDeclaredRef.current = !!syncState.is_shot_declared;
       } catch (e) {
         console.error("Multiplayer checkpoint DB write error", e);
+      } finally {
+        hasPendingLocalChanges.current = false;
       }
     } else {
       // Schedule a debounced DB write in 2 seconds to keep the DB up-to-date in the background
@@ -1743,17 +1907,21 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         try {
           await supabaseService.updateRoomState(resolvedRoomId, {
             game_state: syncState,
-            current_turn: canonicalPhase === "player_turn" ? "host" : "opponent"
+            current_turn: dbCurrentTurn,
+            current_turn_auth_id: dbCurrentTurnAuthId
           });
         } catch (e) {
           console.error("Multiplayer debounced DB write error", e);
+        } finally {
+          hasPendingLocalChanges.current = false;
         }
       }, 2000);
-    }
 
-    setTimeout(() => {
-      hasPendingLocalChanges.current = false;
-    }, 200);
+      // Safety timeout for non-checkpoint updates (after broadcast)
+      setTimeout(() => {
+        hasPendingLocalChanges.current = false;
+      }, 500);
+    }
   };
 
   // Run a delayed sync to allow all batched state mutations to commit
@@ -2272,8 +2440,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
           setAiDeck(res.game_state.opponent_player_deck || []);
           setSpecialDeck(res.game_state.special_deck || []);
           setBoosterDeck(res.game_state.booster_deck || []);
-          setPlayerSlots(Array(5).fill(null).map(() => ({ card: null, isRevealed: false })));
-          setAiSlots(Array(5).fill(null).map(() => ({ card: null, isRevealed: false })));
+          setPlayerSlots(res.game_state.host_slots || []);
+          setAiSlots(res.game_state.opponent_slots || []);
           setPlayerHand([]);
           setAiHand([]);
         }
@@ -2294,6 +2462,11 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         if (initialHostDeck) setAiDeck(initialHostDeck);
         if (initialSpecialDeck) setSpecialDeck(initialSpecialDeck);
         if (initialBoosterDeck) setBoosterDeck(initialBoosterDeck);
+      }
+
+      if (gs) {
+        setPlayerSlots(gs.opponent_slots || []);
+        setAiSlots(gs.host_slots || []);
       }
 
       setPhase("warmup");
@@ -2467,19 +2640,15 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       };
 
       const aiPitchInit = prepareInitialPitchSlots(aDeckInit);
+      const playerPitchInit = prepareInitialPitchSlots(pDeck);
 
-      // Player slots start empty, requiring manual drawing of covered cards
-      const initialPlayerSlots = Array.from({ length: initialCards }, () => ({
-        card: null,
-        isRevealed: false
-      }));
-      setPlayerSlots(initialPlayerSlots);
+      setPlayerSlots(playerPitchInit.slots.map((card) => ({ card, isRevealed: false })));
       setAiSlots(aiPitchInit.slots.map((card) => ({ card, isRevealed: false })));
 
       setPlayerHand([]);
       setAiHand([]);
 
-      setPlayerDeck(pDeck);
+      setPlayerDeck(playerPitchInit.remainingDeck);
       setAiDeck(aiPitchInit.remainingDeck);
       setSpecialDeck(sDeck);
       setBoosterDeck(poDeck);
@@ -3115,18 +3284,18 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       slots.forEach((slot) => {
         if (slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
           if (slot.card.frozen || slot.card.stunned) return;
-          score += slot.card.attack;
+          score += slot.card.attack || 0;
         }
       });
       if (activeBooster && isPlayerSide === isPlayerAttacker) {
-        score += activeBooster.value;
+        score += activeBooster.value || 0;
       }
     } else {
       // Base defense score: sum of defense of all revealed player cards on the defending side
       slots.forEach((slot) => {
         if (slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
           if (slot.card.frozen || slot.card.stunned) return;
-          score += slot.card.defense;
+          score += slot.card.defense || 0;
         }
       });
     }
@@ -3282,14 +3451,16 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         let maxAttStrength = 0;
         slots.forEach((s) => {
           if (s.card && s.isRevealed && (s.revealedInAttack || s.confirmedInAttack)) {
-            maxAttStrength = Math.max(maxAttStrength, s.card.attack);
+            maxAttStrength = Math.max(maxAttStrength, s.card.attack || 0);
           }
         });
         finalAttack -= maxAttStrength;
       }
-      return Math.max(0, finalAttack);
+      const finalVal = Math.max(0, finalAttack);
+      return isNaN(finalVal) ? 0 : finalVal;
     } else {
-      return Math.max(0, (score * defenseMultiplier) + defenseModifiers);
+      const finalVal = Math.max(0, (score * defenseMultiplier) + defenseModifiers);
+      return isNaN(finalVal) ? 0 : finalVal;
     }
   };
 
@@ -3839,7 +4010,15 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
       setPlayerSlots(newSlots);
       setDefenseMovesLeft((prev) => prev - 1);
-      addLog(`🛡️ تم كشف المدافع [ ${clickedSlot.card.name} ] لصد الهجوم! (استهلكت حركة واحدة)`, "success");
+      setTempPhaseLogs((prev) => [
+        ...prev,
+        {
+          id: Math.random().toString(),
+          timestamp: getFormattedTime(),
+          text: `🛡️ تم كشف المدافع [ ${clickedSlot.card.name} ] لصد الهجوم! (استهلكت حركة واحدة)`,
+          type: "success"
+        }
+      ]);
       SoundEffects.playCardDraw();
       syncMultiplayerIfActive(undefined, "CARD_REVEALED");
 
@@ -3969,7 +4148,15 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
       setPlayerSlots(newSlots);
       setPlayerMovesLeft((prev) => prev - 1);
-      addLog(`⚔️ تم كشف المهاجم الداعم [ ${clickedSlot.card.name} ] لتعزيز الهجمة! (استهلكت حركة واحدة)`, "success");
+      setTempPhaseLogs((prev) => [
+        ...prev,
+        {
+          id: Math.random().toString(),
+          timestamp: getFormattedTime(),
+          text: `⚔️ تم كشف المهاجم الداعم [ ${clickedSlot.card.name} ] لتعزيز الهجمة! (استهلكت حركة واحدة)`,
+          type: "success"
+        }
+      ]);
       SoundEffects.playCardDraw();
       syncMultiplayerIfActive(undefined, "CARD_REVEALED");
 
@@ -4067,6 +4254,11 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       return;
     }
 
+    if (hasAttackedThisTurn) {
+      addLog("ممنوع تكرار الهجوم: لقد قمت بشن هجمة بالفعل في هذه الجولة! لا يمكنك شن هجمات جديدة الآن، فقط مسموح لك بإعادة تنظيم صفوفك (تبديل أو تنزيل لاعبين) أو إنهاء دورك.", "warning");
+      return;
+    }
+
     if (playerMovesLeft < 1) {
       addLog("تحذير تكتيكي: لا تمتلك نقاط حركة كافية لشن هجوم!", "danger");
       return;
@@ -4131,6 +4323,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     setPlayerMovesLeft(movesAfterDeclare);
     setPhase("attacking");
     setDefenseMovesLeft(maxMovesPerTurn);
+    setHasAttackedThisTurn(true);
 
     SoundEffects.playWhistle();
 
@@ -4774,104 +4967,186 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     }
 
     if (gameMode === "rounds") {
-      const nextRounds = completedRounds + 1;
-      setCompletedRounds(nextRounds);
-
-      if (nextRounds >= totalRounds) {
-        setPhase("game_over");
-        if (playerScore > aiScore) {
-          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بنتيجة ${playerScore} - ${aiScore}! ⚽🏆`, "success");
-          setShowConfetti(true);
-        } else if (aiScore > playerScore) {
-          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! للأسف الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`, "danger");
-        } else {
-          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds}) بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}!`, "neutral");
-        }
-        if (isMultiplayer) {
-          if (wasMeAttacker) {
-            syncToSupabaseInstance("game_over");
-          }
-        }
-        return;
-      }
-
       setIsAttackBlocked(false);
 
+      const attackerMovesLeft = wasMeAttacker ? playerMovesLeft : aiMovesLeft;
+      const attackerHasMovesLeft = attackerMovesLeft > 0;
+
       if (isMultiplayer) {
-        const isHost = multiplayerRole === "host";
-        const nextTurnRole = attackerRole === "host" ? "opponent" : "host";
-        const standsAsMe = nextTurnRole === multiplayerRole;
+        if (attackerHasMovesLeft) {
+          // Attacker continues their turn, round NOT completed yet
+          const nextTurnRole = attackerRole as "host" | "opponent";
+          const standsAsMe = nextTurnRole === multiplayerRole;
+          const nextPhaseState = standsAsMe ? "player_turn" : "ai_turn";
+          setPhase(nextPhaseState as any);
 
-        const nextPhaseState = standsAsMe ? "player_turn" : "ai_turn";
-        setPhase(nextPhaseState as any);
+          const logText = standsAsMe 
+            ? `⚽ متابعة دور هجومك! متبقي لك عدد ${playerMovesLeft} حركات تكتيكية لإدارتها.`
+            : `⏳ الخصم يتابع دور هجومه مع بقاء حركات لديه. يرجى الانتظار...`;
 
-        const nextMoves = standsAsMe ? maxMovesPerTurn : 0;
-        const nextAiMoves = standsAsMe ? 0 : maxMovesPerTurn;
-        const nextTurnCount = turnCount + (standsAsMe ? 1 : 0);
+          const nextLogs = [
+            ...logs,
+            {
+              id: Math.random().toString(),
+              timestamp: getFormattedTime(),
+              text: logText,
+              type: standsAsMe ? ("success" as const) : ("neutral" as const)
+            }
+          ];
+          setLogs(nextLogs);
 
-        const roundMsg = `⚽ انتهت جولة الهجوم رقم ${nextRounds}. الدور الآن مع ${standsAsMe ? "فريقك" : "الخصم"}!`;
-        const nextLogs = [
-          ...logs,
-          {
-            id: Math.random().toString(),
-            timestamp: getFormattedTime(),
-            text: roundMsg,
-            type: standsAsMe ? ("success" as const) : ("neutral" as const)
+          if (wasMeAttacker) {
+            setTimeout(() => {
+              syncToSupabaseInstance(
+                nextPhaseState as any,
+                nextPlayerSlots,
+                nextAiSlots,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                playerMovesLeft,
+                aiMovesLeft,
+                nextLogs,
+                null,
+                null,
+                nextPlayerSpecials,
+                nextAiSpecials,
+                cardsDrawnThisTurn,
+                turnCount,
+                maxMovesPerTurn,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                nextTurnRole
+              );
+            }, 50);
           }
-        ];
-        setLogs(nextLogs);
-        setCardsDrawnThisTurn(0);
-        setPlayerMovesLeft(nextMoves);
-        setAiMovesLeft(nextAiMoves);
-        setAttackerRole(nextTurnRole);
+        } else {
+          // Attacker runs out of moves, turn switches to opponent, round increments
+          const nextRounds = completedRounds + 1;
+          setCompletedRounds(nextRounds);
 
-        if (wasMeAttacker) {
-          setTimeout(() => {
-            syncToSupabaseInstance(
-              nextPhaseState as any,
-              nextPlayerSlots,
-              nextAiSlots,
-              undefined,
-              undefined,
-              undefined,
-              undefined,
-              nextMoves,
-              nextAiMoves,
-              nextLogs,
-              null,
-              null,
-              nextPlayerSpecials,
-              nextAiSpecials,
-              0,
-              nextTurnCount,
-              maxMovesPerTurn,
-              undefined,
-              undefined,
-              undefined,
-              undefined,
-              nextTurnRole
-            );
-          }, 50);
+          if (nextRounds >= totalRounds) {
+            setPhase("game_over");
+            if (playerScore > aiScore) {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بنتيجة ${playerScore} - ${aiScore}! ⚽🏆`, "success");
+              setShowConfetti(true);
+            } else if (aiScore > playerScore) {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! للأسف الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`, "danger");
+            } else {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds}) بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}!`, "neutral");
+            }
+            if (wasMeAttacker) {
+              syncToSupabaseInstance("game_over");
+            }
+            return;
+          }
+
+          const nextTurnRole = attackerRole === "host" ? "opponent" : "host";
+          const standsAsMe = nextTurnRole === multiplayerRole;
+          const nextPhaseState = standsAsMe ? "player_turn" : "ai_turn";
+          setPhase(nextPhaseState as any);
+
+          const nextMoves = standsAsMe ? maxMovesPerTurn : 0;
+          const nextAiMoves = standsAsMe ? 0 : maxMovesPerTurn;
+          const nextTurnCount = turnCount + (standsAsMe ? 1 : 0);
+
+          const roundMsg = `⚽ انتهت جولة الهجوم رقم ${nextRounds}. الدور الآن مع ${standsAsMe ? "فريقك" : "الخصم"}!`;
+          const nextLogs = [
+            ...logs,
+            {
+              id: Math.random().toString(),
+              timestamp: getFormattedTime(),
+              text: roundMsg,
+              type: standsAsMe ? ("success" as const) : ("neutral" as const)
+            }
+          ];
+          setLogs(nextLogs);
+          setCardsDrawnThisTurn(0);
+          setPlayerMovesLeft(nextMoves);
+          setAiMovesLeft(nextAiMoves);
+          setAttackerRole(nextTurnRole);
+          setHasAttackedThisTurn(false);
+
+          if (wasMeAttacker) {
+            setTimeout(() => {
+              syncToSupabaseInstance(
+                nextPhaseState as any,
+                nextPlayerSlots,
+                nextAiSlots,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                nextMoves,
+                nextAiMoves,
+                nextLogs,
+                null,
+                null,
+                nextPlayerSpecials,
+                nextAiSpecials,
+                0,
+                nextTurnCount,
+                maxMovesPerTurn,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                nextTurnRole
+              );
+            }, 50);
+          }
         }
       } else {
-        const wasPlayerAttacker = isPlayerAttacker;
-        setIsPlayerAttacker(!wasPlayerAttacker);
-
-        if (wasPlayerAttacker) {
-          phaseRef.current = "ai_turn";
-          setPhase("ai_turn");
-          setAiMovesLeft(maxMovesPerTurn);
-          setAiCardsDrawnThisTurn(0);
-          addLog(`⚽ انتهت جولة هجومك (جولة رقم ${nextRounds}). دور الخصم الآن ليبدأ الهجوم!`, "neutral");
+        // Single player mode fallback within GameOnline
+        if (attackerHasMovesLeft) {
+          if (isPlayerAttacker) {
+            phaseRef.current = "player_turn";
+            setPhase("player_turn");
+            addLog(`⚽ متابعة دور هجومك! متبقي لك عدد ${playerMovesLeft} حركات تكتيكية لإدارتها.`, "neutral");
+          } else {
+            phaseRef.current = "ai_turn";
+            setPhase("ai_turn");
+            addLog(`⏳ الخصم يتابع دور هجومه مع بقاء حركات لديه. يرجى الانتظار...`, "neutral");
+          }
         } else {
-          phaseRef.current = "player_turn";
-          setPhase("player_turn");
-          setPlayerSlots(playerSlots.map((s) => ({ ...s, confirmedInAttack: false })));
-          setPlayerMovesLeft(maxMovesPerTurn);
-          setCardsDrawnThisTurn(0);
-          setHasScoredThisTurn(false);
-          setIsHandExpanded(true);
-          addLog(`⚽ انتهت جولة هجوم الخصم (جولة رقم ${nextRounds}). دورك الآن لتبدأ الهجوم!`, "success");
+          const nextRounds = completedRounds + 1;
+          setCompletedRounds(nextRounds);
+
+          if (nextRounds >= totalRounds) {
+            setPhase("game_over");
+            if (playerScore > aiScore) {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بنتيجة ${playerScore} - ${aiScore}! ⚽🏆`, "success");
+              setShowConfetti(true);
+            } else if (aiScore > playerScore) {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! للأسف الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`, "danger");
+            } else {
+              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds}) بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}!`, "neutral");
+            }
+            return;
+          }
+
+          const wasPlayerAttacker = isPlayerAttacker;
+          setIsPlayerAttacker(!wasPlayerAttacker);
+
+          if (wasPlayerAttacker) {
+            phaseRef.current = "ai_turn";
+            setPhase("ai_turn");
+            setAiMovesLeft(maxMovesPerTurn);
+            setAiCardsDrawnThisTurn(0);
+            addLog(`⚽ انتهت جولة هجومك (جولة رقم ${nextRounds}). دور الخصم الآن ليبدأ الهجوم!`, "neutral");
+          } else {
+            phaseRef.current = "player_turn";
+            setPhase("player_turn");
+            setPlayerSlots(playerSlots.map((s) => ({ ...s, confirmedInAttack: false })));
+            setPlayerMovesLeft(maxMovesPerTurn);
+            setCardsDrawnThisTurn(0);
+            setHasScoredThisTurn(false);
+            setIsHandExpanded(true);
+            addLog(`⚽ انتهت جولة هجوم الخصم (جولة رقم ${nextRounds}). دورك الآن لتبدأ الهجوم!`, "success");
+          }
         }
       }
       return;
@@ -4929,6 +5204,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       setAiMovesLeft(nextAiMoves);
       setLogs(nextLogs);
       setAttackerRole(nextTurnRole);
+      setHasAttackedThisTurn(false);
 
       if (wasMeAttacker) {
         setTimeout(() => {
@@ -6149,10 +6425,26 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
                 <div className="grid grid-cols-5 gap-1 md:gap-1.5 w-full flex-1 items-center">
                   {aiSlots.map((slot, idx) => {
                     const isSelectable = isSlotSelectable(idx, true);
-                    const isChosenToAttack = currentAttackerIdx === idx && phase !== "player_turn";
                     const isSpent = slot.spent;
-                    const isActiveInAttack = !!(slot.card && (slot.confirmedInAttack || ((phase === "resolution" || phase === "game_over") && slot.revealedInAttack)));
-                    const isOpponentCardRevealed = !!(slot.confirmedInAttack || slot.spent || (slot as any).revealedByAbility || ((phase === "resolution" || phase === "game_over") && slot.revealedInAttack));
+                    const isOpponentCardRevealed = !!(
+                      slot.confirmedInAttack ||
+                      slot.spent ||
+                      (slot as any).revealedByAbility ||
+                      (slot.revealedInAttack && (
+                        (phase === "ai_attacking" && isShotDeclared) ||
+                        (phase === "resolution")
+                      ))
+                    );
+                    const isActiveInAttack = !!(
+                      slot.card && (
+                        slot.confirmedInAttack ||
+                        (slot.revealedInAttack && (
+                          (phase === "ai_attacking" && isShotDeclared) ||
+                          (phase === "resolution")
+                        ))
+                      )
+                    );
+                    const isChosenToAttack = currentAttackerIdx === idx && phase !== "player_turn" && isOpponentCardRevealed;
                     const hasImage = slot.card ? !!((slot.card as any).imageUrl || (slot.card as any).image_url || (slot.card as any).image) : false;
 
                     const isAttacker = phase === "ai_attacking";
@@ -6556,7 +6848,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
                     const isSelectable = isSlotSelectable(idx, false);
                     const isSelected = selectedPitchSlotIdx === idx;
                     const isSpent = slot.spent;
-                    const isActiveInAttack = !!(slot.card && slot.revealedInAttack);
+                    const isActiveInAttack = !!(slot.card && (slot.confirmedInAttack || slot.revealedInAttack));
                     const hasImage = slot.card ? !!((slot.card as any).imageUrl || (slot.card as any).image_url || (slot.card as any).image) : false;
 
                     const isAttacker = phase === "attacking";

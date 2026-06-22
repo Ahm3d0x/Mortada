@@ -712,6 +712,85 @@ export const supabaseService = {
       return new Date().toLocaleTimeString("en-US", { hour12: false });
     };
 
+    const recordRoundHistory = (
+      gs: any,
+      activeRole: "host" | "opponent",
+      hostName: string,
+      opponentName: string
+    ) => {
+      if (!gs.round_history) {
+        gs.round_history = [];
+      }
+
+      const maxMoves = gs.room_settings?.maxMovesPerTurn ?? 3;
+      const activeMoves = activeRole === "host" ? gs.host_moves : gs.opponent_moves;
+      const movesPlayed = Math.max(0, maxMoves - activeMoves);
+
+      const hostPitch = (gs.host_slots || []).map((s: any) => {
+        if (s && s.card) {
+          return {
+            name: s.card.name,
+            attack: s.card.attack,
+            defense: s.card.defense,
+            role: s.card.role,
+            isRevealed: !!s.isRevealed,
+            spent: !!s.spent
+          };
+        }
+        return null;
+      });
+
+      const opponentPitch = (gs.opponent_slots || []).map((s: any) => {
+        if (s && s.card) {
+          return {
+            name: s.card.name,
+            attack: s.card.attack,
+            defense: s.card.defense,
+            role: s.card.role,
+            isRevealed: !!s.isRevealed,
+            spent: !!s.spent
+          };
+        }
+        return null;
+      });
+
+      const hostHand = (gs.host_hand || []).map((c: any) => c ? c.name : null);
+      const opponentHand = (gs.opponent_hand || []).map((c: any) => c ? c.name : null);
+
+      const combat = gs.current_combat_detail || null;
+
+      const entry = {
+        roundNumber: (gs.completed_rounds || 0) + 1,
+        attacker: combat ? combat.attacker : activeRole,
+        attackerName: combat ? combat.attackerName : (activeRole === "host" ? hostName : opponentName),
+        attackPower: combat ? combat.attackPower : 0,
+        defensePower: combat ? combat.defensePower : 0,
+        boosterValue: combat ? combat.boosterValue : 0,
+        boosterText: combat ? combat.boosterText : "",
+        isGoal: combat ? combat.isGoal : false,
+        defenders: combat ? combat.defenders : [],
+        scoreAfter: {
+          host: gs.host_score || 0,
+          opponent: gs.opponent_score || 0
+        },
+        activePlayer: activeRole,
+        movesPlayed: movesPlayed,
+        cardsDrawn: gs.cards_drawn || 0,
+        pitchSnapshot: {
+          host: hostPitch,
+          opponent: opponentPitch
+        },
+        handSnapshot: {
+          host: hostHand,
+          opponent: opponentHand
+        },
+        timestamp: getFormattedTime()
+      };
+
+      gs.round_history.push(entry);
+      gs.current_combat_detail = null;
+    };
+
     if (body.action === "init_match") {
       const rs = body.settings || {};
       const legendRatio = rs.legendPercentage ?? 30;
@@ -742,19 +821,45 @@ export const supabaseService = {
       const firstHalfRole = hostStarts ? "player" : "ai";
       const secondHalfRole = hostStarts ? "ai" : "player";
 
+      // Automatically draw initial cards for warmup (auto-warmup slots)
+      const initialCardsCount = rs.initialCardsCount ?? 5;
+      const prepareInitialSlots = (deck: any[]) => {
+        const slots = [];
+        const remDeck = [...deck];
+        let count = 0;
+        for (let i = 0; i < remDeck.length; i++) {
+          const card = remDeck[i];
+          if (card && !card.isLegend && card.rarity !== 'legendary') {
+            slots.push({ card, isRevealed: false });
+            remDeck.splice(i, 1);
+            i--;
+            count++;
+            if (count === initialCardsCount) break;
+          }
+        }
+        // If not enough non-legend cards, fill remaining slots
+        while (slots.length < initialCardsCount && remDeck.length > 0) {
+          slots.push({ card: remDeck.shift(), isRevealed: false });
+        }
+        return { slots, remainingDeck: remDeck };
+      };
+
+      const hostInit = prepareInitialSlots(hostDeck);
+      const opponentInit = prepareInitialSlots(oppDeck);
+
       gameState = {
         room_settings: rs,
         phase: "warmup",
-        host_slots: Array(5).fill(null).map(() => ({ card: null, isRevealed: false })),
-        opponent_slots: Array(5).fill(null).map(() => ({ card: null, isRevealed: false })),
+        host_slots: hostInit.slots,
+        opponent_slots: opponentInit.slots,
         host_hand: [],
         opponent_hand: [],
         host_score: 0,
         opponent_score: 0,
         host_moves: rs.maxMovesPerTurn ?? 3,
         opponent_moves: rs.maxMovesPerTurn ?? 3,
-        host_player_deck: hostDeck,
-        opponent_player_deck: oppDeck,
+        host_player_deck: hostInit.remainingDeck,
+        opponent_player_deck: opponentInit.remainingDeck,
         special_deck: specialDeck,
         booster_deck: boosterDeck,
         turn_count: 1,
@@ -910,6 +1015,26 @@ export const supabaseService = {
             type: "success",
           });
 
+          const attackerCardName = isHostAttacker
+            ? (gameState.host_slots[gameState.current_attacker_idx]?.card?.name || "مهاجم")
+            : (gameState.opponent_slots[gameState.current_attacker_idx]?.card?.name || "مهاجم");
+
+          const activeDefenders = (defenderRole === "host" ? hostSlots : opponentSlots)
+            .filter((s: any) => s && s.card && (s.revealedInAttack || s.confirmedInAttack || s.isRevealed))
+            .map((s: any) => s.card.name);
+
+          gameState.current_combat_detail = {
+            attacker: isHostAttacker ? "host" : "opponent",
+            attackerName: attackerName,
+            attackerCard: attackerCardName,
+            attackPower: attackPower,
+            defensePower: defensePower,
+            isGoal: true,
+            defenders: activeDefenders,
+            boosterValue: gameState.current_booster ? gameState.current_booster.value : 0,
+            boosterText: gameState.current_booster ? gameState.current_booster.text : ""
+          };
+
           const applySpent = (slots: any[]) => slots.map((s: any) => {
             if (s && (s.revealedInAttack || s.confirmedInAttack)) {
               return { ...s, spent: true, revealedInAttack: false, confirmedInAttack: false };
@@ -955,6 +1080,26 @@ export const supabaseService = {
               type: "neutral",
             });
 
+            const attackerCardName = isHostAttacker
+              ? (gameState.host_slots[gameState.current_attacker_idx]?.card?.name || "مهاجم")
+              : (gameState.opponent_slots[gameState.current_attacker_idx]?.card?.name || "مهاجم");
+
+            const activeDefenders = (defenderRole === "host" ? hostSlots : opponentSlots)
+              .filter((s: any) => s && s.card && (s.revealedInAttack || s.confirmedInAttack || s.isRevealed))
+              .map((s: any) => s.card.name);
+
+            gameState.current_combat_detail = {
+              attacker: isHostAttacker ? "host" : "opponent",
+              attackerName: attackerName,
+              attackerCard: attackerCardName,
+              attackPower: attackPower,
+              defensePower: defensePower,
+              isGoal: false,
+              defenders: activeDefenders,
+              boosterValue: gameState.current_booster ? gameState.current_booster.value : 0,
+              boosterText: gameState.current_booster ? gameState.current_booster.text : ""
+            };
+
             const applySpent = (slots: any[]) => slots.map((s: any) => {
               if (s && (s.revealedInAttack || s.confirmedInAttack)) {
                 return { ...s, spent: true, revealedInAttack: false, confirmedInAttack: false };
@@ -981,6 +1126,9 @@ export const supabaseService = {
       const nextTurn = isHost ? "opponent" : "host";
       const maxMoves = gameState.room_settings?.maxMovesPerTurn ?? 3;
 
+      recordRoundHistory(gameState, isHost ? "host" : "opponent", room.host_name, room.opponent_name || "الخصم");
+      gameState.completed_rounds = (gameState.completed_rounds || 0) + 1;
+
       gameState.phase = "player_turn";
       gameState.current_turn = nextTurn;
       gameState.attacker_role = nextTurn;
@@ -992,6 +1140,8 @@ export const supabaseService = {
         gameState.host_moves = 0;
         gameState.opponent_moves = maxMoves;
       }
+
+      gameState.defense_moves_left = maxMoves;
 
       gameState.logs.push({
         id: Math.random().toString(),

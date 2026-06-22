@@ -31,9 +31,33 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // 1. Only intercept http/https requests
+  if (!event.request.url.startsWith('http')) {
+    return;
+  }
+
+  const url = new URL(event.request.url);
+
+  // 2. Bypass service worker for local Vite dev server files/HMR to prevent dev issues
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+    if (event.request.headers.get('Upgrade') === 'websocket' || url.pathname.includes('@vite') || url.pathname.includes('node_modules')) {
+      return;
+    }
+  }
+
   event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request);
-    })
+    fetch(event.request)
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) {
+          return cached;
+        }
+        // Always return a valid Response to avoid Service Worker TypeError crash
+        return new Response('Network error', { 
+          status: 408, 
+          statusText: 'Network Connection Failed' 
+        });
+      })
   );
 });
+

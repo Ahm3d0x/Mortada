@@ -6,6 +6,85 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+const recordRoundHistory = (
+  gs: any,
+  activeRole: 'host' | 'opponent',
+  hostName: string,
+  opponentName: string
+) => {
+  if (!gs.round_history) {
+    gs.round_history = []
+  }
+
+  const maxMoves = gs.room_settings?.maxMovesPerTurn ?? 3
+  const activeMoves = activeRole === 'host' ? gs.host_moves : gs.opponent_moves
+  const movesPlayed = Math.max(0, maxMoves - activeMoves)
+
+  const hostPitch = (gs.host_slots || []).map((s: any) => {
+    if (s && s.card) {
+      return {
+        name: s.card.name,
+        attack: s.card.attack,
+        defense: s.card.defense,
+        role: s.card.role,
+        isRevealed: !!s.isRevealed,
+        spent: !!s.spent
+      }
+    }
+    return null
+  })
+
+  const opponentPitch = (gs.opponent_slots || []).map((s: any) => {
+    if (s && s.card) {
+      return {
+        name: s.card.name,
+        attack: s.card.attack,
+        defense: s.card.defense,
+        role: s.card.role,
+        isRevealed: !!s.isRevealed,
+        spent: !!s.spent
+      }
+    }
+    return null
+  })
+
+  const hostHand = (gs.host_hand || []).map((c: any) => c ? c.name : null)
+  const opponentHand = (gs.opponent_hand || []).map((c: any) => c ? c.name : null)
+
+  const combat = gs.current_combat_detail || null
+
+  const entry = {
+    roundNumber: (gs.completed_rounds || 0) + 1,
+    attacker: combat ? combat.attacker : activeRole,
+    attackerName: combat ? combat.attackerName : (activeRole === 'host' ? hostName : opponentName),
+    attackPower: combat ? combat.attackPower : 0,
+    defensePower: combat ? combat.defensePower : 0,
+    boosterValue: combat ? combat.boosterValue : 0,
+    boosterText: combat ? combat.boosterText : "",
+    isGoal: combat ? combat.isGoal : false,
+    defenders: combat ? combat.defenders : [],
+    scoreAfter: {
+      host: gs.host_score || 0,
+      opponent: gs.opponent_score || 0
+    },
+    activePlayer: activeRole,
+    movesPlayed: movesPlayed,
+    cardsDrawn: gs.cards_drawn || 0,
+    pitchSnapshot: {
+      host: hostPitch,
+      opponent: opponentPitch
+    },
+    handSnapshot: {
+      host: hostHand,
+      opponent: opponentHand
+    },
+    timestamp: new Date().toLocaleTimeString('en-US', { hour12: false })
+  }
+
+  gs.round_history.push(entry)
+  gs.current_combat_detail = null
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { 
@@ -85,6 +164,18 @@ Deno.serve(async (req) => {
       if (fetchedSpecials.length === 0) {
         const { data } = await supabaseClient.from('special_cards').select('*').limit(50)
         fetchedSpecials = data || []
+      }
+      if (fetchedSpecials.length === 0) {
+        // Fallback standard cards if database is empty/unseeded
+        fetchedSpecials = [
+          { id: 1, name: 'تسلل مباغت', effect: 'offside', effect_arabic: 'تسلل', description: 'يقع كارت هجوم الخصم بمصيدة التسلل ويلغي نقاط المهاجم الأقوى لديه تماماً لهذه الهجمة.', icon: '🚩', ability: '{"trigger":"CardPlayed","conditions":[{"type":"CardOwnerIsEnemy"}],"actions":[{"type":"CancelAction","target":"CurrentAttack","duration":"Instant"}]}' },
+          { id: 2, name: 'أمطار وغرق العشب', effect: 'wet_pitch', effect_arabic: 'عشب مبلل', description: 'تبلل أرضية الملعب لتحد من سرعة هجمات أو متانة دفاعات خصمك بمقدار 4 نقاط.', icon: '🌧️', ability: '{"trigger":"CardPlayed","conditions":[{"type":"CardOwnerIsEnemy"}],"actions":[{"type":"RemoveStat","stat":"attack","value":4,"target":"CurrentAttack","duration":"Instant"}]}' },
+          { id: 3, name: 'مرتدة قاتلة', effect: 'counter_attack', effect_arabic: 'هجمة مرتدة', description: 'استغل الاندفاع الهجومي للخصم لخلق هجمة معاكسة حاسمة تزيد هجوم المهاجم بـ +4 نقاط.', icon: '↗️', ability: '{"trigger":"CardPlayed","conditions":[{"type":"IsAttacker"}],"actions":[{"type":"AddStat","stat":"attack","value":4,"target":"CurrentAttack","duration":"Instant"}]}' },
+          { id: 4, name: 'الجمهور الحماسي', effect: 'fans', effect_arabic: 'دعم الجماهير', description: 'الهتاف المزلزل بالمدرج يمنح أي لاعب مكشوف بملعبك طاقة هجومية ودفاعية إضافية +3 نقاط.', icon: '🥁', ability: '{"trigger":"CardPlayed","conditions":[],"actions":[{"type":"AddStat","stat":"attack","value":3,"target":"Allies","duration":"Instant"},{"type":"AddStat","stat":"defense","value":3,"target":"Allies","duration":"Instant"}]}' },
+          { id: 5, name: 'تكتيك ركن الباص', effect: 'park_the_bus', effect_arabic: 'ركن الباص', description: 'تنظيم دفاعي معقد خلف الكرة يغلق المنافذ بالكامل ليعطي المدافعين المعنيين زيادة دفاعية +6 نقاط.', icon: '🚌', ability: '{"trigger":"CardPlayed","conditions":[{"type":"IsDefender"}],"actions":[{"type":"AddStat","stat":"defense","value":6,"target":"CurrentDefense","duration":"Instant"}]}' },
+          { id: 6, name: 'طرد مباشر (حمراء)', effect: 'red_card', effect_arabic: 'كارت أحمر', description: 'حكم المباراة يتدخل! قم باستبعاد أي كارت لاعب لخصمك (مكشوف أو مقلوب) خارج الملعب تماماً حتى نهاية المباراة.', icon: '🟥', ability: '{"trigger":"CardPlayed","conditions":[],"actions":[{"type":"DestroyCard","target":"SelectedEnemy","duration":"Instant"}]}' },
+          { id: 7, name: 'طاقة كأس العالم', effect: 'world_cup', effect_arabic: 'روح المونديال', description: 'شحن معنويات الفريق يتيح لك فوراً سحب كارتين إضافيين (من أي مجموعة تناسب تكتيكاتك).', icon: '🏆', ability: '{"trigger":"CardPlayed","conditions":[],"actions":[{"type":"DrawCard","value":2,"target":"Self","duration":"Instant"}]}' }
+        ];
       }
 
       // Format cards into game-ready schemas with ability parsing
@@ -206,19 +297,46 @@ Deno.serve(async (req) => {
       const firstHalfRole = hostStarts ? 'player' : 'ai' // Host starts if 'player'
       const secondHalfRole = hostStarts ? 'ai' : 'player'
 
+      // Automatically draw initial cards for warmup (auto-warmup slots)
+      const initialCardsCount = rs.initialCardsCount ?? 5
+      const prepareInitialSlots = (deck: any[]) => {
+        const slots = []
+        const remDeck = [...deck]
+        let count = 0
+        for (let i = 0; i < remDeck.length; i++) {
+          const card = remDeck[i]
+          if (card && !card.isLegend && !card.is_legend && card.rarity !== 'legendary') {
+            slots.push({ card, isRevealed: false })
+            remDeck.splice(i, 1)
+            i--
+            count++
+            if (count === initialCardsCount) break
+          }
+        }
+        // If not enough non-legend cards, fill remaining slots
+        while (slots.length < initialCardsCount && remDeck.length > 0) {
+          slots.push({ card: remDeck.shift(), isRevealed: false })
+        }
+        return { slots, remainingDeck: remDeck }
+      }
+
+      const hostInit = prepareInitialSlots(hostDeck)
+      const opponentInit = prepareInitialSlots(oppDeck)
+
       gameState = {
         room_settings: rs,
         phase: 'warmup',
-        host_slots: Array(5).fill(null).map(() => ({ card: null, isRevealed: false })),
-        opponent_slots: Array(5).fill(null).map(() => ({ card: null, isRevealed: false })),
+        host_slots: hostInit.slots,
+        opponent_slots: opponentInit.slots,
         host_hand: [],
         opponent_hand: [],
         host_score: 0,
         opponent_score: 0,
         host_moves: rs.maxMovesPerTurn ?? 3,
         opponent_moves: rs.maxMovesPerTurn ?? 3,
-        host_player_deck: hostDeck,
-        opponent_player_deck: oppDeck,
+        defense_moves_left: rs.maxMovesPerTurn ?? 3,
+        host_player_deck: hostInit.remainingDeck,
+        opponent_player_deck: opponentInit.remainingDeck,
         special_deck: specialDeck,
         booster_deck: finalBoosterDeck,
         turn_count: 1,
@@ -275,10 +393,12 @@ Deno.serve(async (req) => {
         gameState.phase = 'player_turn' // In multiplayer context, both sides see themselves relative to turn
         gameState.attacker_role = startRole
         gameState.current_turn = startRole
+        gameState.cards_drawn = 0
         gameState.start_time = Date.now() // Master game timer timestamp
 
         gameState.host_moves = hostStarts ? (gameState.room_settings.maxMovesPerTurn ?? 3) : 0
         gameState.opponent_moves = hostStarts ? 0 : (gameState.room_settings.maxMovesPerTurn ?? 3)
+        gameState.defense_moves_left = gameState.room_settings.maxMovesPerTurn ?? 3
 
         const kickoffAuthId = startRole === 'host' ? room.host_id : room.opponent_id
         gameState.current_turn_auth_id = kickoffAuthId
@@ -384,6 +504,26 @@ Deno.serve(async (req) => {
             type: 'success',
           })
 
+          const attackerCardName = isHostAttacker
+            ? (gameState.host_slots[gameState.current_attacker_idx]?.card?.name || "مهاجم")
+            : (gameState.opponent_slots[gameState.current_attacker_idx]?.card?.name || "مهاجم")
+
+          const activeDefenders = (defenderRole === 'host' ? hostSlots : opponentSlots)
+            .filter((s: any) => s && s.card && (s.revealedInAttack || s.confirmedInAttack || s.isRevealed))
+            .map((s: any) => s.card.name)
+
+          gameState.current_combat_detail = {
+            attacker: isHostAttacker ? 'host' : 'opponent',
+            attackerName: attackerName,
+            attackerCard: attackerCardName,
+            attackPower: attackPower,
+            defensePower: defensePower,
+            isGoal: true,
+            defenders: activeDefenders,
+            boosterValue: gameState.current_booster ? gameState.current_booster.value : 0,
+            boosterText: gameState.current_booster ? gameState.current_booster.text : ""
+          }
+
           const applySpent = (slots: any[]) => slots.map((s: any) => {
             if (s && (s.revealedInAttack || s.confirmedInAttack)) {
               return { ...s, spent: true, revealedInAttack: false, confirmedInAttack: false }
@@ -429,6 +569,26 @@ Deno.serve(async (req) => {
               type: 'neutral',
             })
 
+            const attackerCardName = isHostAttacker
+              ? (gameState.host_slots[gameState.current_attacker_idx]?.card?.name || "مهاجم")
+              : (gameState.opponent_slots[gameState.current_attacker_idx]?.card?.name || "مهاجم")
+
+            const activeDefenders = (defenderRole === 'host' ? hostSlots : opponentSlots)
+              .filter((s: any) => s && s.card && (s.revealedInAttack || s.confirmedInAttack || s.isRevealed))
+              .map((s: any) => s.card.name)
+
+            gameState.current_combat_detail = {
+              attacker: isHostAttacker ? 'host' : 'opponent',
+              attackerName: attackerName,
+              attackerCard: attackerCardName,
+              attackPower: attackPower,
+              defensePower: defensePower,
+              isGoal: false,
+              defenders: activeDefenders,
+              boosterValue: gameState.current_booster ? gameState.current_booster.value : 0,
+              boosterText: gameState.current_booster ? gameState.current_booster.text : ""
+            }
+
             const applySpent = (slots: any[]) => slots.map((s: any) => {
               if (s && (s.revealedInAttack || s.confirmedInAttack)) {
                 return { ...s, spent: true, revealedInAttack: false, confirmedInAttack: false }
@@ -459,9 +619,13 @@ Deno.serve(async (req) => {
       const nextTurn = isHost ? 'opponent' : 'host'
       const maxMoves = gameState.room_settings.maxMovesPerTurn ?? 3
 
+      recordRoundHistory(gameState, isHost ? 'host' : 'opponent', room.host_name, room.opponent_name || 'الخصم')
+      gameState.completed_rounds = (gameState.completed_rounds || 0) + 1
+
       gameState.phase = 'player_turn'
       gameState.current_turn = nextTurn
       gameState.attacker_role = nextTurn
+      gameState.cards_drawn = 0
 
       if (nextTurn === 'host') {
         gameState.host_moves = maxMoves
@@ -470,6 +634,8 @@ Deno.serve(async (req) => {
         gameState.host_moves = 0
         gameState.opponent_moves = maxMoves
       }
+
+      gameState.defense_moves_left = maxMoves
 
       gameState.logs.push({
         id: Math.random().toString(),

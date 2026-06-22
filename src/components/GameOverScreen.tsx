@@ -19,6 +19,18 @@ interface MatchRoundRecord {
   attackerName: string;
   defenders: string[];
   scoreAfter: { player: number; ai: number };
+  activePlayer?: string;
+  movesPlayed?: number;
+  cardsDrawn?: number;
+  pitchSnapshot?: {
+    player: ({ name: string; attack: number; defense: number; role: string; isRevealed: boolean; spent: boolean } | null)[];
+    ai: ({ name: string; attack: number; defense: number; role: string; isRevealed: boolean; spent: boolean } | null)[];
+  };
+  handSnapshot?: {
+    player: (string | null)[];
+    ai: (string | null)[];
+  };
+  timestamp?: string;
 }
 
 interface GameOverScreenProps {
@@ -334,6 +346,7 @@ export default function GameOverScreen({
 }: GameOverScreenProps) {
   const [activeTab, setActiveTab] = useState<"summary" | "stats" | "history">("summary");
   const [activeHistoryTab, setActiveHistoryTab] = useState<"rounds" | "logs">("rounds");
+  const [expandedRoundIdx, setExpandedRoundIdx] = useState<number | null>(null);
 
   const isDraw = playerScore === aiScore;
   const isPlayerWinner = playerScore > aiScore;
@@ -709,11 +722,15 @@ export default function GameOverScreen({
                         matchRounds.map((round, idx) => (
                           <div
                             key={`match-round-${idx}`}
-                            className="p-3 bg-white/3 hover:bg-white/5 border border-white/5 rounded-xl flex flex-col space-y-2 text-right transition-all"
+                            onClick={() => setExpandedRoundIdx(expandedRoundIdx === idx ? null : idx)}
+                            className="p-3 bg-white/3 hover:bg-white/5 border border-white/5 rounded-xl flex flex-col space-y-2 text-right transition-all cursor-pointer select-none"
                           >
                             <div className="flex items-center justify-between flex-row-reverse text-[9px]">
-                              <div className="flex items-center gap-1 font-bold text-slate-350">
+                              <div className="flex items-center gap-1.5 font-bold text-slate-350">
                                 <span>الجولة {round.roundNumber}</span>
+                                <span className="text-[7px] text-slate-400">
+                                  {expandedRoundIdx === idx ? "▲" : "▼"}
+                                </span>
                               </div>
                               
                               <div className={`px-2 py-0.2 rounded font-black border uppercase tracking-tight ${
@@ -764,6 +781,88 @@ export default function GameOverScreen({
                                 {round.scoreAfter.player} - {round.scoreAfter.ai}
                               </span>
                             </div>
+
+                            {/* Collapsible details panel */}
+                            {expandedRoundIdx === idx && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.2, ease: "easeInOut" }}
+                                className="border-t border-white/5 pt-2 mt-1 space-y-2 text-[8px] text-slate-300 overflow-hidden"
+                                onClick={(e) => e.stopPropagation()} // Prevent clicking details from collapsing card
+                              >
+                                {/* Turn stats (Moves / Draws) */}
+                                <div className="grid grid-cols-2 gap-2 text-center bg-black/20 p-1.5 rounded-lg border border-white/5">
+                                  <div className="flex flex-col">
+                                    <span className="text-[6.5px] text-slate-400">الحركات الملعوبة</span>
+                                    <span className="font-bold text-white font-mono">{round.movesPlayed !== undefined ? `${round.movesPlayed} حركات` : "—"}</span>
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-[6.5px] text-slate-400">الكروت المسحوبة</span>
+                                    <span className="font-bold text-white font-mono">{round.cardsDrawn !== undefined ? `${round.cardsDrawn} كروت` : "—"}</span>
+                                  </div>
+                                </div>
+
+                                {/* Pitch Snapshot */}
+                                {round.pitchSnapshot && (
+                                  <div className="flex flex-col space-y-1">
+                                    <div className="text-[7.5px] font-bold text-emerald-400 border-b border-white/5 pb-0.5">🟢 حالة الملعب في هذه الجولة:</div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {/* Player slots */}
+                                      <div className="bg-emerald-950/20 p-1.5 rounded-lg border border-emerald-500/10 flex flex-col space-y-1">
+                                        <div className="font-black text-emerald-300 text-[6.5px] text-center border-b border-emerald-500/15 pb-0.5">ملعبك</div>
+                                        {round.pitchSnapshot.player && round.pitchSnapshot.player.map((slot, sIdx) => {
+                                          if (!slot) return <div key={sIdx} className="text-[6px] text-slate-500 text-center italic">فارغ</div>;
+                                          return (
+                                            <div key={sIdx} className="flex justify-between items-center text-[6.5px] leading-tight">
+                                              <span className={`text-[5.5px] px-0.5 rounded ${slot.spent ? 'bg-rose-900/40 text-rose-300' : 'bg-emerald-900/40 text-emerald-300'}`}>
+                                                {slot.spent ? 'مستهلك' : 'نشط'}
+                                              </span>
+                                              <span className="font-black text-white truncate max-w-[60px]">{slot.name}</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+
+                                      {/* AI slots */}
+                                      <div className="bg-rose-950/20 p-1.5 rounded-lg border border-rose-500/10 flex flex-col space-y-1">
+                                        <div className="font-black text-rose-300 text-[6.5px] text-center border-b border-rose-500/15 pb-0.5">ملعب الخصم</div>
+                                        {round.pitchSnapshot.ai && round.pitchSnapshot.ai.map((slot, sIdx) => {
+                                          if (!slot) return <div key={sIdx} className="text-[6px] text-slate-500 text-center italic">فارغ</div>;
+                                          return (
+                                            <div key={sIdx} className="flex justify-between items-center text-[6.5px] leading-tight">
+                                              <span className={`text-[5.5px] px-0.5 rounded ${slot.spent ? 'bg-rose-900/40 text-rose-300' : 'bg-emerald-900/40 text-emerald-300'}`}>
+                                                {slot.spent ? 'مستهلك' : 'نشط'}
+                                              </span>
+                                              <span className="font-black text-white truncate max-w-[60px]">{slot.isRevealed ? slot.name : "لاعب مقلوب"}</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Hands Snapshot */}
+                                {round.handSnapshot && (
+                                  <div className="grid grid-cols-2 gap-2 text-[6.5px] bg-black/10 p-1.5 rounded-lg border border-white/5">
+                                    <div className="flex flex-col space-y-0.5">
+                                      <span className="text-slate-400 font-bold">كروت يدك:</span>
+                                      <div className="text-white font-medium truncate max-w-[120px]">
+                                        {round.handSnapshot.player && round.handSnapshot.player.length > 0 
+                                          ? round.handSnapshot.player.join("، ") 
+                                          : "لا يوجد"}
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-col space-y-0.5 text-left items-start">
+                                      <span className="text-slate-400 font-bold self-end">كروت يد الخصم:</span>
+                                      <span className="text-white font-bold">{round.handSnapshot.ai ? `${round.handSnapshot.ai.length} كروت` : "—"}</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </motion.div>
+                            )}
                           </div>
                         ))
                       )}
