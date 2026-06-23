@@ -270,7 +270,7 @@ export function generateUniqueDecks(
   // 1. Filter warmup pool (non-legendary player cards)
   let warmupPool: PlayerCard[] = [];
   try {
-    warmupPool = allCards.filter(card => card && (card as any).rarity !== 'legendary' && !card.isLegend && card.type === 'player');
+    warmupPool = allCards.filter(card => card && (card as any).rarity !== 'legendary' && !card.isLegend && !(card as any).is_legend && card.type === 'player');
   } catch (e) {
     console.error("Warmup pool filtering failed in client:", e);
   }
@@ -309,8 +309,8 @@ export function generateUniqueDecks(
   const mainPool = allCards.filter(card => card && !selectedWarmupIds.has(card.id));
 
   // Split the main pool using the legend ratio
-  const legendCards = mainPool.filter(c => c.isLegend || (c as any).rarity === 'legendary').sort(() => Math.random() - 0.5);
-  const normalCards = mainPool.filter(c => !c.isLegend && (c as any).rarity !== 'legendary').sort(() => Math.random() - 0.5);
+  const legendCards = mainPool.filter(c => c.isLegend || (c as any).is_legend || (c as any).rarity === 'legendary').sort(() => Math.random() - 0.5);
+  const normalCards = mainPool.filter(c => !c.isLegend && !(c as any).is_legend && (c as any).rarity !== 'legendary').sort(() => Math.random() - 0.5);
 
   const targetSizePerDeck = Math.max(15, Math.floor(mainPool.length / 2));
   const numLegendsPerDeck = Math.min(
@@ -408,6 +408,69 @@ function generateDeckFromHardcoded(legendRatio: number): PlayerCard[] {
   } as PlayerCard));
 }
 
+// Helper to map special card abilities from effect if missing
+export function mapSpecialCardAbility(card: any): any {
+  if (card.ability) {
+    if (typeof card.ability === "string") {
+      try {
+        return JSON.parse(card.ability);
+      } catch {
+        return card.ability;
+      }
+    }
+    return card.ability;
+  }
+  switch (card.effect) {
+    case "offside":
+      return {
+        trigger: "CardPlayed",
+        conditions: [{ type: "CardOwnerIsEnemy" }],
+        actions: [{ type: "CancelAction", target: "CurrentAttack", duration: "Instant" }]
+      };
+    case "wet_pitch":
+      return {
+        trigger: "CardPlayed",
+        conditions: [{ type: "CardOwnerIsEnemy" }],
+        actions: [{ type: "RemoveStat", stat: "attack", value: 4, target: "CurrentAttack", duration: "Instant" }]
+      };
+    case "counter_attack":
+      return {
+        trigger: "CardPlayed",
+        conditions: [{ type: "IsAttacker" }],
+        actions: [{ type: "AddStat", stat: "attack", value: 4, target: "CurrentAttack", duration: "Instant" }]
+      };
+    case "fans":
+      return {
+        trigger: "CardPlayed",
+        conditions: [],
+        actions: [
+          { type: "AddStat", stat: "attack", value: 3, target: "Allies", duration: "Instant" },
+          { type: "AddStat", stat: "defense", value: 3, target: "Allies", duration: "Instant" }
+        ]
+      };
+    case "park_the_bus":
+      return {
+        trigger: "CardPlayed",
+        conditions: [{ type: "IsDefender" }],
+        actions: [{ type: "AddStat", stat: "defense", value: 6, target: "CurrentDefense", duration: "Instant" }]
+      };
+    case "red_card":
+      return {
+        trigger: "CardPlayed",
+        conditions: [],
+        actions: [{ type: "DestroyCard", target: "SelectedEnemy", duration: "Instant" }]
+      };
+    case "world_cup":
+      return {
+        trigger: "CardPlayed",
+        conditions: [],
+        actions: [{ type: "DrawCard", value: 2, target: "Self", duration: "Instant" }]
+      };
+    default:
+      return undefined;
+  }
+}
+
 // Helper to fully initialize and shuffle standard special decks
 export function generateSpecialDeck(): SpecialCard[] {
   let pool = [...INITIAL_SPECIAL_CARDS];
@@ -441,7 +504,8 @@ export function generateSpecialDeck(): SpecialCard[] {
   }
   return duplicated.map((card, idx) => ({
     ...card,
-    id: `spec_${idx}_${Math.random().toString(36).substr(2, 9)}`
+    id: `spec_${idx}_${Math.random().toString(36).substr(2, 9)}`,
+    ability: mapSpecialCardAbility(card)
   } as SpecialCard)).sort(() => Math.random() - 0.5);
 }
 
@@ -477,9 +541,11 @@ export function generateSpecialDeckFromPool(pool: SpecialCard[]): SpecialCard[] 
   }
   return duplicated.map((card, idx) => ({
     ...card,
-    id: `spec_${idx}_${Math.random().toString(36).substr(2, 9)}`
+    id: `spec_${idx}_${Math.random().toString(36).substr(2, 9)}`,
+    ability: mapSpecialCardAbility(card)
   } as SpecialCard)).sort(() => Math.random() - 0.5);
 }
+
 
 // Helper to fully initialize and shuffle Booster decks
 export function generateBoosterDeck(maxBonusValue: number = 10): BoosterCard[] {

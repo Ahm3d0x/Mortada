@@ -27,15 +27,27 @@ function checkSupabase() {
 export function parseCardAbility(c: any): any {
   if (!c) return c;
   let finalDesc = c.description || "";
-  let ability: CardAbility | undefined = undefined;
-  try {
-    if (c.description && c.description.trim().startsWith("{")) {
-      const parsed = JSON.parse(c.description);
-      finalDesc = parsed.text || "";
-      ability = parsed.ability || undefined;
+  let ability = c.ability || undefined;
+
+  if (ability) {
+    if (typeof ability === "string") {
+      try {
+        ability = JSON.parse(ability);
+      } catch (e) {
+        // Leave as string if not parseable
+      }
     }
-  } catch (e) {
-    // Not JSON
+  } else {
+    // Fallback: parse from description for older records
+    try {
+      if (c.description && c.description.trim().startsWith("{")) {
+        const parsed = JSON.parse(c.description);
+        finalDesc = parsed.text || "";
+        ability = parsed.ability || undefined;
+      }
+    } catch (e) {
+      // Not JSON
+    }
   }
   return { ...c, description: finalDesc, ability };
 }
@@ -43,11 +55,14 @@ export function parseCardAbility(c: any): any {
 export function serializeCardAbility(cardData: any): any {
   if (!cardData) return cardData;
   const { ability, description, ...rest } = cardData;
-  let dbDescription = description || "";
-  if (ability) {
-    dbDescription = JSON.stringify({ text: description, ability });
+  const result: any = { ...rest };
+  if (description !== undefined) {
+    result.description = description || "";
   }
-  return { ...rest, description: dbDescription };
+  if (ability !== undefined) {
+    result.ability = ability || null;
+  }
+  return result;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -183,7 +198,8 @@ export async function getCardsByPackage(packageId: string): Promise<AdminCard[]>
         image_url,
         tags,
         created_at,
-        updated_at
+        updated_at,
+        ability
       )
     `)
     .eq("package_id", packageId);
@@ -210,7 +226,8 @@ export async function getSpecialCardsByPackage(packageId: string): Promise<Admin
         icon,
         image_url,
         created_at,
-        updated_at
+        updated_at,
+        ability
       )
     `)
     .eq("package_id", packageId);
@@ -739,7 +756,8 @@ export async function getCardsForGame(packageIds?: string[]): Promise<PlayerCard
       team,
       avatar,
       image_url,
-      tags
+      tags,
+      ability
     )
   `);
 
@@ -802,7 +820,8 @@ export async function getSpecialCardsForGame(packageIds?: string[]): Promise<Spe
       effect_arabic,
       description,
       icon,
-      image_url
+      image_url,
+      ability
     )
   `);
 
@@ -905,18 +924,21 @@ export async function importPackage(data: PackageExport): Promise<{
   let count = 0;
   if (newPkg.type === "special" && data.specialCards) {
     for (const card of data.specialCards) {
+      const parsed = parseCardAbility(card);
       await createSpecialCardInPackage(newPkg.id, {
         name: card.name,
         effect: card.effect,
         effect_arabic: card.effect_arabic,
-        description: card.description || "",
+        description: parsed.description || "",
         icon: card.icon || "🃏",
         image_url: card.image_url || "",
+        ability: parsed.ability || null,
       });
       count++;
     }
   } else if (data.cards) {
     for (const card of data.cards) {
+      const parsed = parseCardAbility(card);
       await createCardInPackage(newPkg.id, {
         name: card.name,
         attack: card.attack,
@@ -924,11 +946,12 @@ export async function importPackage(data: PackageExport): Promise<{
         role: card.role,
         role_arabic: card.role_arabic,
         is_legend: card.is_legend,
-        description: card.description || "",
+        description: parsed.description || "",
         team: card.team || "",
         avatar: card.avatar || "⚽",
         image_url: card.image_url || "",
         tags: card.tags || [],
+        ability: parsed.ability || null,
       });
       count++;
     }

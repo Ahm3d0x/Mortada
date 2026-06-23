@@ -36,6 +36,7 @@ import GameOverScreen from "./GameOverScreen";
 
 // Helper to format timestamps 
 import { getRandom } from "../utils/random";
+import { getDetailedCalculation, SlotData, runRefereeRulesEngine, executeCardInstantEffects } from "../utils/rulesEngine";
 import {
   goalTitles,
   goalDescriptions,
@@ -463,251 +464,6 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     }
   };
 
-  // Helper to generate detailed calculation breakdown
-  const getDetailedCalculation = (
-    isPlayerSide: boolean,
-    isAttackingStage: boolean,
-    attackerIdx: number | null,
-    activeBooster: BoosterCard | null,
-    playerActiveSpecialsList: SpecialCard[],
-    aiActiveSpecialsList: SpecialCard[],
-    playerSlotsOverride?: typeof playerSlots,
-    aiSlotsOverride?: typeof aiSlots
-  ): { total: number; breakdown: string } => {
-    let baseScore = 0;
-    const slots = playerSlotsOverride && aiSlotsOverride 
-      ? (isPlayerSide ? playerSlotsOverride : aiSlotsOverride)
-      : (isPlayerSide ? playerSlots : aiSlots);
-
-    const playerList: string[] = [];
-    slots.forEach((slot) => {
-      if (slot.card && slot.isRevealed && slot.revealedInAttack) {
-        if (slot.card.frozen || slot.card.stunned) {
-          playerList.push(`   ● ${slot.card.name} (0 [مستبعد - تجميد/صدمة])`);
-          return;
-        }
-        const val = isAttackingStage ? slot.card.attack : slot.card.defense;
-        baseScore += val;
-        playerList.push(`   ● ${slot.card.name} (${val})`);
-      }
-    });
-
-    let boosterVal = 0;
-    let boosterText = "";
-    if (isAttackingStage && activeBooster && isPlayerSide === isPlayerAttacker) {
-      baseScore += activeBooster.value;
-      boosterVal = activeBooster.value;
-      boosterText = activeBooster.text;
-    }
-
-    const activeSources: { card: Card; isPlayerOwned: boolean }[] = [];
-    const activePlayerSlots = playerSlotsOverride || playerSlots;
-    const activeAiSlots = aiSlotsOverride || aiSlots;
-    
-    activePlayerSlots.forEach((slot) => {
-      if (slot.card && slot.isRevealed) {
-        activeSources.push({ card: slot.card, isPlayerOwned: true });
-      }
-    });
-    activeAiSlots.forEach((slot) => {
-      if (slot.card && slot.isRevealed) {
-        activeSources.push({ card: slot.card, isPlayerOwned: false });
-      }
-    });
-    playerActiveSpecialsList.forEach((spec) => {
-      activeSources.push({ card: spec, isPlayerOwned: true });
-    });
-    aiActiveSpecialsList.forEach((spec) => {
-      activeSources.push({ card: spec, isPlayerOwned: false });
-    });
-
-    let modifiers = 0;
-    let multiplier = 1;
-    let cancelStrongestAttacker = false;
-
-    const multiplierLogs: string[] = [];
-    const modifierLogs: string[] = [];
-
-    activeSources.forEach((src) => {
-      const { card, isPlayerOwned } = src;
-
-      if (card.ability) {
-        const opponentActiveSpecials = isPlayerOwned ? aiActiveSpecialsList : playerActiveSpecialsList;
-        const opponentSlots = isPlayerOwned 
-          ? (aiSlotsOverride || aiSlots) 
-          : (playerSlotsOverride || playerSlots);
-        const isAbilityBlocked = opponentActiveSpecials.some(c => c.ability?.actions.some(a => a.type === "BlockAbility")) ||
-                                  opponentSlots.some(s => s.card && s.isRevealed && !s.card.silenced && s.card.ability?.actions.some(a => a.type === "BlockAbility"));
-
-        const isSilenced = (card as any).silenced || (card as any).abilityBlocked || isAbilityBlocked;
-        if (isSilenced) return;
-
-        const ability = card.ability;
-        const triggerMatches = 
-          ((ability.trigger === "CardRevealed" || ability.trigger === "CardPlayed") && card.type === "player") ||
-          (ability.trigger === "CardPlayed" && card.type === "special") ||
-          (ability.trigger === "AttackStarted" && isAttackingStage) ||
-          (ability.trigger === "DefenseStarted" && !isAttackingStage);
-
-        if (triggerMatches) {
-          let conditionsMet = true;
-          if (ability.conditions) {
-            ability.conditions.forEach((cond) => {
-              if (cond.type === "IsAttacker") {
-                const isOwnerAttacking = isPlayerOwned === isPlayerAttacker;
-                if (!isOwnerAttacking) conditionsMet = false;
-              }
-              if (cond.type === "IsDefender") {
-                const isOwnerDefending = isPlayerOwned !== isPlayerAttacker;
-                if (!isOwnerDefending) conditionsMet = false;
-              }
-              if (cond.type === "CardOwnerIsEnemy") {
-                if (isPlayerOwned === isPlayerSide) conditionsMet = false;
-              }
-              if (cond.type === "IsLegend") {
-                if (card.type === "player" && !(card as PlayerCard).isLegend) {
-                  conditionsMet = false;
-                }
-              }
-            });
-          }
-
-          if (conditionsMet && ability.actions) {
-            ability.actions.forEach((act) => {
-              const isCurrentAttackTarget = act.target === "CurrentAttack" && isAttackingStage;
-              const isCurrentDefenseTarget = act.target === "CurrentDefense" && !isAttackingStage;
-
-              const isTargetSide = (act.target === "Allies" && isPlayerOwned === isPlayerSide) ||
-                                   (act.target === "Enemies" && isPlayerOwned !== isPlayerSide) ||
-                                   isCurrentAttackTarget ||
-                                   isCurrentDefenseTarget ||
-                                   (act.target === "Self" && card === src.card && isPlayerOwned === isPlayerSide);
-
-              if (isTargetSide) {
-                if (act.type === "AddStat") {
-                  if (act.stat === "attack" && isAttackingStage) {
-                    modifiers += act.value ?? 0;
-                    modifierLogs.push(`   ● قدرة [${card.name}]: +${act.value} قوة هجوم`);
-                  }
-                  if (act.stat === "defense" && !isAttackingStage) {
-                    modifiers += act.value ?? 0;
-                    modifierLogs.push(`   ● قدرة [${card.name}]: +${act.value} قوة دفاع`);
-                  }
-                } else if (act.type === "RemoveStat") {
-                  if (act.stat === "attack" && isAttackingStage) {
-                    modifiers -= act.value ?? 0;
-                    modifierLogs.push(`   ● قدرة [${card.name}]: -${act.value} قوة هجوم`);
-                  }
-                  if (act.stat === "defense" && !isAttackingStage) {
-                    modifiers -= act.value ?? 0;
-                    modifierLogs.push(`   ● قدرة [${card.name}]: -${act.value} قوة دفاع`);
-                  }
-                } else if (act.type === "MultiplyStat") {
-                  if (act.stat === "attack" && isAttackingStage) {
-                    multiplier *= act.value ?? 1;
-                    multiplierLogs.push(`   ● مضاعفة [${card.name}]: ×${act.value}`);
-                  }
-                  if (act.stat === "defense" && !isAttackingStage) {
-                    multiplier *= act.value ?? 1;
-                    multiplierLogs.push(`   ● مضاعفة [${card.name}]: ×${act.value}`);
-                  }
-                } else if (act.type === "CancelAction" && isAttackingStage) {
-                  cancelStrongestAttacker = true;
-                }
-              }
-            });
-          }
-        }
-      } else if (card.type === "special") {
-        const spec = card as SpecialCard;
-        if (isAttackingStage) {
-          if (isPlayerOwned === isPlayerAttacker) {
-            if (spec.effect === "counter_attack" && isPlayerSide === isPlayerAttacker) {
-              modifiers += 4;
-              modifierLogs.push(`   ● تكتيك [${spec.name}]: +4 قوة هجمة مرتدة`);
-            }
-            if (spec.effect === "fans" && isPlayerSide === isPlayerAttacker) {
-              modifiers += 3;
-              modifierLogs.push(`   ● تكتيك [${spec.name}]: +3 دعم جماهيري`);
-            }
-          } else {
-            if (spec.effect === "wet_pitch" && isPlayerSide === isPlayerAttacker) {
-              modifiers -= 4;
-              modifierLogs.push(`   ● تكتيك [${spec.name}]: -4 عشب مبلل`);
-            }
-            if (spec.effect === "offside" && isPlayerSide === isPlayerAttacker) {
-              cancelStrongestAttacker = true;
-            }
-          }
-        } else {
-          if (isPlayerOwned !== isPlayerAttacker) {
-            if (spec.effect === "park_the_bus" && isPlayerSide !== isPlayerAttacker) {
-              modifiers += 6;
-              modifierLogs.push(`   ● تكتيك [${spec.name}]: +6 ركن الحافلة`);
-            }
-            if (spec.effect === "fans" && isPlayerSide !== isPlayerAttacker) {
-              modifiers += 3;
-              modifierLogs.push(`   ● تكتيك [${spec.name}]: +3 دعم جماهيري`);
-            }
-          }
-        }
-      }
-    });
-
-    let scoreAfterMultiplier = baseScore * multiplier;
-    let finalVal = scoreAfterMultiplier + modifiers;
-    
-    let cancelledCardText = "";
-    if (isAttackingStage && cancelStrongestAttacker) {
-      let maxAttStrength = 0;
-      let maxCardName = "";
-      slots.forEach((s) => {
-        if (s.card && s.isRevealed && s.revealedInAttack) {
-          if (s.card.attack > maxAttStrength) {
-            maxAttStrength = s.card.attack;
-            maxCardName = s.card.name;
-          }
-        }
-      });
-      finalVal -= maxAttStrength;
-      if (maxCardName) {
-        cancelledCardText = `   ● تسلل نشط: إلغاء نقاط أقوى مهاجم [${maxCardName}] (-${maxAttStrength})`;
-      }
-    }
-
-    const totalVal = Math.max(0, finalVal);
-
-    const lines: string[] = [];
-    if (playerList.length > 0) {
-      lines.push(...playerList);
-    } else {
-      lines.push(`   ● لا يوجد لاعبين نشطين (0)`);
-    }
-
-    if (boosterVal > 0) {
-      lines.push(`   ● كارت المعزز: +${boosterVal} [${boosterText}]`);
-    }
-
-    if (multiplierLogs.length > 0) {
-      lines.push(...multiplierLogs);
-    }
-
-    if (modifierLogs.length > 0) {
-      lines.push(...modifierLogs);
-    }
-
-    if (cancelledCardText) {
-      lines.push(cancelledCardText);
-    }
-
-    const detailString = lines.join("\n");
-
-    return {
-      total: totalVal,
-      breakdown: detailString
-    };
-  };
-
   const isSpecialCardsBlocked = (isPlayerOwned: boolean) => {
     const opponentActiveSpecials = isPlayerOwned ? aiActiveSpecial : playerActiveSpecial;
     const opponentSlots = isPlayerOwned ? aiSlots : playerSlots;
@@ -890,6 +646,8 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
   // Main Game state variables
   const [phase, setPhase] = useState<GamePhase>("menu");
+  const [hasAttackedThisTurn, setHasAttackedThisTurn] = useState<boolean>(false);
+  const [isRefereeResolving, setIsRefereeResolving] = useState<boolean>(false);
   const phaseRef = useRef<GamePhase>("menu");
   const isResolvingRef = useRef<boolean>(false);
   const isAIExecutingRef = useRef<boolean>(false);
@@ -993,6 +751,10 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
   // Goal explosion cinematic state
   const [celebrationMessage, setCelebrationMessage] = useState<{ title: string; subtitle: string; isGoal: boolean } | null>(null);
+  const [activeVfxVideo, setActiveVfxVideo] = useState<{ src: string; callback?: () => void } | null>(null);
+  const lastPlayedCelebrationKeyRef = useRef<string | null>(null);
+  const prevSlotsRef = useRef<{ player: any[]; ai: any[] } | null>(null);
+  const prevSpecialsRef = useRef<{ player: any[]; ai: any[] } | null>(null);
   const [activeTargetingCard, setActiveTargetingCard] = useState<SpecialCard | null>(null);
   const [screenShaken, setScreenShaken] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -1044,6 +806,9 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
   const [btnRipples, setBtnRipples] = useState<{ id: number; x: number; y: number }[]>([]);
 
   const isReceivingUpdate = React.useRef(false);
+  const hasPendingLocalChanges = React.useRef(false);
+  const pendingSyncOverrides = React.useRef<any>({});
+  const syncTimeoutId = React.useRef<any>(null);
   const customLogContainerRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1052,15 +817,85 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     }
   }, [logs]);
 
-  // Auto-dismiss celebration/event window after 3 seconds
+  // Trigger VFX when celebration message is set
   useEffect(() => {
     if (celebrationMessage) {
-      const timer = setTimeout(() => {
-        handleAcknowledgeResolution();
-      }, 3000);
-      return () => clearTimeout(timer);
+      setActiveVfxVideo({
+        src: celebrationMessage.isGoal ? "/vfx/goal.mp4" : "/vfx/save.mp4",
+        callback: () => {
+          handleAcknowledgeResolution();
+        }
+      });
     }
   }, [celebrationMessage]);
+
+  // Safety timeout for activeVfxVideo overlay
+  useEffect(() => {
+    if (activeVfxVideo) {
+      const timer = setTimeout(() => {
+        console.log("VFX video safety timeout triggered");
+        const cb = activeVfxVideo.callback;
+        setActiveVfxVideo(null);
+        if (cb) cb();
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeVfxVideo]);
+
+  // Detect Legendary Landing and Tactical Cards Played
+  useEffect(() => {
+    // 1. Detect Legendary Landing
+    if (prevSlotsRef.current) {
+      playerSlots.forEach((slot, idx) => {
+        const prevSlot = prevSlotsRef.current?.player[idx];
+        if (slot.card && slot.card.isLegend) {
+          const isNewLegend = !prevSlot || !prevSlot.card || prevSlot.card.id !== slot.card.id;
+          if (isNewLegend) {
+            setActiveVfxVideo({ src: "/vfx/legandry land.mp4" });
+          }
+        }
+      });
+      aiSlots.forEach((slot, idx) => {
+        const prevSlot = prevSlotsRef.current?.ai[idx];
+        if (slot.card && slot.card.isLegend) {
+          const isNewLegend = !prevSlot || !prevSlot.card || prevSlot.card.id !== slot.card.id;
+          if (isNewLegend) {
+            setActiveVfxVideo({ src: "/vfx/legandry land.mp4" });
+          }
+        }
+      });
+    }
+    prevSlotsRef.current = { player: playerSlots, ai: aiSlots };
+
+    // 2. Detect Special Cards Played
+    if (prevSpecialsRef.current) {
+      playerActiveSpecial.forEach((spec) => {
+        const wasPresent = prevSpecialsRef.current?.player.some((ps) => ps.id === spec.id);
+        if (!wasPresent) {
+          if (spec.effect === "offside") {
+            setActiveVfxVideo({ src: "/vfx/offside tactic.mp4" });
+          } else if (spec.effect === "wet_pitch") {
+            setActiveVfxVideo({ src: "/vfx/wet gros tactic.mp4" });
+          } else if (spec.effect === "park_the_bus") {
+            setActiveVfxVideo({ src: "/vfx/bus tactic.mp4" });
+          }
+        }
+      });
+      aiActiveSpecial.forEach((spec) => {
+        const wasPresent = prevSpecialsRef.current?.ai.some((ps) => ps.id === spec.id);
+        if (!wasPresent) {
+          if (spec.effect === "offside") {
+            setActiveVfxVideo({ src: "/vfx/offside tactic.mp4" });
+          } else if (spec.effect === "wet_pitch") {
+            setActiveVfxVideo({ src: "/vfx/wet gros tactic.mp4" });
+          } else if (spec.effect === "park_the_bus") {
+            setActiveVfxVideo({ src: "/vfx/bus tactic.mp4" });
+          }
+        }
+      });
+    }
+    prevSpecialsRef.current = { player: playerActiveSpecial, ai: aiActiveSpecial };
+  }, [playerSlots, aiSlots, playerActiveSpecial, aiActiveSpecial]);
 
   // Sync current local state to Supabase
   // Sync current local state to Supabase
@@ -1235,8 +1070,6 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       logs: resolvedLogs,
       current_booster: resolvedBooster,
       booster_deck: resolvedBoosterDeck,
-      current_ponto: resolvedBooster, // for backwards compatibility
-      ponto_deck: resolvedBoosterDeck, // for backwards compatibility
       current_attacker_idx: resolvedAttackerIdx,
       active_specials_host: host_special,
       active_specials_opponent: opponent_special,
@@ -1266,35 +1099,59 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     };
 
     try {
+      setIsRefereeResolving(true);
       await supabaseService.updateRoomState(resolvedRoomId, {
         game_state: syncState,
         current_turn: canonicalPhase === "player_turn" ? "host" : "opponent"
       });
     } catch (e) {
       console.error("Multiplayer sync error", e);
+    } finally {
+      setIsRefereeResolving(false);
     }
   };
 
   // Run a delayed sync to allow all batched state mutations to commit
-  const syncMultiplayerIfActive = () => {
-    if (isMultiplayer) {
-      setTimeout(() => {
-        syncToSupabaseInstance();
-      }, 50);
+  const syncMultiplayerIfActive = (overrides?: any, eventType: string = "STATE_UPDATE") => {
+    if (!isMultiplayer) return;
+    hasPendingLocalChanges.current = true;
+    if (overrides) {
+      pendingSyncOverrides.current = {
+        ...pendingSyncOverrides.current,
+        ...overrides
+      };
     }
+    if (eventType) {
+      pendingSyncOverrides.current.eventType = eventType;
+    }
+    if (syncTimeoutId.current) {
+      clearTimeout(syncTimeoutId.current);
+    }
+    syncTimeoutId.current = setTimeout(() => {
+      syncTimeoutId.current = null;
+      const currentOverrides = { ...pendingSyncOverrides.current };
+      pendingSyncOverrides.current = {};
+      syncToSupabaseInstance(currentOverrides);
+    }, 100);
   };
 
-  // Countdown Timer ticking
+  // Countdown Timer ticking (uses Date.now() delta for accuracy)
   useEffect(() => {
     if (phase === "menu" || phase === "game_over") return;
     if (gameMode === "rounds") return;
 
     if (isHalfTimeBreak) {
+      let lastBreakTick = Date.now();
       const breakTimer = setInterval(() => {
+        const now = Date.now();
+        const delta = Math.round((now - lastBreakTick) / 1000);
+        lastBreakTick = now;
+        if (delta <= 0) return;
+
         setHalfTimeBreakLeft((prev) => {
-          if (prev <= 1) {
+          const nextVal = Math.max(0, prev - delta);
+          if (nextVal <= 0) {
             if (isMultiplayer && multiplayerRole !== "host") {
-              // Opponent waits for host to sync transition
               return 0;
             }
             clearInterval(breakTimer);
@@ -1348,27 +1205,32 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
             }
             return 0;
           }
-          return prev - 1;
+          return nextVal;
         });
       }, 1000);
       return () => clearInterval(breakTimer);
     }
 
+    let lastMatchTick = Date.now();
     const timer = setInterval(() => {
+      const now = Date.now();
+      const delta = Math.round((now - lastMatchTick) / 1000);
+      lastMatchTick = now;
+      if (delta <= 0) return;
+
       setMatchTime((prev) => {
         const halfTimePoint = Math.floor(initialMatchTime / 2);
+        const nextVal = Math.max(0, prev - delta);
 
         // Transition to half-time break
-        if (matchHalf === 1 && prev <= halfTimePoint) {
+        if (matchHalf === 1 && nextVal <= halfTimePoint) {
           if (isMultiplayer && multiplayerRole !== "host") {
-            // Opponent waits for host to sync transition
-            return halfTimePoint;
+            return Math.max(halfTimePoint + 1, nextVal);
           }
           clearInterval(timer);
           setIsHalfTimeBreak(true);
           setHalfTimeBreakLeft(halfTimeBreakDuration);
 
-          // Clear active attack and specials states
           setCurrentAttackerIdx(null);
           setCurrentBooster(null);
           setPlayerActiveSpecial([]);
@@ -1380,16 +1242,14 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
           return halfTimePoint;
         }
 
-        if (prev <= 1) {
+        if (nextVal <= 1) {
           if (isMultiplayer && multiplayerRole !== "host") {
-            // Opponent waits for host to declare game over
             return 0;
           }
           clearInterval(timer);
           SoundEffects.playWhistle();
           setPhase("game_over");
 
-          // Determine the winner based on goals
           if (playerScore > aiScore) {
             const victoryMsg = `⏰ انتهى وقت المباراة الرسمي! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بالنتيجة ${playerScore} - ${aiScore}! ⚽🏆`;
             setLogs(prevLogs => [
@@ -1416,7 +1276,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
           }
           return 0;
         }
-        return prev - 1;
+        return nextVal;
       });
     }, 1000);
 
@@ -1445,6 +1305,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
                 setPhase("player_turn");
                 setPlayerMovesLeft(maxMovesPerTurn);
                 setHasScoredThisTurn(false);
+                setHasAttackedThisTurn(false);
                 setCardsDrawnThisTurn(0);
                 setAiCardsDrawnThisTurn(0);
                 setMaxDrawsPerTurn(defaultMaxDrawsPerTurn);
@@ -1484,6 +1345,9 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
                   );
                 }, 50);
               }
+            } else {
+              addLog("⏰ انتهى زمن دور الخصم! تم نقل اللعب تلقائياً إليك.", "success");
+              handleEndAITurn();
             }
           }
           return 0;
@@ -2006,8 +1870,8 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     attacker: "player" | "ai",
     attackPower: number,
     defensePower: number,
-    pontoValue: number,
-    pontoText: string,
+    boosterValue: number,
+    boosterText: string,
     isGoal: boolean,
     attackerName: string,
     defenders: string[],
@@ -2054,8 +1918,8 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         attacker,
         attackPower,
         defensePower,
-        boosterValue: pontoValue,
-        boosterText: pontoText,
+        boosterValue,
+        boosterText,
         isGoal,
         attackerName,
         defenders,
@@ -2372,6 +2236,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       setPlayerMovesLeft(isPlayerStarting ? maxMovesPerTurn : 0);
       setAiMovesLeft(isPlayerStarting ? 0 : maxMovesPerTurn);
       setHasScoredThisTurn(false);
+      setHasAttackedThisTurn(false);
       setIsHandExpanded(isPlayerStarting);
       addLog(`صافرة ركلة البداية! تم إنهاء مرحلة التسخين واللوحة جاهزة. ركلة البداية مع ${isPlayerStarting ? "فريقك" : "الخصم"} عشوائياً.`, "success");
       addLog(getRandom(stadiumPhrases), "info");
@@ -2385,9 +2250,11 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
   // DRAW CARDS ACTION IN PLAYER TURN
   const handleDrawCard = (deckType: "player" | "special") => {
-    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
-    if (phase === "ai_attacking") {
-      addLog("لا يمكنك سحب كروت إضافية أثناء مرحلة الدفاع! يمكنك فقط اللعب بالكروت المتاحة معك في الملعب أو يدك.", "warning");
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen || isRefereeResolving) return;
+    
+    const canDraw = phase === "player_turn" || phase === "warmup";
+    if (!canDraw) {
+      addLog("لا يمكنك سحب كروت إلا في دورك المخصص!", "warning");
       return;
     }
 
@@ -2468,339 +2335,56 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
 
   const triggerCardInstantEffects = (card: Card, isPlayerOwned: boolean, trigger: CardAbilityTriggerType) => {
-    if (!card || !card.ability) return;
-    if (card.ability.trigger !== trigger) return;
-
-    const opponentActiveSpecials = isPlayerOwned ? aiActiveSpecial : playerActiveSpecial;
-    const opponentSlots = isPlayerOwned ? aiSlots : playerSlots;
-    const isAbilityBlocked = opponentActiveSpecials.some(c => c.ability?.actions.some(a => a.type === "BlockAbility")) ||
-                              opponentSlots.some(s => s.card && s.isRevealed && !s.card.silenced && s.card.ability?.actions.some(a => a.type === "BlockAbility"));
-
-    const isSilenced = (card as any).silenced || (card as any).abilityBlocked || isAbilityBlocked;
-    if (isSilenced) return;
-
-    const maxUses = card.ability.maxUses || 1;
-    const currentUses = (card as any).abilityUses || 0;
-    if (currentUses >= maxUses) return;
-
-    // Evaluate conditions
-    let conditionsMet = true;
-    if (card.ability.conditions) {
-      card.ability.conditions.forEach((cond) => {
-        if (cond.type === "IsLegend") {
-          if (card!.type === "player" && !(card as PlayerCard).isLegend) {
-            conditionsMet = false;
-          }
-        }
-      });
-    }
-    if (!conditionsMet) return;
-
-    // Execute instant actions
-    let movesAdded = 0;
-    let cardsDrawn = 0;
-
-    card.ability.actions.forEach((act) => {
-      const val = act.value || 0;
-
-      // 1. Add / Remove Moves
-      if (act.type === "AddMoves") {
-        if (isPlayerOwned) {
-          setPlayerMovesLeft((prev) => prev + val);
-          movesAdded += val;
-        } else {
-          setAiMovesLeft((prev) => prev + val);
-          movesAdded += val;
-        }
-      } else if (act.type === "ReduceMoves") {
-        if (isPlayerOwned) {
-          setAiMovesLeft((prev) => Math.max(0, prev - val));
-        } else {
-          setPlayerMovesLeft((prev) => Math.max(0, prev - val));
-        }
-        addLog(`📉 قدرة [ ${getSafeCardName(card, isPlayerOwned)} ]: تم تقليص حركات الخصم بـ -${val}!`, isPlayerOwned ? "success" : "danger");
-      }
-
-      // 2. Draw Cards
-      else if (act.type === "DrawCard") {
-        cardsDrawn += val;
-      }
-
-      // 3. Stat Modification Actions (Permanent/Instant)
-      else if (act.type === "AddStat" || act.type === "RemoveStat" || act.type === "MultiplyStat") {
-        if (act.stat === "attack" || act.stat === "defense") {
-          if (act.duration === "Instant") {
-            const modifyStats = (c: any, targetSide: boolean) => {
-              if (!c) return c;
-              const isTarget = (act.target === "Self" && c.id === card.id) ||
-                               (act.target === "Allies" && isPlayerOwned === targetSide) ||
-                               (act.target === "Enemies" && isPlayerOwned !== targetSide) ||
-                               (act.target === "All");
-              if (!isTarget) return c;
-
-              const nextCard = { ...c };
-              if (act.stat === "attack") {
-                if (act.type === "AddStat") nextCard.attack += val;
-                if (act.type === "RemoveStat") nextCard.attack = Math.max(0, nextCard.attack - val);
-                if (act.type === "MultiplyStat") nextCard.attack *= val;
-              } else {
-                if (act.type === "AddStat") nextCard.defense += val;
-                if (act.type === "RemoveStat") nextCard.defense = Math.max(0, nextCard.defense - val);
-                if (act.type === "MultiplyStat") nextCard.defense *= val;
-              }
-              return nextCard;
-            };
-
-            setPlayerSlots((prev) => prev.map((s) => s.card ? { ...s, card: modifyStats(s.card, true) } : s));
-            setAiSlots((prev) => prev.map((s) => s.card ? { ...s, card: modifyStats(s.card, false) } : s));
-            addLog(`⚡ تعديل طاقات: تم تعديل طاقة [ ${act.stat === "attack" ? "الهجوم" : "الدفاع"} ] للكروت المستهدفة بشكل دائم بفعل [ ${getSafeCardName(card, isPlayerOwned)} ]!`, isPlayerOwned ? "success" : "danger");
-          }
-        } else if (act.stat === "moves") {
-          const isTargetPlayer = (act.target === "Self" && isPlayerOwned) ||
-                                 (act.target === "Allies" && isPlayerOwned) ||
-                                 (act.target === "Enemies" && !isPlayerOwned) ||
-                                 (act.target === "All");
-
-          const isTargetAi = (act.target === "Self" && !isPlayerOwned) ||
-                             (act.target === "Allies" && !isPlayerOwned) ||
-                             (act.target === "Enemies" && isPlayerOwned) ||
-                             (act.target === "All");
-
-          if (act.type === "AddStat") {
-            if (isTargetPlayer) setPlayerMovesLeft((prev) => prev + val);
-            if (isTargetAi) setAiMovesLeft((prev) => prev + val);
-          } else if (act.type === "RemoveStat") {
-            if (isTargetPlayer) setPlayerMovesLeft((prev) => Math.max(0, prev - val));
-            if (isTargetAi) setAiMovesLeft((prev) => Math.max(0, prev - val));
-          }
-        } else if (act.stat === "draw") {
-          if (act.type === "AddStat") {
-            cardsDrawn += val;
-          }
-        }
-      }
-
-      // 4. Steal Card
-      else if (act.type === "StealCard") {
-        if (isPlayerOwned) {
-          setAiHand((prevAiHand) => {
-            if (prevAiHand.length === 0) return prevAiHand;
-            const randIdx = Math.floor(Math.random() * prevAiHand.length);
-            const stolenCard = prevAiHand[randIdx];
-            setPlayerHand((prevHand) => [...prevHand, stolenCard]);
-            addLog(`💸 سرقة: قمت بسرقة كارت [ ${stolenCard.name} ] من يد الخصم!`, "success");
-            return prevAiHand.filter((_, idx) => idx !== randIdx);
-          });
-        } else {
-          setPlayerHand((prevPlayerHand) => {
-            if (prevPlayerHand.length === 0) return prevPlayerHand;
-            const randIdx = Math.floor(Math.random() * prevPlayerHand.length);
-            const stolenCard = prevPlayerHand[randIdx];
-            setAiHand((prevHand) => [...prevHand, stolenCard]);
-            addLog(`💸 سرقة: الخصم سرق كارت [ ${stolenCard.name} ] من يدك!`, "danger");
-            return prevPlayerHand.filter((_, idx) => idx !== randIdx);
-          });
-        }
-      }
-
-      // 5. Copy Card
-      else if (act.type === "CopyCard") {
-        let bestCard: PlayerCard | null = null;
-        let maxStats = -1;
-        const allSlots = [...playerSlots, ...aiSlots];
-        allSlots.forEach((s) => {
-          if (s.card && s.card.id !== card.id && (s.card.attack + s.card.defense) > maxStats) {
-            maxStats = s.card.attack + s.card.defense;
-            bestCard = s.card;
-          }
-        });
-        if (bestCard) {
-          const copyFrom = bestCard as PlayerCard;
-          const copyStats = (c: any) => {
-            if (c && c.id === card.id) {
-              return {
-                ...c,
-                attack: copyFrom.attack,
-                defense: copyFrom.defense,
-                ability: copyFrom.ability
-              };
-            }
-            return c;
-          };
-          if (isPlayerOwned) {
-            setPlayerSlots((prev) => prev.map((s) => s.card ? { ...s, card: copyStats(s.card) } : s));
-          } else {
-            setAiSlots((prev) => prev.map((s) => s.card ? { ...s, card: copyStats(s.card) } : s));
-          }
-          const isBestCardPlayerOwned = playerSlots.some(s => s.card && s.card.id === bestCard.id);
-          addLog(`👥 قدرة الكارت: نسخ الكارت [ ${getSafeCardName(card, isPlayerOwned)} ] طاقات وقدرات [ ${getSafeCardName(bestCard, isBestCardPlayerOwned)} ]!`, isPlayerOwned ? "success" : "danger");
-        }
-      }
-
-      // 6. Swap Card (Random slot swap)
-      else if (act.type === "SwapCard") {
-        const slotsSetter = isPlayerOwned ? setPlayerSlots : setAiSlots;
-        slotsSetter((prev) => {
-          const next = [...prev];
-          const occupiedIndices = next.map((s, i) => s.card ? i : -1).filter(i => i !== -1);
-          if (occupiedIndices.length >= 2) {
-            const i1 = occupiedIndices[0];
-            const i2 = occupiedIndices[Math.floor(Math.random() * (occupiedIndices.length - 1)) + 1];
-            const temp = next[i1].card;
-            next[i1] = { ...next[i1], card: next[i2].card };
-            next[i2] = { ...next[i2], card: temp };
-          }
-          return next;
-        });
-        addLog(`🔄 قدرة [ ${getSafeCardName(card, isPlayerOwned)} ]: تم تبديل مراكز اللاعبين بالملعب بشكل عشوائي!`, isPlayerOwned ? "success" : "danger");
-      }
-
-      // 7. Reveal / Hide Card
-      else if (act.type === "RevealCard") {
-        if (act.target === "Self") {
-          if (isPlayerOwned) {
-            setPlayerSlots((prev) => prev.map((s) => s.card?.id === card.id ? { ...s, isRevealed: true, revealedInTurn: turnCount, revealedByAbility: true } : s));
-          } else {
-            setAiSlots((prev) => prev.map((s) => s.card?.id === card.id ? { ...s, isRevealed: true, revealedInTurn: turnCount, revealedByAbility: true } : s));
-          }
-        } else if (act.target === "Allies") {
-          if (isPlayerOwned) {
-            setPlayerSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: true, revealedInTurn: turnCount, revealedByAbility: true } : s));
-          } else {
-            setAiSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: true, revealedInTurn: turnCount, revealedByAbility: true } : s));
-          }
-        } else if (act.target === "Enemies") {
-          if (isPlayerOwned) {
-            setAiSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: true, revealedInTurn: turnCount, revealedByAbility: true } : s));
-          } else {
-            setPlayerSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: true, revealedInTurn: turnCount, revealedByAbility: true } : s));
-          }
-        }
-      } else if (act.type === "HideCard") {
-        if (act.target === "Self") {
-          if (isPlayerOwned) {
-            setPlayerSlots((prev) => prev.map((s) => s.card?.id === card.id ? { ...s, isRevealed: false, revealedByAbility: false } : s));
-          } else {
-            setAiSlots((prev) => prev.map((s) => s.card?.id === card.id ? { ...s, isRevealed: false, revealedByAbility: false } : s));
-          }
-        } else if (act.target === "Allies") {
-          if (isPlayerOwned) {
-            setPlayerSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: false, revealedByAbility: false } : s));
-          } else {
-            setAiSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: false, revealedByAbility: false } : s));
-          }
-        } else if (act.target === "Enemies") {
-          if (isPlayerOwned) {
-            setAiSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: false, revealedByAbility: false } : s));
-          } else {
-            setPlayerSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: false, revealedByAbility: false } : s));
-          }
-        }
-      }
-
-      // 8. Freeze, Silence, Stun, Destroy Status Actions
-      else if (act.type === "FreezeCard" || act.type === "SilenceCard" || act.type === "StunCard" || act.type === "DestroyCard") {
-        const durationTurns = act.durationTurns || 2;
-        const modifyStatus = (c: any, targetSide: boolean) => {
-          if (!c) return c;
-          const isTarget = (act.target === "Self" && c.id === card.id) ||
-                           (act.target === "Allies" && isPlayerOwned === targetSide) ||
-                           (act.target === "Enemies" && isPlayerOwned !== targetSide) ||
-                           (act.target === "All");
-          if (!isTarget) return c;
-
-          const nextCard = { ...c };
-          if (act.type === "FreezeCard") {
-            nextCard.frozen = true;
-            nextCard.frozenTurnsLeft = durationTurns;
-          } else if (act.type === "SilenceCard") {
-            nextCard.silenced = true;
-            nextCard.silencedTurnsLeft = durationTurns;
-          } else if (act.type === "StunCard") {
-            nextCard.stunned = true;
-            nextCard.stunnedTurnsLeft = durationTurns;
-          } else if (act.type === "DestroyCard") {
-            if (targetSide) recyclePlayerCard(nextCard);
-            else recycleAiCard(nextCard);
-            return null;
-          }
-          return nextCard;
-        };
-
-        setPlayerSlots((prev) => prev.map((s) => {
-          const updatedCard = modifyStatus(s.card, true);
-          return updatedCard === null ? { card: null, isRevealed: false } : { ...s, card: updatedCard };
-        }));
-        setAiSlots((prev) => prev.map((s) => {
-          const updatedCard = modifyStatus(s.card, false);
-          return updatedCard === null ? { card: null, isRevealed: false } : { ...s, card: updatedCard };
-        }));
-
-        addLog(`⚡ تطبيق تأثير [ ${act.type} ] على الكروت المستهدفة بالملعب!`, isPlayerOwned ? "success" : "danger");
-      }
-    });
-
-    if (movesAdded > 0) {
-      addLog(`⚡ قدرة الأسطورة [ ${getSafeCardName(card, isPlayerOwned)} ] (${isPlayerOwned ? "حليف" : "خصم"}): تم إضافة +${movesAdded} حركات تكتيكية!`, isPlayerOwned ? "success" : "danger");
-    }
-
-    if (cardsDrawn > 0) {
-      if (isPlayerOwned) {
-        setMaxDrawsPerTurn((prev) => prev + cardsDrawn);
-        addLog(`⚡ قدرة الأسطورة [ ${getSafeCardName(card, isPlayerOwned)} ] (حليف): تم زيادة فرصة السحب المتاحة لك بمقدار +${cardsDrawn} كروت إضافية اختيارياً! يمكنك سحبها الآن من المجموعات بيدك.`, "success");
-      } else {
-        let currentAiDeck = [...aiDeck];
-        let currentSpecialDeck = [...specialDeck];
-        const added: Card[] = [];
-        
-        for (let i = 0; i < cardsDrawn; i++) {
-          const drawType = i % 2 === 0 ? "player" : "special";
-          if (drawType === "player" && currentAiDeck.length > 0) {
-            added.push(currentAiDeck[0]);
-            currentAiDeck = currentAiDeck.slice(1);
-          } else if (currentSpecialDeck.length > 0) {
-            added.push(currentSpecialDeck[0]);
-            currentSpecialDeck = currentSpecialDeck.slice(1);
-          } else if (currentAiDeck.length > 0) {
-            added.push(currentAiDeck[0]);
-            currentAiDeck = currentAiDeck.slice(1);
-          }
-        }
-        
-        if (added.length > 0) {
-          setAiDeck(currentAiDeck);
-          setSpecialDeck(currentSpecialDeck);
-          setAiHand((prevHand) => [...prevHand, ...added]);
-          if (!isPlayerOwned) {
-            setAiCardsDrawnThisTurn((prev) => prev + added.length);
-          }
-          
-          added.forEach((c) => {
-            if (c.type === "player") {
-              addLog(`الخصم يسحب كارت لاعب جديد ليده بفعل قدرة خاصة.`, "warning");
-            } else {
-              addLog(`الخصم يسحب كارت تكتيك إضافي ليده بفعل قدرة خاصة.`, "warning");
-            }
-          });
-          SoundEffects.playCardDraw();
-        }
-      }
-    }
-
-    // Mark as used in playerSlots/aiSlots/playerHand/aiHand
-    const incrementUses = (c: any) => {
-      if (c && c.id === card.id) {
-        return { ...c, abilityUses: ((c as any).abilityUses || 0) + 1 };
-      }
-      return c;
+    const gs = {
+      host_slots: playerSlots,
+      opponent_slots: aiSlots,
+      host_hand: playerHand,
+      opponent_hand: aiHand,
+      host_moves: playerMovesLeft,
+      opponent_moves: aiMovesLeft,
+      extra_draws_limit: 0,
+      logs: [...logs],
+      attacker_role: isPlayerAttacker ? 'host' : 'opponent' as const,
+      turn_count: turnCount,
+      active_specials_host: playerActiveSpecial,
+      active_specials_opponent: aiActiveSpecial,
+      host_deck: playerDeck,
+      opponent_deck: aiDeck,
+      special_deck: specialDeck,
     };
 
-    if (isPlayerOwned) {
-      setPlayerSlots((prev) => prev.map((s) => s.card ? { ...s, card: incrementUses(s.card) } : s));
-      setPlayerHand((prev) => prev.map((c) => incrementUses(c)));
-    } else {
-      setAiSlots((prev) => prev.map((s) => s.card ? { ...s, card: incrementUses(s.card) } : s));
-      setAiHand((prev) => prev.map((c) => incrementUses(c)));
+    executeCardInstantEffects(
+      gs,
+      card,
+      isPlayerOwned ? 'host' : 'opponent',
+      trigger,
+      coachName,
+      "المدرب الغريم (تكتيك روبوت)"
+    );
+
+    // Apply updates back to local React states
+    setPlayerSlots(gs.host_slots);
+    setAiSlots(gs.opponent_slots);
+    setPlayerHand(gs.host_hand);
+    setAiHand(gs.opponent_hand);
+    setPlayerMovesLeft(gs.host_moves);
+    setAiMovesLeft(gs.opponent_moves);
+    setPlayerDeck(gs.host_deck);
+    setAiDeck(gs.opponent_deck);
+    setSpecialDeck(gs.special_deck);
+    setLogs(gs.logs);
+
+    if (gs.extra_draws_limit > 0 && isPlayerOwned) {
+      setMaxDrawsPerTurn((prev) => prev + gs.extra_draws_limit);
+    }
+
+    const playerHandDiff = gs.host_hand.length - playerHand.length;
+    const opponentHandDiff = gs.opponent_hand.length - aiHand.length;
+    if (playerHandDiff > 0 || opponentHandDiff > 0) {
+      SoundEffects.playCardDraw();
+    }
+    if (opponentHandDiff > 0 && !isPlayerOwned) {
+      setAiCardsDrawnThisTurn((prev) => prev + opponentHandDiff);
     }
   };
 
@@ -2824,7 +2408,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
   // HANDLE CARD CLICK SELECTIONS
   const handleSelectHandCard = (id: string) => {
-    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen || isRefereeResolving) return;
     if (phase === "ai_turn" || phase === "resolution") return;
 
     const card = playerHand.find((c) => c.id === id);
@@ -2877,194 +2461,17 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     playerSlotsOverride?: typeof playerSlots,
     aiSlotsOverride?: typeof aiSlots
   ) => {
-    let score = 0;
-    const slots = playerSlotsOverride && aiSlotsOverride 
-      ? (isPlayerSide ? playerSlotsOverride : aiSlotsOverride)
-      : (isPlayerSide ? playerSlots : aiSlots);
-    
-    if (isAttackingStage) {
-      // Base attack score: sum of attack of all revealed player cards on the attacking side
-      slots.forEach((slot) => {
-        if (slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
-          if (slot.card.frozen || slot.card.stunned) return;
-          score += slot.card.attack || 0;
-        }
-      });
-      if (activeBooster && isPlayerSide === isPlayerAttacker) {
-        score += activeBooster.value || 0;
-      }
-    } else {
-      // Base defense score: sum of defense of all revealed player cards on the defending side
-      slots.forEach((slot) => {
-        if (slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
-          if (slot.card.frozen || slot.card.stunned) return;
-          score += slot.card.defense || 0;
-        }
-      });
-    }
-
-    const activeSources: { card: Card; isPlayerOwned: boolean }[] = [];
-    const activePlayerSlots = playerSlotsOverride || playerSlots;
-    const activeAiSlots = aiSlotsOverride || aiSlots;
-    
-    activePlayerSlots.forEach((slot) => {
-      if (slot.card && slot.isRevealed) {
-        activeSources.push({ card: slot.card, isPlayerOwned: true });
-      }
-    });
-    activeAiSlots.forEach((slot) => {
-      if (slot.card && slot.isRevealed) {
-        activeSources.push({ card: slot.card, isPlayerOwned: false });
-      }
-    });
-    playerActiveSpecials.forEach((spec) => {
-      activeSources.push({ card: spec, isPlayerOwned: true });
-    });
-    aiActiveSpecials.forEach((spec) => {
-      activeSources.push({ card: spec, isPlayerOwned: false });
-    });
-
-    let attackModifiers = 0;
-    let defenseModifiers = 0;
-    let attackMultiplier = 1;
-    let defenseMultiplier = 1;
-    let cancelStrongestAttacker = false;
-
-    activeSources.forEach((src) => {
-      const { card, isPlayerOwned } = src;
-
-      // 1. Dynamic Ability execution
-      if (card.ability) {
-        const opponentActiveSpecials = isPlayerOwned ? aiActiveSpecials : playerActiveSpecials;
-        const opponentSlots = isPlayerOwned ? (aiSlotsOverride || aiSlots) : (playerSlotsOverride || playerSlots);
-        const isAbilityBlocked = opponentActiveSpecials.some(c => c.ability?.actions.some(a => a.type === "BlockAbility")) ||
-                                  opponentSlots.some(s => s.card && s.isRevealed && !s.card.silenced && s.card.ability?.actions.some(a => a.type === "BlockAbility"));
-
-        const isSilenced = (card as any).silenced || (card as any).abilityBlocked || isAbilityBlocked;
-        if (isSilenced) return;
-
-        const ability = card.ability;
-        
-        // Check triggers
-        const triggerMatches = 
-          ((ability.trigger === "CardRevealed" || ability.trigger === "CardPlayed") && card.type === "player") || // While active on field
-          (ability.trigger === "CardPlayed" && card.type === "special") || // Specials active this turn
-          (ability.trigger === "AttackStarted" && isAttackingStage) ||
-          (ability.trigger === "DefenseStarted" && !isAttackingStage);
-
-        if (triggerMatches) {
-          // Evaluate conditions
-          let conditionsMet = true;
-          if (ability.conditions) {
-            ability.conditions.forEach((cond) => {
-              if (cond.type === "IsFaceUp") {
-                // If it's on field it's face up
-              }
-              if (cond.type === "IsAttacker") {
-                const isOwnerAttacking = isPlayerOwned === isPlayerAttacker;
-                if (!isOwnerAttacking) conditionsMet = false;
-              }
-              if (cond.type === "IsDefender") {
-                const isOwnerDefending = isPlayerOwned !== isPlayerAttacker;
-                if (!isOwnerDefending) conditionsMet = false;
-              }
-              if (cond.type === "CardOwnerIsEnemy") {
-                if (isPlayerOwned === isPlayerSide) conditionsMet = false;
-              }
-              if (cond.type === "IsLegend") {
-                if (card.type === "player" && !(card as PlayerCard).isLegend) {
-                  conditionsMet = false;
-                }
-              }
-            });
-          }
-
-          if (conditionsMet && ability.actions) {
-            ability.actions.forEach((act) => {
-              const isTargetSide = (act.target === "Allies" && isPlayerOwned === isPlayerSide) ||
-                                   (act.target === "Enemies" && isPlayerOwned !== isPlayerSide) ||
-                                   (act.target === "CurrentAttack" && isAttackingStage) ||
-                                   (act.target === "CurrentDefense" && !isAttackingStage) ||
-                                   (act.target === "Self" && card === src.card && isPlayerOwned === isPlayerSide);
-
-              if (isTargetSide) {
-                if (act.type === "AddStat") {
-                  if (act.stat === "attack" && isAttackingStage) {
-                    attackModifiers += act.value ?? 0;
-                  }
-                  if (act.stat === "defense" && !isAttackingStage) {
-                    defenseModifiers += act.value ?? 0;
-                  }
-                } else if (act.type === "RemoveStat") {
-                  if (act.stat === "attack" && isAttackingStage) {
-                    attackModifiers -= act.value ?? 0;
-                  }
-                  if (act.stat === "defense" && !isAttackingStage) {
-                    defenseModifiers -= act.value ?? 0;
-                  }
-                } else if (act.type === "MultiplyStat") {
-                  if (act.stat === "attack" && isAttackingStage) {
-                    attackMultiplier *= act.value ?? 1;
-                  }
-                  if (act.stat === "defense" && !isAttackingStage) {
-                    defenseMultiplier *= act.value ?? 1;
-                  }
-                } else if (act.type === "CancelAction" && isAttackingStage) {
-                  cancelStrongestAttacker = true;
-                }
-              }
-            });
-          }
-        }
-      } else if (card.type === "special") {
-        // 2. Fallback to hardcoded special card behaviors
-        const spec = card as SpecialCard;
-        if (isAttackingStage) {
-          if (isPlayerOwned === isPlayerAttacker) {
-            if (spec.effect === "counter_attack" && isPlayerSide === isPlayerAttacker) {
-              attackModifiers += 4;
-            }
-            if (spec.effect === "fans" && isPlayerSide === isPlayerAttacker) {
-              attackModifiers += 3;
-            }
-          } else {
-            if (spec.effect === "wet_pitch" && isPlayerSide === isPlayerAttacker) {
-              attackModifiers -= 4;
-            }
-            if (spec.effect === "offside" && isPlayerSide === isPlayerAttacker) {
-              cancelStrongestAttacker = true;
-            }
-          }
-        } else {
-          if (isPlayerOwned !== isPlayerAttacker) {
-            if (spec.effect === "park_the_bus" && isPlayerSide !== isPlayerAttacker) {
-              defenseModifiers += 6;
-            }
-            if (spec.effect === "fans" && isPlayerSide !== isPlayerAttacker) {
-              defenseModifiers += 3;
-            }
-          }
-        }
-      }
-    });
-
-    if (isAttackingStage) {
-      let finalAttack = (score * attackMultiplier) + attackModifiers;
-      if (cancelStrongestAttacker) {
-        let maxAttStrength = 0;
-        slots.forEach((s) => {
-          if (s.card && s.isRevealed && (s.revealedInAttack || s.confirmedInAttack)) {
-            maxAttStrength = Math.max(maxAttStrength, s.card.attack || 0);
-          }
-        });
-        finalAttack -= maxAttStrength;
-      }
-      const finalVal = Math.max(0, finalAttack);
-      return isNaN(finalVal) ? 0 : finalVal;
-    } else {
-      const finalVal = Math.max(0, (score * defenseMultiplier) + defenseModifiers);
-      return isNaN(finalVal) ? 0 : finalVal;
-    }
+    return runRefereeRulesEngine(
+      isPlayerSide,
+      isAttackingStage,
+      attackerIdx,
+      activeBooster,
+      playerActiveSpecials,
+      aiActiveSpecials,
+      playerSlotsOverride || playerSlots,
+      aiSlotsOverride || aiSlots,
+      isPlayerAttacker
+    );
   };
 
   // COMPUTE OFFENSIVE POWER
@@ -3115,6 +2522,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
   // CANCEL CARD SELECTION
   const handleCancelSelection = () => {
+    if (isRefereeResolving) return;
     setSelectedHandCardId(null);
     setBurningCardIds([]);
     setActiveTargetingCard(null);
@@ -3122,7 +2530,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
   // PLAY TACTICAL SPECIAL CARD
   const handlePlaySpecialCard = (id: string) => {
-    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen || isRefereeResolving) return;
     if (phase === "warmup") {
       addLog("خطأ: لا يمكن تفعيل الكروت التكتيكية أثناء فترة الإحماء والتسخين!", "danger");
       return;
@@ -3210,9 +2618,9 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
     // Deduct move
     if (phase === "player_turn" || phase === "attacking") {
-      setPlayerMovesLeft((prev) => prev - 1);
+      setPlayerMovesLeft((prev) => Math.max(0, prev - 1));
     } else if (phase === "ai_attacking") {
-      setDefenseMovesLeft((prev) => prev - 1);
+      setDefenseMovesLeft((prev) => Math.max(0, prev - 1));
     }
 
     // Remove from hand
@@ -3298,7 +2706,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
   // CO-ORDINATE CLICK ON PITCH SLOT
   const handleSelectPitchSlot = (idx: number, isAi: boolean = false) => {
-    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen || isRefereeResolving) return;
     // 0. Handle active targeting card plays
     if (activeTargetingCard) {
       if (!isValidTargetForCard(activeTargetingCard, idx, isAi)) {
@@ -3496,7 +2904,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
             addLog(`🔥 🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز الخالي [ ${idx + 1} ] (تنزيل لاعب - استهلكت حركة واحدة). ${burnLogText}نزول لاعب جديد مقلوباً.`, "success");
           }
 
-          setPlayerMovesLeft((prev) => prev - 1);
+          setPlayerMovesLeft((prev) => Math.max(0, prev - 1));
           handleCancelSelection();
           SoundEffects.playWhistle();
           triggerCardInstantEffects(playerCard, true, "CardPlayed");
@@ -3527,7 +2935,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
           addLog(`🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز الخالي [ ${idx + 1} ] (تنزيل صامت - استهلكت حركة واحدة). وضع لاعب جديد مقلوباً.`, "info");
         }
 
-        setPlayerMovesLeft((prev) => prev - 1);
+        setPlayerMovesLeft((prev) => Math.max(0, prev - 1));
         setSelectedHandCardId(null);
         SoundEffects.playCardDraw();
         triggerCardInstantEffects(playerCard, true, "CardPlayed");
@@ -3593,7 +3001,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       const newSlots = [...playerSlots];
       newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
       setPlayerSlots(newSlots);
-      setDefenseMovesLeft((prev) => prev - 1);
+      setDefenseMovesLeft((prev) => Math.max(0, prev - 1));
       addLog(`🛡️ تم كشف المدافع [ ${clickedSlot.card.name} ] لصد الهجوم! (استهلكت حركة واحدة)`, "success");
       SoundEffects.playCardDraw();
       syncMultiplayerIfActive();
@@ -3723,7 +3131,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       const newSlots = [...playerSlots];
       newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
       setPlayerSlots(newSlots);
-      setPlayerMovesLeft((prev) => prev - 1);
+      setPlayerMovesLeft((prev) => Math.max(0, prev - 1));
       addLog(`⚔️ تم كشف المهاجم الداعم [ ${clickedSlot.card.name} ] لتعزيز الهجمة! (استهلكت حركة واحدة)`, "success");
       SoundEffects.playCardDraw();
       syncMultiplayerIfActive();
@@ -3784,7 +3192,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
   // DECLARE PLAYER ATTACK
   const handleDeclareAttack = () => {
-    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen || isRefereeResolving) return;
     if (isAttackBlockedFor(true)) {
       const blockingLegendSlot = aiSlots.find(
         (s) =>
@@ -3818,6 +3226,11 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
     if (hasScoredThisTurn) {
       addLog("ممنوع تكرار الهجوم: لقد أحرزت هدفاً بالفعل في هذه الجولة! لا يمكنك شن هجمات جديدة الآن، فقط مسموح لك بإعادة تنظيم صفوفك (تبديل أو تنزيل لاعبين) أو إنهاء دورك.", "warning");
+      return;
+    }
+
+    if (hasAttackedThisTurn) {
+      addLog("ممنوع تكرار الهجوم: لقد قمت بشن هجمة بالفعل في هذه الجولة! لا يمكنك شن هجمات جديدة الآن، فقط مسموح لك بإعادة تنظيم صفوفك (تبديل أو تنزيل لاعبين) أو إنهاء دورك.", "warning");
       return;
     }
 
@@ -3881,10 +3294,11 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     setBoosterDeck((prev) => prev.slice(1));
 
     // Deduct 1 move
-    const movesAfterDeclare = playerMovesLeft - 1;
+    const movesAfterDeclare = Math.max(0, playerMovesLeft - 1);
     setPlayerMovesLeft(movesAfterDeclare);
     setPhase("attacking");
     setDefenseMovesLeft(maxMovesPerTurn);
+    setHasAttackedThisTurn(true);
 
     SoundEffects.playWhistle();
 
@@ -4287,8 +3701,8 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         const attackerName = playerSlots[currentAttackerIdx]?.card?.name || "لاعبك";
 
         // Get detailed calculations
-        const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentBooster, playerActiveSpecial, updatedSpecials, playerSlots, updatedSlots);
-        const defDetail = getDetailedCalculation(false, false, null, null, playerActiveSpecial, updatedSpecials, playerSlots, updatedSlots);
+        const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentBooster, playerActiveSpecial, updatedSpecials, playerSlots as SlotData[], updatedSlots as SlotData[], isPlayerAttacker);
+        const defDetail = getDetailedCalculation(false, false, null, null, playerActiveSpecial, updatedSpecials, playerSlots as SlotData[], updatedSlots as SlotData[], isPlayerAttacker);
 
         if (isGoal) {
           const newScore = playerScore + 1;
@@ -4389,8 +3803,8 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     });
 
     // Accumulate scores for final consolation modal
-    const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentBooster, playerActiveSpecial, aiActiveSpecial, playerSlots, aiSlots);
-    const defDetail = getDetailedCalculation(false, false, null, null, playerActiveSpecial, aiActiveSpecial, playerSlots, aiSlots);
+    const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentBooster, playerActiveSpecial, aiActiveSpecial, playerSlots as SlotData[], aiSlots as SlotData[], isPlayerAttacker);
+    const defDetail = getDetailedCalculation(false, false, null, null, playerActiveSpecial, aiActiveSpecial, playerSlots as SlotData[], aiSlots as SlotData[], isPlayerAttacker);
     const computedAttack = attackDetail.total;
     const computedDefense = defDetail.total;
 
@@ -4541,8 +3955,11 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     if (gameMode === "rounds") {
       setIsAttackBlocked(false);
 
-      const attackerMovesLeft = isPlayerAttacker ? playerMovesLeft : aiMovesLeft;
-      const attackerHasMovesLeft = attackerMovesLeft > 0;
+      const wasMeAttacker = isMultiplayer ? (attackerRole === multiplayerRole) : isPlayerAttacker;
+      const attackerMovesLeft = wasMeAttacker ? playerMovesLeft : aiMovesLeft;
+      const attackerDrawn = wasMeAttacker ? cardsDrawnThisTurn : aiCardsDrawnThisTurn;
+      const deckHasCards = wasMeAttacker ? (playerDeck.length > 0 || specialDeck.length > 0) : true;
+      const attackerHasMovesLeft = attackerMovesLeft > 0 || (attackerDrawn < maxDrawsPerTurn && deckHasCards);
 
       if (isMultiplayer) {
         if (attackerHasMovesLeft) {
@@ -4709,6 +4126,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
             setPlayerMovesLeft(maxMovesPerTurn);
             setCardsDrawnThisTurn(0);
             setHasScoredThisTurn(false);
+            setHasAttackedThisTurn(false);
             setIsHandExpanded(true);
             addLog(`⚽ انتهت جولة هجوم الخصم (جولة رقم ${nextRounds}). دورك الآن لتبدأ الهجوم!`, "success");
           }
@@ -4718,60 +4136,84 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     }
 
     if (isMultiplayer) {
-      const isHost = multiplayerRole === "host";
-      const nextTurnRole = attackerRole === "host" ? "opponent" : "host";
-      const standsAsMe = nextTurnRole === multiplayerRole;
+      const wasMeAttacker = attackerRole === multiplayerRole;
+      const attackerMovesLeft = wasMeAttacker ? playerMovesLeft : aiMovesLeft;
+      const attackerDrawn = wasMeAttacker ? cardsDrawnThisTurn : aiCardsDrawnThisTurn;
+      const deckHasCards = wasMeAttacker ? (playerDeck.length > 0 || specialDeck.length > 0) : true;
+      const attackerHasMovesLeft = attackerMovesLeft > 0 || (attackerDrawn < maxDrawsPerTurn && deckHasCards);
 
+      let nextTurnRole: "host" | "opponent";
+      if (attackerHasMovesLeft) {
+        nextTurnRole = attackerRole as "host" | "opponent";
+      } else {
+        nextTurnRole = attackerRole === "host" ? "opponent" : "host";
+      }
+
+      const standsAsMe = nextTurnRole === multiplayerRole;
       const nextPhaseState = standsAsMe ? "player_turn" : "ai_turn";
       setPhase(nextPhaseState as any);
 
-      const nextDrawn = 0;
-      const nextMoves = standsAsMe ? 3 : 0;
-      const nextAiMoves = standsAsMe ? 0 : 3;
-      const nextTurnCount = turnCount + (standsAsMe ? 1 : 0);
+      const nextDrawn = attackerHasMovesLeft ? attackerDrawn : 0;
+      let nextMoves: number;
+      let nextAiMoves: number;
+
+      if (attackerHasMovesLeft) {
+        nextMoves = playerMovesLeft;
+        nextAiMoves = aiMovesLeft;
+      } else {
+        nextMoves = standsAsMe ? maxMovesPerTurn : 0;
+        nextAiMoves = standsAsMe ? 0 : maxMovesPerTurn;
+      }
+
+      const nextTurnCount = turnCount + (standsAsMe && !attackerHasMovesLeft ? 1 : 0);
+
+      const logText = attackerHasMovesLeft
+        ? (standsAsMe 
+            ? `⚽ متابعة دور هجومك! متبقي لك حركات تكتيكية أو سحبات كروت لإدارتها.`
+            : `⏳ الخصم يتابع دور هجومه مع بقاء حركات أو سحبات لديه. يرجى الانتظار...`)
+        : (standsAsMe 
+            ? "⚽ انتقل الدور والتحكم الفني لك الآن! قم بسحب كارتين لتنظيم عمليتك الهجومية!"
+            : "⏳ تكتيك الخصم بدأ، يرجى الانتظار ريثما يستنفد المدرب خصمك حركاته التكتيكية.");
 
       const nextLogs = [
         ...logs,
         {
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
-          text: standsAsMe 
-            ? "⚽ انتقل الدور والتحكم الفني لك الآن! قم بسحب كارتين لتنظيم عمليتك الهجومية!"
-            : "⏳ تكتيك الخصم بدأ، يرجى الانتظار ريثما يستنفد المدرب خصمك حركاته التكتيكية.",
+          text: logText,
           type: standsAsMe ? ("success" as const) : ("neutral" as const)
         }
       ];
 
-      setCardsDrawnThisTurn(nextDrawn);
+      if (wasMeAttacker) {
+        setCardsDrawnThisTurn(nextDrawn);
+        setAiCardsDrawnThisTurn(0);
+      } else {
+        setAiCardsDrawnThisTurn(nextDrawn);
+        setCardsDrawnThisTurn(0);
+      }
       setPlayerMovesLeft(nextMoves);
       setAiMovesLeft(nextAiMoves);
       setLogs(nextLogs);
-      setAttackerRole(null);
+      setAttackerRole(nextTurnRole);
 
       setTimeout(() => {
-        syncToSupabaseInstance(
-          nextPhaseState as any,
-          nextPlayerSlots,
-          nextAiSlots,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          nextMoves,
-          nextAiMoves,
-          nextLogs,
-          null, // Cleans currentPonto
-          null, // Cleans currentAttackerIdx
-          nextPlayerSpecials,
-          nextAiSpecials,
-          nextDrawn,
-          nextTurnCount,
-          maxMovesPerTurn, // Cleans defense_moves_left
-          undefined,
-          undefined,
-          undefined,
-          null // Cleans attackerRole
-        );
+        syncToSupabaseInstance({
+          phase: nextPhaseState as any,
+          playerSlots: nextPlayerSlots,
+          aiSlots: nextAiSlots,
+          playerMoves: nextMoves,
+          aiMoves: nextAiMoves,
+          logs: nextLogs,
+          currentBooster: null,
+          currentAttackIdx: null,
+          activeSpecialPlayer: nextPlayerSpecials,
+          activeSpecialAi: nextAiSpecials,
+          cardsDrawn: nextDrawn,
+          turnCount: nextTurnCount,
+          defenseMoves: maxMovesPerTurn,
+          attackerRole: nextTurnRole
+        });
       }, 50);
 
       return;
@@ -4782,10 +4224,11 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       setIsAttackBlocked(false);
       setDefenseMovesLeft(maxMovesPerTurn);
       if (isPlayerAttacker) {
-        if (playerMovesLeft > 0) {
+        const canDrawMore = cardsDrawnThisTurn < maxDrawsPerTurn && (playerDeck.length > 0 || specialDeck.length > 0);
+        if (playerMovesLeft > 0 || canDrawMore) {
           phaseRef.current = "player_turn";
           setPhase("player_turn");
-          addLog(`متابعة دور الماتش! متبقي لك عدد ${playerMovesLeft} حركات تكتيكية لإدارتها. يمكنك اللعب، سحب كروت أو النقر على "إنهاء الدور" يدوياً.`, "neutral");
+          addLog(`متابعة دور الماتش! متبقي لك حركات تكتيكية أو سحبات كروت لإدارتها. يمكنك اللعب، سحب كروت أو النقر على "إنهاء الدور" يدوياً.`, "neutral");
         } else {
           phaseRef.current = "ai_turn";
           setPhase("ai_turn");
@@ -4795,6 +4238,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         setPhase("player_turn");
         setPlayerMovesLeft(maxMovesPerTurn);
         setHasScoredThisTurn(false);
+        setHasAttackedThisTurn(false);
         setCardsDrawnThisTurn(0);
         setAiCardsDrawnThisTurn(0);
         setMaxDrawsPerTurn(defaultMaxDrawsPerTurn);
@@ -4807,7 +4251,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
   // END YOUR TURN MANUALLY
   const handleEndPlayerTurn = () => {
-    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
+    if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen || isRefereeResolving) return;
     if (phaseRef.current !== "player_turn") return;
 
     if (gameMode === "rounds") {
@@ -4929,6 +4373,55 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     } else {
       // AI turn starts via phase useEffect trigger
     }
+  };
+
+  // END AI TURN MANUALLY OR VIA TIMEOUT/AUTOMATION
+  const handleEndAITurn = () => {
+    if (phaseRef.current !== "ai_turn") return;
+
+    if (gameMode === "rounds") {
+      const nextRounds = completedRounds + 1;
+      setCompletedRounds(nextRounds);
+
+      if (nextRounds >= totalRounds) {
+        phaseRef.current = "game_over";
+        setPhase("game_over");
+        if (playerScore > aiScore) {
+          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بنتيجة ${playerScore} - ${aiScore}! ⚽🏆`, "success");
+          setShowConfetti(true);
+        } else if (aiScore > playerScore) {
+          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! للأسف الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`, "danger");
+        } else {
+          addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds}) بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}!`, "neutral");
+        }
+        isAIExecutingRef.current = false;
+        return;
+      }
+
+      phaseRef.current = "player_turn";
+      setPhase("player_turn");
+      setPlayerMovesLeft(maxMovesPerTurn);
+      setCardsDrawnThisTurn(0);
+      setHasScoredThisTurn(false);
+      setHasAttackedThisTurn(false);
+      setIsHandExpanded(true);
+      setIsPlayerAttacker(true);
+      addLog(`🤖 الخصم أنهى جولته دون هجمات (جولة رقم ${nextRounds}). دورك الآن لتبدأ الهجوم!`, "success");
+      isAIExecutingRef.current = false;
+      return;
+    }
+
+    phaseRef.current = "player_turn";
+    setPhase("player_turn");
+    setCardsDrawnThisTurn(0);
+    setMaxDrawsPerTurn(defaultMaxDrawsPerTurn);
+    setPlayerMovesLeft(maxMovesPerTurn);
+    setHasScoredThisTurn(false);
+    setHasAttackedThisTurn(false);
+    setIsHandExpanded(true);
+    setTurnCount((prev) => prev + 1);
+    addLog(`⚽ انتهى دور الخصم بلا هجمات لخطوطه. عدنا لدورك! حظاً موفقاً في الدور ${turnCount + 1}`, "success");
+    isAIExecutingRef.current = false;
   };
 
   // THE AI TURN STRATEGY ENGINE (PvE AI AUTOMATED RUNNER)
@@ -5293,44 +4786,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         setAiHand(newAiHand);
         setAiMovesLeft(aiMoves); // Synchronize remaining moves to React state!
 
-        if (gameMode === "rounds") {
-          const nextRounds = completedRounds + 1;
-          setCompletedRounds(nextRounds);
-
-          if (nextRounds >= totalRounds) {
-            setPhase("game_over");
-            if (playerScore > aiScore) {
-              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بنتيجة ${playerScore} - ${aiScore}! ⚽🏆`, "success");
-              setShowConfetti(true);
-            } else if (aiScore > playerScore) {
-              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds})! للأسف الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`, "danger");
-            } else {
-              addLog(`⏰ انتهى عدد الجولات المحدد (${totalRounds}) بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}!`, "neutral");
-            }
-            isAIExecutingRef.current = false; // RELEASE LOCK!
-            return;
-          }
-
-          setPhase("player_turn");
-          setPlayerMovesLeft(maxMovesPerTurn);
-          setCardsDrawnThisTurn(0);
-          setHasScoredThisTurn(false);
-          setIsHandExpanded(true);
-          setIsPlayerAttacker(true);
-          addLog(`🤖 الخصم أنهى جولته دون هجمات (جولة رقم ${nextRounds}). دورك الآن لتبدأ الهجوم!`, "success");
-          isAIExecutingRef.current = false; // RELEASE LOCK!
-          return;
-        }
-
-        setPhase("player_turn");
-        setCardsDrawnThisTurn(0);
-        setMaxDrawsPerTurn(defaultMaxDrawsPerTurn);
-        setPlayerMovesLeft(maxMovesPerTurn);
-        setHasScoredThisTurn(false);
-        setIsHandExpanded(true);
-        setTurnCount((prev) => prev + 1);
-        addLog(`⚽ انتهى دور الخصم بلا هجمات لخطوطه. عدنا لدورك! حظاً موفقاً في الدور ${turnCount + 1}`, "success");
-        isAIExecutingRef.current = false; // RELEASE LOCK!
+        handleEndAITurn();
       }, 1200);
 
     }, 1200);
@@ -5378,8 +4834,8 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     const newLogs = [...logs, ...tempPhaseLogs, ...confirmDefenseLogs];
 
     // AI Attacks, Player Defends
-    let attackDetail = getDetailedCalculation(false, true, currentAttackerIdx, currentBooster, playerActiveSpecial, currentAiActiveSpecials, playerSlots, aiSlots);
-    let defDetail = getDetailedCalculation(true, false, null, null, playerActiveSpecial, currentAiActiveSpecials, playerSlots, aiSlots);
+    let attackDetail = getDetailedCalculation(false, true, currentAttackerIdx, currentBooster, playerActiveSpecial, currentAiActiveSpecials, playerSlots as SlotData[], aiSlots as SlotData[], isPlayerAttacker);
+    let defDetail = getDetailedCalculation(true, false, null, null, playerActiveSpecial, currentAiActiveSpecials, playerSlots as SlotData[], aiSlots as SlotData[], isPlayerAttacker);
 
     // Smart AI Offensive Specials Play:
     // If the AI is attacking and not scoring (finalAttack <= finalDefense), and has moves left,
@@ -5404,8 +4860,8 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         });
 
         // Recalculate details
-        attackDetail = getDetailedCalculation(false, true, currentAttackerIdx, currentBooster, playerActiveSpecial, currentAiActiveSpecials, playerSlots, aiSlots);
-        defDetail = getDetailedCalculation(true, false, null, null, playerActiveSpecial, currentAiActiveSpecials, playerSlots, aiSlots);
+        attackDetail = getDetailedCalculation(false, true, currentAttackerIdx, currentBooster, playerActiveSpecial, currentAiActiveSpecials, playerSlots as SlotData[], aiSlots as SlotData[], isPlayerAttacker);
+        defDetail = getDetailedCalculation(true, false, null, null, playerActiveSpecial, currentAiActiveSpecials, playerSlots as SlotData[], aiSlots as SlotData[], isPlayerAttacker);
       }
       
       // Update state if anything was played
@@ -6509,152 +5965,33 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         onClose={() => setIsTutorialOpen(false)}
       />
 
-      {/* ABSOLUTE GOAL CELEBRATION OVERLAY CINEMATIC */}
-      <AnimatePresence>
-        {celebrationMessage && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-black/95 backdrop-blur-md cursor-pointer"
-            id="celebration_cinematic_dialog"
-            onClick={handleAcknowledgeResolution}
-          >
-            <motion.div
-              initial={{ scale: 0.8, y: 50 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.8, y: 50 }}
-              transition={{ type: "spring", damping: 15 }}
-              onClick={(e) => e.stopPropagation()}
-              className="max-w-md w-full max-h-[90%] overflow-y-auto rounded-xl p-4 sm:p-6 text-center border border-white/10 shadow-2xl relative bg-[#0c0d0c] text-white flex flex-col items-center cursor-default"
-            >
-              {/* Close Button X */}
-              <button 
-                onClick={handleAcknowledgeResolution}
-                className="absolute top-2.5 right-2.5 w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-20 cursor-pointer border-none text-xs"
-                title="إغلاق"
-              >
-                ✕
-              </button>
-
-              {/* Confetti or dust effect circles */}
-              <div className="absolute top-0 left-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
-              <div className="absolute bottom-0 right-0 w-24 h-24 bg-teal-500/10 rounded-full blur-xl pointer-events-none" />
-
-              {/* Animated Floating Emojis Burst */}
-              <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center">
-                {Array.from({ length: 14 }).map((_, i) => {
-                  const emojis = celebrationMessage.isGoal 
-                    ? ["⚽", "🥳", "🎉", "🔥", "🥅", "⚡", "🏆", "🌟", "📣", "🤩"]
-                    : ["🧤", "🛡️", "🚫", "💪", "👊", "💥", "⚡", "👑", "🎩", "🎯"];
-                  const emoji = emojis[i % emojis.length];
-                  
-                  // Vary coordinates and timing for a genuine burst/fading upward float
-                  const angle = (i / 14) * Math.PI * 2;
-                  const distance = 90 + Math.random() * 110;
-                  const targetX = Math.cos(angle) * distance;
-                  const targetY = Math.sin(angle) * distance - 120; // Float upwards and outwards
-
-                  return (
-                    <motion.span
-                      key={i}
-                      className="absolute text-lg sm:text-2xl md:text-3xl select-none filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)]"
-                      initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
-                      animate={{ 
-                        opacity: [0, 1, 1, 0], 
-                        scale: [0.1, 1.4, 1.1, 0.2], 
-                        x: [0, targetX], 
-                        y: [0, targetY],
-                        rotate: [0, Math.random() * 720 - 360]
-                      }}
-                      transition={{ 
-                        duration: 2.5, 
-                        delay: i * 0.08, 
-                        ease: "easeOut",
-                        repeat: Infinity,
-                        repeatDelay: 0.8
-                      }}
-                    >
-                      {emoji}
-                    </motion.span>
-                  );
-                })}
-              </div>
-
-              {/* Dynamic Scaling Hero Emoji with pulsate ripple */}
-              <div className="relative inline-block mb-3 sm:mb-6 z-10">
-                <motion.div
-                  className="absolute inset-0 bg-yellow-500/20 rounded-full blur-xl filter"
-                  animate={{
-                    scale: [1, 1.8, 1],
-                    opacity: [0.4, 0.8, 0.4]
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }}
-                />
-                
-                <motion.div
-                  className="text-4xl sm:text-5xl md:text-6xl block relative select-none cursor-pointer"
-                  animate={{
-                    scale: [1, 1.25, 0.9, 1.15, 1],
-                    rotate: [0, 15, -15, 8, -8, 0],
-                    y: [0, -12, 0, -5, 0]
-                  }}
-                  transition={{
-                    duration: 2.2,
-                    repeat: Infinity,
-                    repeatDelay: 0.5,
-                    ease: "easeInOut",
-                  }}
-                  whileHover={{ scale: 1.4, rotate: 360 }}
-                >
-                  {celebrationMessage.isGoal ? "⚽" : "🧤"}
-                </motion.div>
-              </div>
-
-              <h3 className="text-xl sm:text-2xl md:text-3xl font-serif font-extrabold tracking-tight bg-clip-text text-transparent bg-linear-to-r from-yellow-300 via-amber-400 to-yellow-200">
-                {celebrationMessage.title}
-              </h3>
-
-              <p className="mt-3 text-xs md:text-sm text-[#e0e0e0]/70 leading-relaxed max-w-sm mx-auto p-2.5 bg-black/40 rounded-xl border border-white/5">
-                {celebrationMessage.subtitle}
-              </p>
-
-              <button
-                onClick={handleCelebrationClick}
-                id="acknowledge_celebration_button"
-                className="relative overflow-hidden mt-4 sm:mt-6 px-10 py-2.5 bg-amber-600 hover:bg-amber-500 text-black font-extrabold rounded text-xs md:text-sm cursor-pointer transition-all duration-150 transform hover:scale-105 active:scale-95 hover:shadow-[0_0_20px_rgba(245,158,11,0.5)] border-none shadow-md"
-              >
-                {/* Visual ripple waves */}
-                {btnRipples.map((ripple) => (
-                  <motion.span
-                    key={ripple.id}
-                    initial={{ scale: 0, opacity: 0.65 }}
-                    animate={{ scale: 6, opacity: 0 }}
-                    transition={{ duration: 0.45, ease: "easeOut" }}
-                    className="absolute bg-amber-200/50 rounded-full pointer-events-none"
-                    style={{
-                      left: ripple.x,
-                      top: ripple.y,
-                      width: 40,
-                      height: 40,
-                      x: "-50%",
-                      y: "-50%",
-                    }}
-                  />
-                ))}
-                <span className="relative z-10 flex items-center justify-center gap-1.5">
-                  <span>متابعة تكتيك اللقاء الكروي</span>
-                  <span>➔</span>
-                </span>
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* FULLSCREEN VFX VIDEO OVERLAY */}
+      {activeVfxVideo && (
+        <div 
+          className="fixed inset-0 z-50 bg-black flex items-center justify-center pointer-events-auto"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+        >
+          <video
+            src={activeVfxVideo.src}
+            autoPlay
+            playsInline
+            className="w-full h-full object-contain"
+            onEnded={() => {
+              const cb = activeVfxVideo.callback;
+              setActiveVfxVideo(null);
+              if (cb) cb();
+            }}
+            onError={() => {
+              const cb = activeVfxVideo.callback;
+              setActiveVfxVideo(null);
+              if (cb) cb();
+            }}
+          />
+        </div>
+      )}
 
       {/* Cinematic detailed specialty inspector overlay */}
       <CardInspectorModal

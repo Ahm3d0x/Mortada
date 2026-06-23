@@ -36,6 +36,7 @@ import GameOverScreen from "./GameOverScreen";
 
 // Helper to format timestamps 
 import { getRandom } from "../utils/random";
+import { getDetailedCalculation, SlotData, runRefereeRulesEngine, executeCardInstantEffects } from "../utils/rulesEngine";
 import {
   goalTitles,
   goalDescriptions,
@@ -434,7 +435,7 @@ const maskCardIfHidden = (card: Card | null, isRevealed: boolean): Card | null =
   } as any;
 };
 
-const localBroadcast = typeof window !== "undefined" ? new BroadcastChannel("tactical_football_ponto_broadcast") : null;
+const localBroadcast = typeof window !== "undefined" ? new BroadcastChannel("tactical_football_booster_broadcast") : null;
 
 interface GameOnlineProps {
   config: {
@@ -465,251 +466,6 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     } else {
       return isLegend ? "نجم الخصم الأسطوري" : "لاعب الخصم";
     }
-  };
-
-  // Helper to generate detailed calculation breakdown
-  const getDetailedCalculation = (
-    isPlayerSide: boolean,
-    isAttackingStage: boolean,
-    attackerIdx: number | null,
-    activeBooster: BoosterCard | null,
-    playerActiveSpecialsList: SpecialCard[],
-    aiActiveSpecialsList: SpecialCard[],
-    playerSlotsOverride?: typeof playerSlots,
-    aiSlotsOverride?: typeof aiSlots
-  ): { total: number; breakdown: string } => {
-    let baseScore = 0;
-    const slots = playerSlotsOverride && aiSlotsOverride 
-      ? (isPlayerSide ? playerSlotsOverride : aiSlotsOverride)
-      : (isPlayerSide ? playerSlots : aiSlots);
-
-    const playerList: string[] = [];
-    slots.forEach((slot) => {
-      if (slot.card && slot.isRevealed && slot.revealedInAttack) {
-        if (slot.card.frozen || slot.card.stunned) {
-          playerList.push(`   ● ${slot.card.name} (0 [مستبعد - تجميد/صدمة])`);
-          return;
-        }
-        const val = isAttackingStage ? slot.card.attack : slot.card.defense;
-        baseScore += val;
-        playerList.push(`   ● ${slot.card.name} (${val})`);
-      }
-    });
-
-    let boosterVal = 0;
-    let boosterText = "";
-    if (isAttackingStage && activeBooster && isPlayerSide === isPlayerAttacker) {
-      baseScore += activeBooster.value;
-      boosterVal = activeBooster.value;
-      boosterText = activeBooster.text;
-    }
-
-    const activeSources: { card: Card; isPlayerOwned: boolean }[] = [];
-    const activePlayerSlots = playerSlotsOverride || playerSlots;
-    const activeAiSlots = aiSlotsOverride || aiSlots;
-    
-    activePlayerSlots.forEach((slot) => {
-      if (slot.card && slot.isRevealed) {
-        activeSources.push({ card: slot.card, isPlayerOwned: true });
-      }
-    });
-    activeAiSlots.forEach((slot) => {
-      if (slot.card && slot.isRevealed) {
-        activeSources.push({ card: slot.card, isPlayerOwned: false });
-      }
-    });
-    playerActiveSpecialsList.forEach((spec) => {
-      activeSources.push({ card: spec, isPlayerOwned: true });
-    });
-    aiActiveSpecialsList.forEach((spec) => {
-      activeSources.push({ card: spec, isPlayerOwned: false });
-    });
-
-    let modifiers = 0;
-    let multiplier = 1;
-    let cancelStrongestAttacker = false;
-
-    const multiplierLogs: string[] = [];
-    const modifierLogs: string[] = [];
-
-    activeSources.forEach((src) => {
-      const { card, isPlayerOwned } = src;
-
-      if (card.ability) {
-        const opponentActiveSpecials = isPlayerOwned ? aiActiveSpecialsList : playerActiveSpecialsList;
-        const opponentSlots = isPlayerOwned 
-          ? (aiSlotsOverride || aiSlots) 
-          : (playerSlotsOverride || playerSlots);
-        const isAbilityBlocked = opponentActiveSpecials.some(c => c.ability?.actions.some(a => a.type === "BlockAbility")) ||
-                                  opponentSlots.some(s => s.card && s.isRevealed && !s.card.silenced && s.card.ability?.actions.some(a => a.type === "BlockAbility"));
-
-        const isSilenced = (card as any).silenced || (card as any).abilityBlocked || isAbilityBlocked;
-        if (isSilenced) return;
-
-        const ability = card.ability;
-        const triggerMatches = 
-          ((ability.trigger === "CardRevealed" || ability.trigger === "CardPlayed") && card.type === "player") ||
-          (ability.trigger === "CardPlayed" && card.type === "special") ||
-          (ability.trigger === "AttackStarted" && isAttackingStage) ||
-          (ability.trigger === "DefenseStarted" && !isAttackingStage);
-
-        if (triggerMatches) {
-          let conditionsMet = true;
-          if (ability.conditions) {
-            ability.conditions.forEach((cond) => {
-              if (cond.type === "IsAttacker") {
-                const isOwnerAttacking = isPlayerOwned === isPlayerAttacker;
-                if (!isOwnerAttacking) conditionsMet = false;
-              }
-              if (cond.type === "IsDefender") {
-                const isOwnerDefending = isPlayerOwned !== isPlayerAttacker;
-                if (!isOwnerDefending) conditionsMet = false;
-              }
-              if (cond.type === "CardOwnerIsEnemy") {
-                if (isPlayerOwned === isPlayerSide) conditionsMet = false;
-              }
-              if (cond.type === "IsLegend") {
-                if (card.type === "player" && !(card as PlayerCard).isLegend) {
-                  conditionsMet = false;
-                }
-              }
-            });
-          }
-
-          if (conditionsMet && ability.actions) {
-            ability.actions.forEach((act) => {
-              const isCurrentAttackTarget = act.target === "CurrentAttack" && isAttackingStage;
-              const isCurrentDefenseTarget = act.target === "CurrentDefense" && !isAttackingStage;
-
-              const isTargetSide = (act.target === "Allies" && isPlayerOwned === isPlayerSide) ||
-                                   (act.target === "Enemies" && isPlayerOwned !== isPlayerSide) ||
-                                   isCurrentAttackTarget ||
-                                   isCurrentDefenseTarget ||
-                                   (act.target === "Self" && card === src.card && isPlayerOwned === isPlayerSide);
-
-              if (isTargetSide) {
-                if (act.type === "AddStat") {
-                  if (act.stat === "attack" && isAttackingStage) {
-                    modifiers += act.value ?? 0;
-                    modifierLogs.push(`   ● قدرة [${card.name}]: +${act.value} قوة هجوم`);
-                  }
-                  if (act.stat === "defense" && !isAttackingStage) {
-                    modifiers += act.value ?? 0;
-                    modifierLogs.push(`   ● قدرة [${card.name}]: +${act.value} قوة دفاع`);
-                  }
-                } else if (act.type === "RemoveStat") {
-                  if (act.stat === "attack" && isAttackingStage) {
-                    modifiers -= act.value ?? 0;
-                    modifierLogs.push(`   ● قدرة [${card.name}]: -${act.value} قوة هجوم`);
-                  }
-                  if (act.stat === "defense" && !isAttackingStage) {
-                    modifiers -= act.value ?? 0;
-                    modifierLogs.push(`   ● قدرة [${card.name}]: -${act.value} قوة دفاع`);
-                  }
-                } else if (act.type === "MultiplyStat") {
-                  if (act.stat === "attack" && isAttackingStage) {
-                    multiplier *= act.value ?? 1;
-                    multiplierLogs.push(`   ● مضاعفة [${card.name}]: ×${act.value}`);
-                  }
-                  if (act.stat === "defense" && !isAttackingStage) {
-                    multiplier *= act.value ?? 1;
-                    multiplierLogs.push(`   ● مضاعفة [${card.name}]: ×${act.value}`);
-                  }
-                } else if (act.type === "CancelAction" && isAttackingStage) {
-                  cancelStrongestAttacker = true;
-                }
-              }
-            });
-          }
-        }
-      } else if (card.type === "special") {
-        const spec = card as SpecialCard;
-        if (isAttackingStage) {
-          if (isPlayerOwned === isPlayerAttacker) {
-            if (spec.effect === "counter_attack" && isPlayerSide === isPlayerAttacker) {
-              modifiers += 4;
-              modifierLogs.push(`   ● تكتيك [${spec.name}]: +4 قوة هجمة مرتدة`);
-            }
-            if (spec.effect === "fans" && isPlayerSide === isPlayerAttacker) {
-              modifiers += 3;
-              modifierLogs.push(`   ● تكتيك [${spec.name}]: +3 دعم جماهيري`);
-            }
-          } else {
-            if (spec.effect === "wet_pitch" && isPlayerSide === isPlayerAttacker) {
-              modifiers -= 4;
-              modifierLogs.push(`   ● تكتيك [${spec.name}]: -4 عشب مبلل`);
-            }
-            if (spec.effect === "offside" && isPlayerSide === isPlayerAttacker) {
-              cancelStrongestAttacker = true;
-            }
-          }
-        } else {
-          if (isPlayerOwned !== isPlayerAttacker) {
-            if (spec.effect === "park_the_bus" && isPlayerSide !== isPlayerAttacker) {
-              modifiers += 6;
-              modifierLogs.push(`   ● تكتيك [${spec.name}]: +6 ركن الحافلة`);
-            }
-            if (spec.effect === "fans" && isPlayerSide !== isPlayerAttacker) {
-              modifiers += 3;
-              modifierLogs.push(`   ● تكتيك [${spec.name}]: +3 دعم جماهيري`);
-            }
-          }
-        }
-      }
-    });
-
-    let scoreAfterMultiplier = baseScore * multiplier;
-    let finalVal = scoreAfterMultiplier + modifiers;
-    
-    let cancelledCardText = "";
-    if (isAttackingStage && cancelStrongestAttacker) {
-      let maxAttStrength = 0;
-      let maxCardName = "";
-      slots.forEach((s) => {
-        if (s.card && s.isRevealed && s.revealedInAttack) {
-          if (s.card.attack > maxAttStrength) {
-            maxAttStrength = s.card.attack;
-            maxCardName = s.card.name;
-          }
-        }
-      });
-      finalVal -= maxAttStrength;
-      if (maxCardName) {
-        cancelledCardText = `   ● تسلل نشط: إلغاء نقاط أقوى مهاجم [${maxCardName}] (-${maxAttStrength})`;
-      }
-    }
-
-    const totalVal = Math.max(0, finalVal);
-
-    const lines: string[] = [];
-    if (playerList.length > 0) {
-      lines.push(...playerList);
-    } else {
-      lines.push(`   ● لا يوجد لاعبين نشطين (0)`);
-    }
-
-    if (boosterVal > 0) {
-      lines.push(`   ● كارت المعزز: +${boosterVal} [${boosterText}]`);
-    }
-
-    if (multiplierLogs.length > 0) {
-      lines.push(...multiplierLogs);
-    }
-
-    if (modifierLogs.length > 0) {
-      lines.push(...modifierLogs);
-    }
-
-    if (cancelledCardText) {
-      lines.push(cancelledCardText);
-    }
-
-    const detailString = lines.join("\n");
-
-    return {
-      total: totalVal,
-      breakdown: detailString
-    };
   };
 
   const isSpecialCardsBlocked = (isPlayerOwned: boolean) => {
@@ -913,6 +669,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
   const currentCombatDetailRef = useRef<any>(null);
   const latestRoomRef = useRef<MatchRoom>(config.room);
+  const handleEndPlayerTurnRef = useRef<any>(null);
 
   // Realtime Broadcast channel and DB tracking refs
   const gameChannelRef = useRef<any>(null);
@@ -922,6 +679,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const dbHostConfirmedRef = useRef<boolean>(false);
   const dbOpponentConfirmedRef = useRef<boolean>(false);
   const dbIsShotDeclaredRef = useRef<boolean>(false);
+  const dbIsHalfTimeBreakRef = useRef<boolean>(false);
+  const dbMatchHalfRef = useRef<number>(1);
   const debouncedDbWriteTimeoutId = useRef<any>(null);
 
   // Keep phaseRef synchronized with state phase
@@ -1032,6 +791,10 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
   // Goal explosion cinematic state
   const [celebrationMessage, setCelebrationMessage] = useState<{ title: string; subtitle: string; isGoal: boolean } | null>(null);
+  const [activeVfxVideo, setActiveVfxVideo] = useState<{ src: string; callback?: () => void } | null>(null);
+  const lastPlayedCelebrationKeyRef = useRef<string | null>(null);
+  const prevSlotsRef = useRef<{ player: any[]; ai: any[] } | null>(null);
+  const prevSpecialsRef = useRef<{ player: any[]; ai: any[] } | null>(null);
   const [activeTargetingCard, setActiveTargetingCard] = useState<SpecialCard | null>(null);
   const [screenShaken, setScreenShaken] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -1125,7 +888,23 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const hasPendingLocalChanges = React.useRef(false);
   const pendingSyncOverrides = React.useRef<any>({});
   const syncTimeoutId = React.useRef<any>(null);
+  const pendingSyncCallbackRef = React.useRef<(() => void) | null>(null);
+  const activeDbWritePromiseRef = React.useRef<Promise<any> | null>(null);
+  const debouncedDbWriteCallbackRef = React.useRef<(() => Promise<void>) | null>(null);
   const customLogContainerRef = React.useRef<HTMLDivElement>(null);
+  const hasShownNoMovesWarningRef = React.useRef(false);
+
+  const scheduleSync = (callback: () => void, delay: number) => {
+    if (syncTimeoutId.current) {
+      clearTimeout(syncTimeoutId.current);
+    }
+    pendingSyncCallbackRef.current = callback;
+    syncTimeoutId.current = setTimeout(() => {
+      syncTimeoutId.current = null;
+      pendingSyncCallbackRef.current = null;
+      callback();
+    }, delay);
+  };
 
   useEffect(() => {
     if (customLogContainerRef.current) {
@@ -1133,15 +912,85 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     }
   }, [logs]);
 
-  // Auto-dismiss celebration/event window after 3 seconds
+  // Trigger VFX when celebration message is set
   useEffect(() => {
     if (celebrationMessage) {
-      const timer = setTimeout(() => {
-        handleAcknowledgeResolution();
-      }, 3000);
-      return () => clearTimeout(timer);
+      setActiveVfxVideo({
+        src: celebrationMessage.isGoal ? "/vfx/goal.mp4" : "/vfx/save.mp4",
+        callback: () => {
+          handleAcknowledgeResolution();
+        }
+      });
     }
   }, [celebrationMessage]);
+
+  // Safety timeout for activeVfxVideo overlay
+  useEffect(() => {
+    if (activeVfxVideo) {
+      const timer = setTimeout(() => {
+        console.log("VFX video safety timeout triggered");
+        const cb = activeVfxVideo.callback;
+        setActiveVfxVideo(null);
+        if (cb) cb();
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeVfxVideo]);
+
+  // Detect Legendary Landing and Tactical Cards Played
+  useEffect(() => {
+    // 1. Detect Legendary Landing
+    if (prevSlotsRef.current) {
+      playerSlots.forEach((slot, idx) => {
+        const prevSlot = prevSlotsRef.current?.player[idx];
+        if (slot.card && slot.card.isLegend) {
+          const isNewLegend = !prevSlot || !prevSlot.card || prevSlot.card.id !== slot.card.id;
+          if (isNewLegend) {
+            setActiveVfxVideo({ src: "/vfx/legandry land.mp4" });
+          }
+        }
+      });
+      aiSlots.forEach((slot, idx) => {
+        const prevSlot = prevSlotsRef.current?.ai[idx];
+        if (slot.card && slot.card.isLegend) {
+          const isNewLegend = !prevSlot || !prevSlot.card || prevSlot.card.id !== slot.card.id;
+          if (isNewLegend) {
+            setActiveVfxVideo({ src: "/vfx/legandry land.mp4" });
+          }
+        }
+      });
+    }
+    prevSlotsRef.current = { player: playerSlots, ai: aiSlots };
+
+    // 2. Detect Special Cards Played
+    if (prevSpecialsRef.current) {
+      playerActiveSpecial.forEach((spec) => {
+        const wasPresent = prevSpecialsRef.current?.player.some((ps) => ps.id === spec.id);
+        if (!wasPresent) {
+          if (spec.effect === "offside") {
+            setActiveVfxVideo({ src: "/vfx/offside tactic.mp4" });
+          } else if (spec.effect === "wet_pitch") {
+            setActiveVfxVideo({ src: "/vfx/wet gros tactic.mp4" });
+          } else if (spec.effect === "park_the_bus") {
+            setActiveVfxVideo({ src: "/vfx/bus tactic.mp4" });
+          }
+        }
+      });
+      aiActiveSpecial.forEach((spec) => {
+        const wasPresent = prevSpecialsRef.current?.ai.some((ps) => ps.id === spec.id);
+        if (!wasPresent) {
+          if (spec.effect === "offside") {
+            setActiveVfxVideo({ src: "/vfx/offside tactic.mp4" });
+          } else if (spec.effect === "wet_pitch") {
+            setActiveVfxVideo({ src: "/vfx/wet gros tactic.mp4" });
+          } else if (spec.effect === "park_the_bus") {
+            setActiveVfxVideo({ src: "/vfx/bus tactic.mp4" });
+          }
+        }
+      });
+    }
+    prevSpecialsRef.current = { player: playerActiveSpecial, ai: aiActiveSpecial };
+  }, [playerSlots, aiSlots, playerActiveSpecial, aiActiveSpecial]);
 
   // Apply incoming room updates to local state
   const applyIncomingRoomUpdate = (updatedRoom: MatchRoom) => {
@@ -1201,8 +1050,11 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
     if (gs.last_updated_by === resolvedRole) return;
 
+    if (hasPendingLocalChanges.current) {
+      return;
+    }
+
     isReceivingUpdate.current = true;
-    const isOpponentUpdate = (gs.last_updated_by !== undefined && gs.last_updated_by !== null && gs.last_updated_by !== resolvedRole && gs.last_updated_by !== 'referee');
 
     const canonicalPhase = gs.phase;
     const dbCurrentTurn = gs.current_turn || (updatedRoom.current_turn_auth_id === updatedRoom.host_id ? "host" : "opponent");
@@ -1248,43 +1100,48 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       isResolvingRef.current = false;
     }
 
-    if (incomingLocalPhase === "resolution" && phaseRef.current !== "resolution") {
+    if (incomingLocalPhase === "resolution") {
       const lastLog = gs.logs && gs.logs.length > 0 ? gs.logs[gs.logs.length - 1] : null;
-      if (lastLog) {
-        const text = lastLog.text || "";
-        const isGoal = text.includes("جـوووول") || text.includes("⚽");
-        const isMeAttacker = (resolvedRole === gs.attacker_role);
-        if (isGoal) {
-          SoundEffects.playGoalCelebration();
-          setShowConfetti(true);
-          triggerScreenShake();
-          if (isMeAttacker) {
-            setCelebrationMessage({
-              title: "جــوووووول! أحرزت هدفاً رائِعاً ⚽🏆",
-              subtitle: text,
-              isGoal: true
-            });
-          } else {
-            setCelebrationMessage({
-              title: "هدف ضدك! استعد للتعويض 🧤💔",
-              subtitle: text,
-              isGoal: true
-            });
-          }
-        } else if (text.includes("إنقاذ") || text.includes("🧤") || text.includes("صد")) {
-          SoundEffects.playWhistle();
-          if (isMeAttacker) {
-            setCelebrationMessage({
-              title: "فرصة ضائعة! تصدي بطولي للخصم 🧤🚫",
-              subtitle: text,
-              isGoal: false
-            });
-          } else {
-            setCelebrationMessage({
-              title: "تصدٍّ بطولي! أنقذت مرماك من هدف محقق 🧱🧤",
-              subtitle: text,
-              isGoal: false
-            });
+      const resolutionKey = `${gs.completed_rounds}_${gs.host_score}_${gs.opponent_score}_${lastLog ? lastLog.id || lastLog.text : ""}`;
+      
+      if (lastPlayedCelebrationKeyRef.current !== resolutionKey) {
+        lastPlayedCelebrationKeyRef.current = resolutionKey;
+        if (lastLog) {
+          const text = lastLog.text || "";
+          const isGoal = text.includes("جـوووول") || text.includes("⚽");
+          const isMeAttacker = (resolvedRole === gs.attacker_role);
+          if (isGoal) {
+            SoundEffects.playGoalCelebration();
+            setShowConfetti(true);
+            triggerScreenShake();
+            if (isMeAttacker) {
+              setCelebrationMessage({
+                title: "جــوووووول! أحرزت هدفاً رائِعاً ⚽🏆",
+                subtitle: text,
+                isGoal: true
+              });
+            } else {
+              setCelebrationMessage({
+                title: "هدف ضدك! استعد للتعويض 🧤💔",
+                subtitle: text,
+                isGoal: true
+              });
+            }
+          } else if (text.includes("إنقاذ") || text.includes("🧤") || text.includes("صد")) {
+            SoundEffects.playWhistle();
+            if (isMeAttacker) {
+              setCelebrationMessage({
+                title: "فرصة ضائعة! تصدي بطولي للخصم 🧤🚫",
+                subtitle: text,
+                isGoal: false
+              });
+            } else {
+              setCelebrationMessage({
+                title: "تصدٍّ بطولي! أنقذت مرماك من هدف محقق 🧱🧤",
+                subtitle: text,
+                isGoal: false
+              });
+            }
           }
         }
       }
@@ -1304,7 +1161,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     phaseRef.current = incomingLocalPhase;
     setPhase(incomingLocalPhase);
 
-    if (!hasPendingLocalChanges.current && !isOpponentUpdate) {
+    if (!hasPendingLocalChanges.current) {
       if (my_slots !== undefined && my_slots !== null) setPlayerSlots(my_slots);
       if (my_hand !== undefined && my_hand !== null) setPlayerHand(my_hand);
       if (my_score !== undefined) setPlayerScore(my_score);
@@ -1312,6 +1169,9 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       if (my_special !== undefined && my_special !== null) setPlayerActiveSpecial(my_special);
       const isMyTurnNow = (resolvedRole === dbCurrentTurn);
       setCardsDrawnThisTurn(isMyTurnNow ? (gs.cards_drawn || 0) : 0);
+      if (isMyTurnNow) {
+        setMaxDrawsPerTurn(defaultMaxDrawsPerTurn + (gs.extra_draws_limit || 0));
+      }
     }
     const isMyTurnNow = (resolvedRole === dbCurrentTurn);
     setAiCardsDrawnThisTurn(isMyTurnNow ? 0 : (gs.cards_drawn || 0));
@@ -1331,9 +1191,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     if (gs.turn_count !== undefined) setTurnCount(gs.turn_count);
     if (gs.defense_moves_left !== undefined) {
       const isMyAttackingPhase = (phaseRef.current === "attacking" || incomingLocalPhase === "attacking");
-      if (!isOpponentUpdate || isMyAttackingPhase) {
-        setDefenseMovesLeft(gs.defense_moves_left);
-      }
+      setDefenseMovesLeft(gs.defense_moves_left);
     }
     if (gs.is_shot_declared !== undefined) setIsShotDeclared(gs.is_shot_declared);
 
@@ -1362,10 +1220,24 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       setMatchRounds(mappedRounds);
     }
 
-    if (gs.match_time !== undefined) setMatchTime(gs.match_time);
+    if (gs.match_time !== undefined && resolvedRole !== "host") {
+      setMatchTime((prev) => {
+        if (Math.abs(prev - gs.match_time) > 3) {
+          return gs.match_time;
+        }
+        return prev;
+      });
+    }
     if (gs.match_half !== undefined) setMatchHalf(gs.match_half);
     if (gs.is_half_time_break !== undefined) setIsHalfTimeBreak(gs.is_half_time_break);
-    if (gs.half_time_break_left !== undefined) setHalfTimeBreakLeft(gs.half_time_break_left);
+    if (gs.half_time_break_left !== undefined) {
+      setHalfTimeBreakLeft((prev) => {
+        if (Math.abs(prev - gs.half_time_break_left) > 3) {
+          return gs.half_time_break_left;
+        }
+        return prev;
+      });
+    }
     if (gs.game_mode !== undefined) setGameMode(gs.game_mode);
     if (gs.winning_goals !== undefined) setWinningGoals(gs.winning_goals);
     if (gs.total_rounds !== undefined) setTotalRounds(gs.total_rounds);
@@ -1389,8 +1261,9 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       setSecondHalfKickoffRole(resolvedRole === "host" ? gs.second_half_kickoff_role : (gs.second_half_kickoff_role === "player" ? "ai" : "player"));
     }
 
-    const my_deck = resolvedRole === "host" ? (gs.host_player_deck || gs.player_deck) : gs.opponent_player_deck;
-    const enemy_deck = resolvedRole === "host" ? gs.opponent_player_deck : (gs.host_player_deck || gs.player_deck);
+    // Shared deck: both players draw from the same pool
+    const my_deck = gs.shared_player_deck || (resolvedRole === "host" ? (gs.host_player_deck || gs.player_deck) : gs.opponent_player_deck);
+    const enemy_deck = gs.shared_player_deck || (resolvedRole === "host" ? gs.opponent_player_deck : (gs.host_player_deck || gs.player_deck));
 
     if (!hasPendingLocalChanges.current) {
       if (my_deck !== undefined && my_deck !== null) {
@@ -1419,6 +1292,21 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     setTimeout(() => {
       isReceivingUpdate.current = false;
     }, 100);
+  };
+
+  const applyRefereeGameState = (newGameState: any) => {
+    if (!newGameState) return;
+    const updatedRoom: MatchRoom = {
+      ...latestRoomRef.current,
+      game_state: newGameState,
+      host_confirmed: latestRoomRef.current.host_confirmed,
+      opponent_confirmed: latestRoomRef.current.opponent_confirmed,
+      current_turn: newGameState.current_turn || latestRoomRef.current.current_turn,
+      current_turn_auth_id: newGameState.current_turn_auth_id || latestRoomRef.current.current_turn_auth_id,
+      status: newGameState.phase === "game_over" ? "finished" : "playing",
+    };
+    hasPendingLocalChanges.current = false;
+    applyIncomingRoomUpdate(updatedRoom);
   };
 
   // Broadcast game event helper
@@ -1676,7 +1564,10 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     const resolvedMatchHalf = overrideMatchHalf !== undefined ? overrideMatchHalf : (opts.matchHalf !== undefined ? opts.matchHalf : (accumulatedOverrides.matchHalf !== undefined ? accumulatedOverrides.matchHalf : state.matchHalf));
     const resolvedIsHalfTimeBreak = overrideIsHalfTimeBreak !== undefined ? overrideIsHalfTimeBreak : (opts.isHalfTimeBreak !== undefined ? opts.isHalfTimeBreak : (accumulatedOverrides.isHalfTimeBreak !== undefined ? accumulatedOverrides.isHalfTimeBreak : state.isHalfTimeBreak));
     const resolvedHalfTimeBreakLeft = overrideHalfTimeBreakLeft !== undefined ? overrideHalfTimeBreakLeft : (opts.halfTimeBreakLeft !== undefined ? opts.halfTimeBreakLeft : (accumulatedOverrides.halfTimeBreakLeft !== undefined ? accumulatedOverrides.halfTimeBreakLeft : state.halfTimeBreakLeft));
-    const resolvedMatchTime = overrideMatchTime !== undefined ? overrideMatchTime : (opts.matchTime !== undefined ? opts.matchTime : (accumulatedOverrides.matchTime !== undefined ? accumulatedOverrides.matchTime : state.matchTime));
+    const lastDbMatchTime = latestRoomRef.current?.game_state?.match_time;
+    const resolvedMatchTime = resolvedRole === "host"
+      ? (overrideMatchTime !== undefined ? overrideMatchTime : (opts.matchTime !== undefined ? opts.matchTime : (accumulatedOverrides.matchTime !== undefined ? accumulatedOverrides.matchTime : state.matchTime)))
+      : (lastDbMatchTime !== undefined ? lastDbMatchTime : state.matchTime);
     const resolvedInitialMatchTime = overrideInitialMatchTime !== undefined ? overrideInitialMatchTime : (opts.initialMatchTime !== undefined ? opts.initialMatchTime : (accumulatedOverrides.initialMatchTime !== undefined ? accumulatedOverrides.initialMatchTime : state.initialMatchTime));
 
     const resolvedFirstKickoff = resolvedRole === "host"
@@ -1818,17 +1709,13 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       logs: resolvedLogs,
       current_booster: resolvedBooster,
       booster_deck: resolvedBoosterDeck,
-      current_ponto: resolvedBooster,
-      ponto_deck: resolvedBoosterDeck,
       current_attacker_idx: resolvedAttackerIdx,
       active_specials_host: host_special,
       active_specials_opponent: opponent_special,
       cards_drawn: resolvedDrawn,
       turn_count: resolvedTurnCount,
       defense_moves_left: resolvedDefenseMoves,
-      player_deck: resolvedPlayerDeck,
-      host_player_deck: host_deck,
-      opponent_player_deck: opponent_deck,
+      shared_player_deck: resolvedPlayerDeck,
       special_deck: resolvedSpecialDeck,
       attacker_role: resolvedAttackerRole,
       last_updated_by: resolvedRole,
@@ -1852,9 +1739,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
     const dbCurrentTurnAuthId = dbCurrentTurn === "host" ? latestRoomRef.current.host_id : latestRoomRef.current.opponent_id;
 
-    // Always broadcast the state to the opponent immediately
     const resolvedEventType = opts.eventType !== undefined ? opts.eventType : (accumulatedOverrides.eventType !== undefined ? accumulatedOverrides.eventType : "STATE_UPDATE");
-    broadcastGameEvent(resolvedEventType, syncState, null, dbCurrentTurn, dbCurrentTurnAuthId);
 
     // Determine checkpoints for database persistence to prevent redundant DB calls
     const currentPhaseVal = syncState.phase;
@@ -1870,6 +1755,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     const isConfirmChanged = currentHostConfirmed !== dbHostConfirmedRef.current ||
                              currentOpponentConfirmed !== dbOpponentConfirmedRef.current;
     const isShotDeclaredChanged = syncState.is_shot_declared !== dbIsShotDeclaredRef.current;
+    const isHalfTimeBreakChanged = !!syncState.is_half_time_break !== dbIsHalfTimeBreakRef.current;
+    const isMatchHalfChanged = (syncState.match_half || 1) !== dbMatchHalfRef.current;
 
     // Clear any pending debounced DB writes
     if (debouncedDbWriteTimeoutId.current) {
@@ -1878,15 +1765,17 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     }
 
     const isCriticalEvent = resolvedEventType !== "STATE_UPDATE" && resolvedEventType !== "HEARTBEAT";
-    const isCheckpoint = dbPhaseRef.current === null || isPhaseChanged || isScoreChanged || isGameOver || isConfirmChanged || isShotDeclaredChanged || isCriticalEvent;
+    const isCheckpoint = dbPhaseRef.current === null || isPhaseChanged || isScoreChanged || isGameOver || isConfirmChanged || isShotDeclaredChanged || isHalfTimeBreakChanged || isMatchHalfChanged || isCriticalEvent;
 
     if (isCheckpoint) {
+      const promise = supabaseService.updateRoomState(resolvedRoomId, {
+        game_state: syncState,
+        current_turn: dbCurrentTurn,
+        current_turn_auth_id: dbCurrentTurnAuthId
+      });
+      activeDbWritePromiseRef.current = promise;
       try {
-        await supabaseService.updateRoomState(resolvedRoomId, {
-          game_state: syncState,
-          current_turn: dbCurrentTurn,
-          current_turn_auth_id: dbCurrentTurnAuthId
-        });
+        await promise;
         
         // Update local DB tracking refs to avoid duplicate writes
         dbPhaseRef.current = currentPhaseVal;
@@ -1895,27 +1784,49 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         dbHostConfirmedRef.current = currentHostConfirmed;
         dbOpponentConfirmedRef.current = currentOpponentConfirmed;
         dbIsShotDeclaredRef.current = !!syncState.is_shot_declared;
+        dbIsHalfTimeBreakRef.current = !!syncState.is_half_time_break;
+        dbMatchHalfRef.current = syncState.match_half || 1;
+
+        // Broadcast after DB write is successful
+        broadcastGameEvent(resolvedEventType, syncState, null, dbCurrentTurn, dbCurrentTurnAuthId);
       } catch (e) {
         console.error("Multiplayer checkpoint DB write error", e);
       } finally {
+        if (activeDbWritePromiseRef.current === promise) {
+          activeDbWritePromiseRef.current = null;
+        }
         hasPendingLocalChanges.current = false;
       }
     } else {
-      // Schedule a debounced DB write in 2 seconds to keep the DB up-to-date in the background
-      debouncedDbWriteTimeoutId.current = setTimeout(async () => {
-        debouncedDbWriteTimeoutId.current = null;
+      // Broadcast immediately for non-checkpoint updates
+      broadcastGameEvent(resolvedEventType, syncState, null, dbCurrentTurn, dbCurrentTurnAuthId);
+
+      // Schedule a debounced DB write in 200 ms to keep the DB up-to-date in the background
+      const writeDb = async () => {
+        const promise = supabaseService.updateRoomState(resolvedRoomId, {
+          game_state: syncState,
+          current_turn: dbCurrentTurn,
+          current_turn_auth_id: dbCurrentTurnAuthId
+        });
+        activeDbWritePromiseRef.current = promise;
         try {
-          await supabaseService.updateRoomState(resolvedRoomId, {
-            game_state: syncState,
-            current_turn: dbCurrentTurn,
-            current_turn_auth_id: dbCurrentTurnAuthId
-          });
+          await promise;
         } catch (e) {
           console.error("Multiplayer debounced DB write error", e);
         } finally {
+          if (activeDbWritePromiseRef.current === promise) {
+            activeDbWritePromiseRef.current = null;
+          }
           hasPendingLocalChanges.current = false;
+          debouncedDbWriteCallbackRef.current = null;
         }
-      }, 2000);
+      };
+
+      debouncedDbWriteCallbackRef.current = writeDb;
+      debouncedDbWriteTimeoutId.current = setTimeout(async () => {
+        debouncedDbWriteTimeoutId.current = null;
+        await writeDb();
+      }, 200);
 
       // Safety timeout for non-checkpoint updates (after broadcast)
       setTimeout(() => {
@@ -1937,15 +1848,44 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     if (eventType) {
       pendingSyncOverrides.current.eventType = eventType;
     }
-    if (syncTimeoutId.current) {
-      clearTimeout(syncTimeoutId.current);
-    }
-    syncTimeoutId.current = setTimeout(() => {
-      syncTimeoutId.current = null;
+    scheduleSync(() => {
       const currentOverrides = { ...pendingSyncOverrides.current };
       pendingSyncOverrides.current = {};
       syncToSupabaseInstance(currentOverrides);
     }, 100);
+  };
+
+  const awaitPendingSyncs = async () => {
+    // 1. Flush any pending sync callback (e.g. debounced syncToSupabaseInstance calls)
+    if (pendingSyncCallbackRef.current) {
+      const cb = pendingSyncCallbackRef.current;
+      pendingSyncCallbackRef.current = null;
+      if (syncTimeoutId.current) {
+        clearTimeout(syncTimeoutId.current);
+        syncTimeoutId.current = null;
+      }
+      cb();
+    }
+
+    // 2. Flush any pending debounced DB writes
+    if (debouncedDbWriteCallbackRef.current) {
+      const cb = debouncedDbWriteCallbackRef.current;
+      debouncedDbWriteCallbackRef.current = null;
+      if (debouncedDbWriteTimeoutId.current) {
+        clearTimeout(debouncedDbWriteTimeoutId.current);
+        debouncedDbWriteTimeoutId.current = null;
+      }
+      await cb();
+    }
+
+    // 3. Await any active DB write promise (checkpoint or debounced)
+    if (activeDbWritePromiseRef.current) {
+      try {
+        await activeDbWritePromiseRef.current;
+      } catch (e) {
+        console.error("Error awaiting active DB write promise", e);
+      }
+    }
   };
 
   // Countdown Timer ticking
@@ -2038,6 +1978,10 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
         // Transition to half-time break
         if (matchHalf === 1 && nextVal <= halfTimePoint) {
+          if (isMultiplayer && multiplayerRole !== "host") {
+            // Opponent waits for host to sync break transition
+            return Math.max(halfTimePoint + 1, nextVal);
+          }
           clearInterval(timer);
           setIsHalfTimeBreak(true);
           setHalfTimeBreakLeft(halfTimeBreakDuration);
@@ -2067,6 +2011,10 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         }
 
         if (nextVal <= 0) {
+          if (isMultiplayer && multiplayerRole !== "host") {
+            // Opponent waits for host to sync game over
+            return 1;
+          }
           clearInterval(timer);
           SoundEffects.playWhistle();
           setPhase("game_over");
@@ -2128,7 +2076,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
           
           if (phase === "player_turn") {
             addLog("⏰ انتهى زمن دورك! تم نقل اللعب تلقائياً للخصم.", "danger");
-            handleEndPlayerTurn();
+            handleEndPlayerTurnRef.current();
           } else if (phase === "ai_turn") {
             if (isMultiplayer) {
               // In multiplayer, the opponent's client will handle their own timeout.
@@ -2143,7 +2091,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     }, 1000);
 
     return () => clearInterval(timerId);
-  }, [phase, turnTimeLimit, isMultiplayer, multiplayerRole, logs, turnCount, maxMovesPerTurn, defaultMaxDrawsPerTurn]);
+  }, [phase, turnTimeLimit, isMultiplayer]);
 
   // Reset turn timer when phase changes
   useEffect(() => {
@@ -2167,7 +2115,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
           addLog("⚙️ انتقال تكتيكي تلقائي: انتهت حركاتك وسحباتك لهذا الدور، ينتقل التحكم للخصم!", "neutral");
           handleEndPlayerTurn();
         }
-      }, 1200);
+      }, 500);
       return () => clearTimeout(timer);
     }
   }, [phase, playerMovesLeft, cardsDrawnThisTurn, playerDeck.length, specialDeck.length]);
@@ -2194,6 +2142,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
       // Turn Started Triggers
       if (phase === "player_turn") {
+        hasShownNoMovesWarningRef.current = false;
         playerSlots.forEach((slot) => {
           if (slot.card && slot.isRevealed) {
             triggerCardInstantEffects(slot.card, true, "TurnStarted");
@@ -2436,8 +2385,9 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
           throw new Error(res.error || "Failed to initialize match via referee");
         }
         if (res.game_state) {
-          setPlayerDeck(res.game_state.host_player_deck || []);
-          setAiDeck(res.game_state.opponent_player_deck || []);
+          const sharedDeck = res.game_state.shared_player_deck;
+          setPlayerDeck(sharedDeck || []);
+          setAiDeck(sharedDeck || []);
           setSpecialDeck(res.game_state.special_deck || []);
           setBoosterDeck(res.game_state.booster_deck || []);
           setPlayerSlots(res.game_state.host_slots || []);
@@ -2452,14 +2402,13 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     } else {
       // Opponent is waiting for host to sync
       const gs = room.game_state;
-      const initialOpponentDeck = gs?.opponent_player_deck;
-      const initialHostDeck = gs?.host_player_deck || gs?.player_deck;
+      const initialSharedDeck = gs?.shared_player_deck || gs?.opponent_player_deck || gs?.host_player_deck || gs?.player_deck;
       const initialSpecialDeck = gs?.special_deck;
       const initialBoosterDeck = gs?.booster_deck || gs?.ponto_deck;
 
-      if (initialOpponentDeck && initialOpponentDeck.length > 0) {
-        setPlayerDeck(initialOpponentDeck);
-        if (initialHostDeck) setAiDeck(initialHostDeck);
+      if (initialSharedDeck && initialSharedDeck.length > 0) {
+        setPlayerDeck(initialSharedDeck);
+        setAiDeck(initialSharedDeck);
         if (initialSpecialDeck) setSpecialDeck(initialSpecialDeck);
         if (initialBoosterDeck) setBoosterDeck(initialBoosterDeck);
       }
@@ -2498,8 +2447,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     attacker: "player" | "ai",
     attackPower: number,
     defensePower: number,
-    pontoValue: number,
-    pontoText: string,
+    boosterValue: number,
+    boosterText: string,
     isGoal: boolean,
     attackerName: string,
     defenders: string[],
@@ -2512,8 +2461,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         attacker,
         attackPower,
         defensePower,
-        pontoValue,
-        pontoText,
+        boosterValue,
+        boosterText,
         isGoal,
         attackerName,
         defenders,
@@ -2731,7 +2680,6 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         roomId: currentRoomId!,
         role: multiplayerRole!,
         slots: slotsToUse.map((s) => ({ ...s, isRevealed: false })),
-        deck: deckToUse
       }).catch((err) => {
         console.error("Error confirming lineup via referee:", err);
         addLog("فشل تأكيد الخطة عبر الحكم المحايد. يرجى المحاولة مجدداً.", "danger");
@@ -2766,8 +2714,33 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const handleDrawCard = (deckType: "player" | "special") => {
     if (isRefereeResolving) return;
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
-    if (phase === "ai_attacking") {
-      addLog("لا يمكنك سحب كروت إضافية أثناء مرحلة الدفاع! يمكنك فقط اللعب بالكروت المتاحة معك في الملعب أو يدك.", "warning");
+    
+    const canDraw = phase === "player_turn" || phase === "warmup";
+    if (!canDraw) {
+      addLog("لا يمكنك سحب كروت إلا في دورك المخصص!", "warning");
+      return;
+    }
+
+    if (isMultiplayer) {
+      setIsRefereeResolving(true);
+      supabaseService.invokeReferee({
+        action: "draw_card",
+        roomId: currentRoomId!,
+        role: multiplayerRole!,
+        deckType
+      }).then((res) => {
+        if (res.success && res.game_state) {
+          applyRefereeGameState(res.game_state);
+          SoundEffects.playCardDraw();
+        } else {
+          addLog(res.error || "خطأ عند سحب كارت من الحكم.", "danger");
+        }
+      }).catch((err) => {
+        console.error("Error drawing card via referee:", err);
+        addLog("فشل سحب الكارت عبر الحكم المحايد.", "danger");
+      }).finally(() => {
+        setIsRefereeResolving(false);
+      });
       return;
     }
 
@@ -2864,339 +2837,56 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
 
   const triggerCardInstantEffects = (card: Card, isPlayerOwned: boolean, trigger: CardAbilityTriggerType) => {
-    if (!card || !card.ability) return;
-    if (card.ability.trigger !== trigger) return;
-
-    const opponentActiveSpecials = isPlayerOwned ? aiActiveSpecial : playerActiveSpecial;
-    const opponentSlots = isPlayerOwned ? aiSlots : playerSlots;
-    const isAbilityBlocked = opponentActiveSpecials.some(c => c.ability?.actions.some(a => a.type === "BlockAbility")) ||
-                              opponentSlots.some(s => s.card && s.isRevealed && !s.card.silenced && s.card.ability?.actions.some(a => a.type === "BlockAbility"));
-
-    const isSilenced = (card as any).silenced || (card as any).abilityBlocked || isAbilityBlocked;
-    if (isSilenced) return;
-
-    const maxUses = card.ability.maxUses || 1;
-    const currentUses = (card as any).abilityUses || 0;
-    if (currentUses >= maxUses) return;
-
-    // Evaluate conditions
-    let conditionsMet = true;
-    if (card.ability.conditions) {
-      card.ability.conditions.forEach((cond) => {
-        if (cond.type === "IsLegend") {
-          if (card!.type === "player" && !(card as PlayerCard).isLegend) {
-            conditionsMet = false;
-          }
-        }
-      });
-    }
-    if (!conditionsMet) return;
-
-    // Execute instant actions
-    let movesAdded = 0;
-    let cardsDrawn = 0;
-
-    card.ability.actions.forEach((act) => {
-      const val = act.value || 0;
-
-      // 1. Add / Remove Moves
-      if (act.type === "AddMoves") {
-        if (isPlayerOwned) {
-          setPlayerMovesLeft((prev) => prev + val);
-          movesAdded += val;
-        } else {
-          setAiMovesLeft((prev) => prev + val);
-          movesAdded += val;
-        }
-      } else if (act.type === "ReduceMoves") {
-        if (isPlayerOwned) {
-          setAiMovesLeft((prev) => Math.max(0, prev - val));
-        } else {
-          setPlayerMovesLeft((prev) => Math.max(0, prev - val));
-        }
-        addLog(`📉 قدرة [ ${getSafeCardName(card, isPlayerOwned)} ]: تم تقليص حركات الخصم بـ -${val}!`, isPlayerOwned ? "success" : "danger");
-      }
-
-      // 2. Draw Cards
-      else if (act.type === "DrawCard") {
-        cardsDrawn += val;
-      }
-
-      // 3. Stat Modification Actions (Permanent/Instant)
-      else if (act.type === "AddStat" || act.type === "RemoveStat" || act.type === "MultiplyStat") {
-        if (act.stat === "attack" || act.stat === "defense") {
-          if (act.duration === "Instant") {
-            const modifyStats = (c: any, targetSide: boolean) => {
-              if (!c) return c;
-              const isTarget = (act.target === "Self" && c.id === card.id) ||
-                               (act.target === "Allies" && isPlayerOwned === targetSide) ||
-                               (act.target === "Enemies" && isPlayerOwned !== targetSide) ||
-                               (act.target === "All");
-              if (!isTarget) return c;
-
-              const nextCard = { ...c };
-              if (act.stat === "attack") {
-                if (act.type === "AddStat") nextCard.attack += val;
-                if (act.type === "RemoveStat") nextCard.attack = Math.max(0, nextCard.attack - val);
-                if (act.type === "MultiplyStat") nextCard.attack *= val;
-              } else {
-                if (act.type === "AddStat") nextCard.defense += val;
-                if (act.type === "RemoveStat") nextCard.defense = Math.max(0, nextCard.defense - val);
-                if (act.type === "MultiplyStat") nextCard.defense *= val;
-              }
-              return nextCard;
-            };
-
-            setPlayerSlots((prev) => prev.map((s) => s.card ? { ...s, card: modifyStats(s.card, true) } : s));
-            setAiSlots((prev) => prev.map((s) => s.card ? { ...s, card: modifyStats(s.card, false) } : s));
-            addLog(`⚡ تعديل طاقات: تم تعديل طاقة [ ${act.stat === "attack" ? "الهجوم" : "الدفاع"} ] للكروت المستهدفة بشكل دائم بفعل [ ${getSafeCardName(card, isPlayerOwned)} ]!`, isPlayerOwned ? "success" : "danger");
-          }
-        } else if (act.stat === "moves") {
-          const isTargetPlayer = (act.target === "Self" && isPlayerOwned) ||
-                                 (act.target === "Allies" && isPlayerOwned) ||
-                                 (act.target === "Enemies" && !isPlayerOwned) ||
-                                 (act.target === "All");
-
-          const isTargetAi = (act.target === "Self" && !isPlayerOwned) ||
-                             (act.target === "Allies" && !isPlayerOwned) ||
-                             (act.target === "Enemies" && isPlayerOwned) ||
-                             (act.target === "All");
-
-          if (act.type === "AddStat") {
-            if (isTargetPlayer) setPlayerMovesLeft((prev) => prev + val);
-            if (isTargetAi) setAiMovesLeft((prev) => prev + val);
-          } else if (act.type === "RemoveStat") {
-            if (isTargetPlayer) setPlayerMovesLeft((prev) => Math.max(0, prev - val));
-            if (isTargetAi) setAiMovesLeft((prev) => Math.max(0, prev - val));
-          }
-        } else if (act.stat === "draw") {
-          if (act.type === "AddStat") {
-            cardsDrawn += val;
-          }
-        }
-      }
-
-      // 4. Steal Card
-      else if (act.type === "StealCard") {
-        if (isPlayerOwned) {
-          setAiHand((prevAiHand) => {
-            if (prevAiHand.length === 0) return prevAiHand;
-            const randIdx = Math.floor(Math.random() * prevAiHand.length);
-            const stolenCard = prevAiHand[randIdx];
-            setPlayerHand((prevHand) => [...prevHand, stolenCard]);
-            addLog(`💸 سرقة: قمت بسرقة كارت [ ${stolenCard.name} ] من يد الخصم!`, "success");
-            return prevAiHand.filter((_, idx) => idx !== randIdx);
-          });
-        } else {
-          setPlayerHand((prevPlayerHand) => {
-            if (prevPlayerHand.length === 0) return prevPlayerHand;
-            const randIdx = Math.floor(Math.random() * prevPlayerHand.length);
-            const stolenCard = prevPlayerHand[randIdx];
-            setAiHand((prevHand) => [...prevHand, stolenCard]);
-            addLog(`💸 سرقة: الخصم سرق كارت [ ${stolenCard.name} ] من يدك!`, "danger");
-            return prevPlayerHand.filter((_, idx) => idx !== randIdx);
-          });
-        }
-      }
-
-      // 5. Copy Card
-      else if (act.type === "CopyCard") {
-        let bestCard: PlayerCard | null = null;
-        let maxStats = -1;
-        const allSlots = [...playerSlots, ...aiSlots];
-        allSlots.forEach((s) => {
-          if (s.card && s.card.id !== card.id && (s.card.attack + s.card.defense) > maxStats) {
-            maxStats = s.card.attack + s.card.defense;
-            bestCard = s.card;
-          }
-        });
-        if (bestCard) {
-          const copyFrom = bestCard as PlayerCard;
-          const copyStats = (c: any) => {
-            if (c && c.id === card.id) {
-              return {
-                ...c,
-                attack: copyFrom.attack,
-                defense: copyFrom.defense,
-                ability: copyFrom.ability
-              };
-            }
-            return c;
-          };
-          if (isPlayerOwned) {
-            setPlayerSlots((prev) => prev.map((s) => s.card ? { ...s, card: copyStats(s.card) } : s));
-          } else {
-            setAiSlots((prev) => prev.map((s) => s.card ? { ...s, card: copyStats(s.card) } : s));
-          }
-          const isBestCardPlayerOwned = playerSlots.some(s => s.card && s.card.id === bestCard.id);
-          addLog(`👥 قدرة الكارت: نسخ الكارت [ ${getSafeCardName(card, isPlayerOwned)} ] طاقات وقدرات [ ${getSafeCardName(bestCard, isBestCardPlayerOwned)} ]!`, isPlayerOwned ? "success" : "danger");
-        }
-      }
-
-      // 6. Swap Card (Random slot swap)
-      else if (act.type === "SwapCard") {
-        const slotsSetter = isPlayerOwned ? setPlayerSlots : setAiSlots;
-        slotsSetter((prev) => {
-          const next = [...prev];
-          const occupiedIndices = next.map((s, i) => s.card ? i : -1).filter(i => i !== -1);
-          if (occupiedIndices.length >= 2) {
-            const i1 = occupiedIndices[0];
-            const i2 = occupiedIndices[Math.floor(Math.random() * (occupiedIndices.length - 1)) + 1];
-            const temp = next[i1].card;
-            next[i1] = { ...next[i1], card: next[i2].card };
-            next[i2] = { ...next[i2], card: temp };
-          }
-          return next;
-        });
-        addLog(`🔄 قدرة [ ${getSafeCardName(card, isPlayerOwned)} ]: تم تبديل مراكز اللاعبين بالملعب بشكل عشوائي!`, isPlayerOwned ? "success" : "danger");
-      }
-
-      // 7. Reveal / Hide Card
-      else if (act.type === "RevealCard") {
-        if (act.target === "Self") {
-          if (isPlayerOwned) {
-            setPlayerSlots((prev) => prev.map((s) => s.card?.id === card.id ? { ...s, isRevealed: true, revealedInTurn: turnCount, revealedByAbility: true } : s));
-          } else {
-            setAiSlots((prev) => prev.map((s) => s.card?.id === card.id ? { ...s, isRevealed: true, revealedInTurn: turnCount, revealedByAbility: true } : s));
-          }
-        } else if (act.target === "Allies") {
-          if (isPlayerOwned) {
-            setPlayerSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: true, revealedInTurn: turnCount, revealedByAbility: true } : s));
-          } else {
-            setAiSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: true, revealedInTurn: turnCount, revealedByAbility: true } : s));
-          }
-        } else if (act.target === "Enemies") {
-          if (isPlayerOwned) {
-            setAiSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: true, revealedInTurn: turnCount, revealedByAbility: true } : s));
-          } else {
-            setPlayerSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: true, revealedInTurn: turnCount, revealedByAbility: true } : s));
-          }
-        }
-      } else if (act.type === "HideCard") {
-        if (act.target === "Self") {
-          if (isPlayerOwned) {
-            setPlayerSlots((prev) => prev.map((s) => s.card?.id === card.id ? { ...s, isRevealed: false, revealedByAbility: false } : s));
-          } else {
-            setAiSlots((prev) => prev.map((s) => s.card?.id === card.id ? { ...s, isRevealed: false, revealedByAbility: false } : s));
-          }
-        } else if (act.target === "Allies") {
-          if (isPlayerOwned) {
-            setPlayerSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: false, revealedByAbility: false } : s));
-          } else {
-            setAiSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: false, revealedByAbility: false } : s));
-          }
-        } else if (act.target === "Enemies") {
-          if (isPlayerOwned) {
-            setAiSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: false, revealedByAbility: false } : s));
-          } else {
-            setPlayerSlots((prev) => prev.map((s) => s.card ? { ...s, isRevealed: false, revealedByAbility: false } : s));
-          }
-        }
-      }
-
-      // 8. Freeze, Silence, Stun, Destroy Status Actions
-      else if (act.type === "FreezeCard" || act.type === "SilenceCard" || act.type === "StunCard" || act.type === "DestroyCard") {
-        const durationTurns = act.durationTurns || 2;
-        const modifyStatus = (c: any, targetSide: boolean) => {
-          if (!c) return c;
-          const isTarget = (act.target === "Self" && c.id === card.id) ||
-                           (act.target === "Allies" && isPlayerOwned === targetSide) ||
-                           (act.target === "Enemies" && isPlayerOwned !== targetSide) ||
-                           (act.target === "All");
-          if (!isTarget) return c;
-
-          const nextCard = { ...c };
-          if (act.type === "FreezeCard") {
-            nextCard.frozen = true;
-            nextCard.frozenTurnsLeft = durationTurns;
-          } else if (act.type === "SilenceCard") {
-            nextCard.silenced = true;
-            nextCard.silencedTurnsLeft = durationTurns;
-          } else if (act.type === "StunCard") {
-            nextCard.stunned = true;
-            nextCard.stunnedTurnsLeft = durationTurns;
-          } else if (act.type === "DestroyCard") {
-            if (targetSide) recyclePlayerCard(nextCard);
-            else recycleAiCard(nextCard);
-            return null;
-          }
-          return nextCard;
-        };
-
-        setPlayerSlots((prev) => prev.map((s) => {
-          const updatedCard = modifyStatus(s.card, true);
-          return updatedCard === null ? { card: null, isRevealed: false } : { ...s, card: updatedCard };
-        }));
-        setAiSlots((prev) => prev.map((s) => {
-          const updatedCard = modifyStatus(s.card, false);
-          return updatedCard === null ? { card: null, isRevealed: false } : { ...s, card: updatedCard };
-        }));
-
-        addLog(`⚡ تطبيق تأثير [ ${act.type} ] على الكروت المستهدفة بالملعب!`, isPlayerOwned ? "success" : "danger");
-      }
-    });
-
-    if (movesAdded > 0) {
-      addLog(`⚡ قدرة الأسطورة [ ${getSafeCardName(card, isPlayerOwned)} ] (${isPlayerOwned ? "حليف" : "خصم"}): تم إضافة +${movesAdded} حركات تكتيكية!`, isPlayerOwned ? "success" : "danger");
-    }
-
-    if (cardsDrawn > 0) {
-      if (isPlayerOwned) {
-        setMaxDrawsPerTurn((prev) => prev + cardsDrawn);
-        addLog(`⚡ قدرة الأسطورة [ ${getSafeCardName(card, isPlayerOwned)} ] (حليف): تم زيادة فرصة السحب المتاحة لك بمقدار +${cardsDrawn} كروت إضافية اختيارياً! يمكنك سحبها الآن من المجموعات بيدك.`, "success");
-      } else {
-        let currentAiDeck = [...aiDeck];
-        let currentSpecialDeck = [...specialDeck];
-        const added: Card[] = [];
-        
-        for (let i = 0; i < cardsDrawn; i++) {
-          const drawType = i % 2 === 0 ? "player" : "special";
-          if (drawType === "player" && currentAiDeck.length > 0) {
-            added.push(currentAiDeck[0]);
-            currentAiDeck = currentAiDeck.slice(1);
-          } else if (currentSpecialDeck.length > 0) {
-            added.push(currentSpecialDeck[0]);
-            currentSpecialDeck = currentSpecialDeck.slice(1);
-          } else if (currentAiDeck.length > 0) {
-            added.push(currentAiDeck[0]);
-            currentAiDeck = currentAiDeck.slice(1);
-          }
-        }
-        
-        if (added.length > 0) {
-          setAiDeck(currentAiDeck);
-          setSpecialDeck(currentSpecialDeck);
-          setAiHand((prevHand) => [...prevHand, ...added]);
-          if (!isPlayerOwned) {
-            setAiCardsDrawnThisTurn((prev) => prev + added.length);
-          }
-          
-          added.forEach((c) => {
-            if (c.type === "player") {
-              addLog(`الخصم يسحب كارت لاعب جديد ليده بفعل قدرة خاصة.`, "warning");
-            } else {
-              addLog(`الخصم يسحب كارت تكتيك إضافي ليده بفعل قدرة خاصة.`, "warning");
-            }
-          });
-          SoundEffects.playCardDraw();
-        }
-      }
-    }
-
-    // Mark as used in playerSlots/aiSlots/playerHand/aiHand
-    const incrementUses = (c: any) => {
-      if (c && c.id === card.id) {
-        return { ...c, abilityUses: ((c as any).abilityUses || 0) + 1 };
-      }
-      return c;
+    const gs = {
+      host_slots: playerSlots,
+      opponent_slots: aiSlots,
+      host_hand: playerHand,
+      opponent_hand: aiHand,
+      host_moves: playerMovesLeft,
+      opponent_moves: aiMovesLeft,
+      extra_draws_limit: 0,
+      logs: [...logs],
+      attacker_role: isPlayerAttacker ? 'host' : 'opponent' as const,
+      turn_count: turnCount,
+      active_specials_host: playerActiveSpecial,
+      active_specials_opponent: aiActiveSpecial,
+      host_deck: playerDeck,
+      opponent_deck: aiDeck,
+      special_deck: specialDeck,
     };
 
-    if (isPlayerOwned) {
-      setPlayerSlots((prev) => prev.map((s) => s.card ? { ...s, card: incrementUses(s.card) } : s));
-      setPlayerHand((prev) => prev.map((c) => incrementUses(c)));
-    } else {
-      setAiSlots((prev) => prev.map((s) => s.card ? { ...s, card: incrementUses(s.card) } : s));
-      setAiHand((prev) => prev.map((c) => incrementUses(c)));
+    executeCardInstantEffects(
+      gs,
+      card,
+      isPlayerOwned ? 'host' : 'opponent',
+      trigger,
+      coachName,
+      opponentName
+    );
+
+    // Apply updates back to local React states
+    setPlayerSlots(gs.host_slots);
+    setAiSlots(gs.opponent_slots);
+    setPlayerHand(gs.host_hand);
+    setAiHand(gs.opponent_hand);
+    setPlayerMovesLeft(gs.host_moves);
+    setAiMovesLeft(gs.opponent_moves);
+    setPlayerDeck(gs.host_deck);
+    setAiDeck(gs.opponent_deck);
+    setSpecialDeck(gs.special_deck);
+    setLogs(gs.logs);
+
+    if (gs.extra_draws_limit > 0 && isPlayerOwned) {
+      setMaxDrawsPerTurn((prev) => prev + gs.extra_draws_limit);
+    }
+
+    const playerHandDiff = gs.host_hand.length - playerHand.length;
+    const opponentHandDiff = gs.opponent_hand.length - aiHand.length;
+    if (playerHandDiff > 0 || opponentHandDiff > 0) {
+      SoundEffects.playCardDraw();
+    }
+    if (opponentHandDiff > 0 && !isPlayerOwned) {
+      setAiCardsDrawnThisTurn((prev) => prev + opponentHandDiff);
     }
   };
 
@@ -3274,194 +2964,17 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     playerSlotsOverride?: typeof playerSlots,
     aiSlotsOverride?: typeof aiSlots
   ) => {
-    let score = 0;
-    const slots = playerSlotsOverride && aiSlotsOverride 
-      ? (isPlayerSide ? playerSlotsOverride : aiSlotsOverride)
-      : (isPlayerSide ? playerSlots : aiSlots);
-    
-    if (isAttackingStage) {
-      // Base attack score: sum of attack of all revealed player cards on the attacking side
-      slots.forEach((slot) => {
-        if (slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
-          if (slot.card.frozen || slot.card.stunned) return;
-          score += slot.card.attack || 0;
-        }
-      });
-      if (activeBooster && isPlayerSide === isPlayerAttacker) {
-        score += activeBooster.value || 0;
-      }
-    } else {
-      // Base defense score: sum of defense of all revealed player cards on the defending side
-      slots.forEach((slot) => {
-        if (slot.card && slot.isRevealed && (slot.revealedInAttack || slot.confirmedInAttack)) {
-          if (slot.card.frozen || slot.card.stunned) return;
-          score += slot.card.defense || 0;
-        }
-      });
-    }
-
-    const activeSources: { card: Card; isPlayerOwned: boolean }[] = [];
-    const activePlayerSlots = playerSlotsOverride || playerSlots;
-    const activeAiSlots = aiSlotsOverride || aiSlots;
-    
-    activePlayerSlots.forEach((slot) => {
-      if (slot.card && slot.isRevealed) {
-        activeSources.push({ card: slot.card, isPlayerOwned: true });
-      }
-    });
-    activeAiSlots.forEach((slot) => {
-      if (slot.card && slot.isRevealed) {
-        activeSources.push({ card: slot.card, isPlayerOwned: false });
-      }
-    });
-    playerActiveSpecials.forEach((spec) => {
-      activeSources.push({ card: spec, isPlayerOwned: true });
-    });
-    aiActiveSpecials.forEach((spec) => {
-      activeSources.push({ card: spec, isPlayerOwned: false });
-    });
-
-    let attackModifiers = 0;
-    let defenseModifiers = 0;
-    let attackMultiplier = 1;
-    let defenseMultiplier = 1;
-    let cancelStrongestAttacker = false;
-
-    activeSources.forEach((src) => {
-      const { card, isPlayerOwned } = src;
-
-      // 1. Dynamic Ability execution
-      if (card.ability) {
-        const opponentActiveSpecials = isPlayerOwned ? aiActiveSpecials : playerActiveSpecials;
-        const opponentSlots = isPlayerOwned ? (aiSlotsOverride || aiSlots) : (playerSlotsOverride || playerSlots);
-        const isAbilityBlocked = opponentActiveSpecials.some(c => c.ability?.actions.some(a => a.type === "BlockAbility")) ||
-                                  opponentSlots.some(s => s.card && s.isRevealed && !s.card.silenced && s.card.ability?.actions.some(a => a.type === "BlockAbility"));
-
-        const isSilenced = (card as any).silenced || (card as any).abilityBlocked || isAbilityBlocked;
-        if (isSilenced) return;
-
-        const ability = card.ability;
-        
-        // Check triggers
-        const triggerMatches = 
-          ((ability.trigger === "CardRevealed" || ability.trigger === "CardPlayed") && card.type === "player") || // While active on field
-          (ability.trigger === "CardPlayed" && card.type === "special") || // Specials active this turn
-          (ability.trigger === "AttackStarted" && isAttackingStage) ||
-          (ability.trigger === "DefenseStarted" && !isAttackingStage);
-
-        if (triggerMatches) {
-          // Evaluate conditions
-          let conditionsMet = true;
-          if (ability.conditions) {
-            ability.conditions.forEach((cond) => {
-              if (cond.type === "IsFaceUp") {
-                // If it's on field it's face up
-              }
-              if (cond.type === "IsAttacker") {
-                const isOwnerAttacking = isPlayerOwned === isPlayerAttacker;
-                if (!isOwnerAttacking) conditionsMet = false;
-              }
-              if (cond.type === "IsDefender") {
-                const isOwnerDefending = isPlayerOwned !== isPlayerAttacker;
-                if (!isOwnerDefending) conditionsMet = false;
-              }
-              if (cond.type === "CardOwnerIsEnemy") {
-                if (isPlayerOwned === isPlayerSide) conditionsMet = false;
-              }
-              if (cond.type === "IsLegend") {
-                if (card.type === "player" && !(card as PlayerCard).isLegend) {
-                  conditionsMet = false;
-                }
-              }
-            });
-          }
-
-          if (conditionsMet && ability.actions) {
-            ability.actions.forEach((act) => {
-              const isTargetSide = (act.target === "Allies" && isPlayerOwned === isPlayerSide) ||
-                                   (act.target === "Enemies" && isPlayerOwned !== isPlayerSide) ||
-                                   (act.target === "CurrentAttack" && isAttackingStage) ||
-                                   (act.target === "CurrentDefense" && !isAttackingStage) ||
-                                   (act.target === "Self" && card === src.card && isPlayerOwned === isPlayerSide);
-
-              if (isTargetSide) {
-                if (act.type === "AddStat") {
-                  if (act.stat === "attack" && isAttackingStage) {
-                    attackModifiers += act.value ?? 0;
-                  }
-                  if (act.stat === "defense" && !isAttackingStage) {
-                    defenseModifiers += act.value ?? 0;
-                  }
-                } else if (act.type === "RemoveStat") {
-                  if (act.stat === "attack" && isAttackingStage) {
-                    attackModifiers -= act.value ?? 0;
-                  }
-                  if (act.stat === "defense" && !isAttackingStage) {
-                    defenseModifiers -= act.value ?? 0;
-                  }
-                } else if (act.type === "MultiplyStat") {
-                  if (act.stat === "attack" && isAttackingStage) {
-                    attackMultiplier *= act.value ?? 1;
-                  }
-                  if (act.stat === "defense" && !isAttackingStage) {
-                    defenseMultiplier *= act.value ?? 1;
-                  }
-                } else if (act.type === "CancelAction" && isAttackingStage) {
-                  cancelStrongestAttacker = true;
-                }
-              }
-            });
-          }
-        }
-      } else if (card.type === "special") {
-        // 2. Fallback to hardcoded special card behaviors
-        const spec = card as SpecialCard;
-        if (isAttackingStage) {
-          if (isPlayerOwned === isPlayerAttacker) {
-            if (spec.effect === "counter_attack" && isPlayerSide === isPlayerAttacker) {
-              attackModifiers += 4;
-            }
-            if (spec.effect === "fans" && isPlayerSide === isPlayerAttacker) {
-              attackModifiers += 3;
-            }
-          } else {
-            if (spec.effect === "wet_pitch" && isPlayerSide === isPlayerAttacker) {
-              attackModifiers -= 4;
-            }
-            if (spec.effect === "offside" && isPlayerSide === isPlayerAttacker) {
-              cancelStrongestAttacker = true;
-            }
-          }
-        } else {
-          if (isPlayerOwned !== isPlayerAttacker) {
-            if (spec.effect === "park_the_bus" && isPlayerSide !== isPlayerAttacker) {
-              defenseModifiers += 6;
-            }
-            if (spec.effect === "fans" && isPlayerSide !== isPlayerAttacker) {
-              defenseModifiers += 3;
-            }
-          }
-        }
-      }
-    });
-
-    if (isAttackingStage) {
-      let finalAttack = (score * attackMultiplier) + attackModifiers;
-      if (cancelStrongestAttacker) {
-        let maxAttStrength = 0;
-        slots.forEach((s) => {
-          if (s.card && s.isRevealed && (s.revealedInAttack || s.confirmedInAttack)) {
-            maxAttStrength = Math.max(maxAttStrength, s.card.attack || 0);
-          }
-        });
-        finalAttack -= maxAttStrength;
-      }
-      const finalVal = Math.max(0, finalAttack);
-      return isNaN(finalVal) ? 0 : finalVal;
-    } else {
-      const finalVal = Math.max(0, (score * defenseMultiplier) + defenseModifiers);
-      return isNaN(finalVal) ? 0 : finalVal;
-    }
+    return runRefereeRulesEngine(
+      isPlayerSide,
+      isAttackingStage,
+      attackerIdx,
+      activeBooster,
+      playerActiveSpecials,
+      aiActiveSpecials,
+      playerSlotsOverride || playerSlots,
+      aiSlotsOverride || aiSlots,
+      isPlayerAttacker
+    );
   };
 
   // COMPUTE OFFENSIVE POWER
@@ -3606,6 +3119,41 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       return;
     }
 
+    if (isMultiplayer) {
+      setIsRefereeResolving(true);
+      supabaseService.invokeReferee({
+        action: "play_card",
+        roomId: currentRoomId!,
+        role: multiplayerRole!,
+        cardId: id
+      }).then((res) => {
+        if (res.success && res.game_state) {
+          applyRefereeGameState(res.game_state);
+          SoundEffects.playCardDraw();
+          
+          setCinematicEvent({
+            type: "tactical",
+            title: "تفعيل تكتيك خاص! ⚡",
+            subtitle: card.description || "",
+            cardName: card.name,
+            cardIcon: card.icon,
+            isLegend: false
+          });
+          setTimeout(() => {
+            setCinematicEvent(null);
+          }, 1800);
+        } else {
+          addLog(res.error || "خطأ عند لعب الكارت التكتيكي.", "danger");
+        }
+      }).catch((err) => {
+        console.error("Error playing special card via referee:", err);
+        addLog("فشل تفعيل كارت التكتيك عبر الحكم المحايد.", "danger");
+      }).finally(() => {
+        setIsRefereeResolving(false);
+      });
+      return;
+    }
+
     // Deduct move
     const movesBeforePlay = (phase === "player_turn" || phase === "attacking") ? playerMovesLeft : defenseMovesLeft;
     const nextMoves = Math.max(0, movesBeforePlay - 1);
@@ -3719,6 +3267,34 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     if (activeTargetingCard) {
       if (!isValidTargetForCard(activeTargetingCard, idx, isAi)) {
         addLog("خطأ تكتيكي: هذا الكارت المستهدف غير صالح لهذا التكتيك الخاص!", "danger");
+        return;
+      }
+
+      if (isMultiplayer) {
+        setIsRefereeResolving(true);
+        supabaseService.invokeReferee({
+          action: "play_card",
+          roomId: currentRoomId!,
+          role: multiplayerRole!,
+          cardId: activeTargetingCard.id,
+          targetSlotIdx: idx
+        }).then((res) => {
+          if (res.success && res.game_state) {
+            applyRefereeGameState(res.game_state);
+            SoundEffects.playCardDraw();
+            
+            // Clear targeting state
+            setActiveTargetingCard(null);
+            setSelectedHandCardId(null);
+          } else {
+            addLog(res.error || "خطأ عند لعب الكارت التكتيكي.", "danger");
+          }
+        }).catch((err) => {
+          console.error("Error playing targeting special card via referee:", err);
+          addLog("فشل تفعيل كارت التكتيك عبر الحكم المحايد.", "danger");
+        }).finally(() => {
+          setIsRefereeResolving(false);
+        });
         return;
       }
 
@@ -3856,7 +3432,10 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     // 2. Handling main player turn swaps & attack setups
     if (phase === "player_turn") {
       if (playerMovesLeft < 1) {
-        addLog("عذراً، استنفدت كامل حركاتك لهذا الدور. يمكنك فقط إنهاء الدور!", "warning");
+        if (!hasShownNoMovesWarningRef.current) {
+          hasShownNoMovesWarningRef.current = true;
+          addLog("عذراً، استنفدت كامل حركاتك لهذا الدور. يمكنك فقط إنهاء الدور!", "warning");
+        }
         return;
       }
 
@@ -3872,6 +3451,37 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         }
 
         const playerCard = handCard as PlayerCard;
+
+        if (isMultiplayer) {
+          if (playerCard.isLegend && burningCardIds.length < legendBurnLimit) {
+            addLog(`هذا اللاعب أسطورة أسطورية! يرجى تحديد ${legendBurnLimit} كروت من يدك لحرقها (النقر فوقها أولاً) لتتمكن من تنزيله.`, "warning");
+            return;
+          }
+
+          setIsRefereeResolving(true);
+          supabaseService.invokeReferee({
+            action: "play_card",
+            roomId: currentRoomId!,
+            role: multiplayerRole!,
+            cardId: selectedHandCardId,
+            targetSlotIdx: idx,
+            burntCardIds: playerCard.isLegend ? burningCardIds : undefined
+          }).then((res) => {
+            if (res.success && res.game_state) {
+              applyRefereeGameState(res.game_state);
+              SoundEffects.playCardDraw();
+              handleCancelSelection();
+            } else {
+              addLog(res.error || "خطأ عند لعب الكارت.", "danger");
+            }
+          }).catch((err) => {
+            console.error("Error playing player card via referee:", err);
+            addLog("فشل لعب كارت اللاعب عبر الحكم المحايد.", "danger");
+          }).finally(() => {
+            setIsRefereeResolving(false);
+          });
+          return;
+        }
 
         // Check if Legend card
         if (playerCard.isLegend) {
@@ -3912,7 +3522,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
             addLog(`🔥 🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز الخالي [ ${idx + 1} ] (تنزيل لاعب - استهلكت حركة واحدة). ${burnLogText}نزول لاعب جديد مقلوباً.`, "success");
           }
 
-          setPlayerMovesLeft((prev) => prev - 1);
+          setPlayerMovesLeft((prev) => Math.max(0, prev - 1));
           handleCancelSelection();
           SoundEffects.playWhistle();
           triggerCardInstantEffects(playerCard, true, "CardPlayed");
@@ -3943,7 +3553,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
           addLog(`🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز الخالي [ ${idx + 1} ] (تنزيل صامت - استهلكت حركة واحدة). وضع لاعب جديد مقلوباً.`, "info");
         }
 
-        setPlayerMovesLeft((prev) => prev - 1);
+        setPlayerMovesLeft((prev) => Math.max(0, prev - 1));
         setSelectedHandCardId(null);
         SoundEffects.playCardDraw();
         triggerCardInstantEffects(playerCard, true, "CardPlayed");
@@ -3978,6 +3588,29 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
             addLog("🚫 خطأ تكتيكي: لا يمكنك إلغاء قلب هذا المدافع لأنه تم تأكيد مشاركته في الصد في خطوة سابقة!", "warning");
             return;
           }
+          if (isMultiplayer) {
+            setIsRefereeResolving(true);
+            supabaseService.invokeReferee({
+              action: "reveal_slot",
+              roomId: currentRoomId!,
+              role: multiplayerRole!,
+              slotIdx: idx,
+              hide: true
+            }).then((res) => {
+              if (res.success && res.game_state) {
+                applyRefereeGameState(res.game_state);
+                SoundEffects.playCardDraw();
+              } else {
+                addLog(res.error || "خطأ عند إلغاء كشف الكارت.", "danger");
+              }
+            }).catch((err) => {
+              console.error("Error hiding slot via referee:", err);
+              addLog("فشل إلغاء كشف الكارت عبر الحكم المحايد.", "danger");
+            }).finally(() => {
+              setIsRefereeResolving(false);
+            });
+            return;
+          }
           const newSlots = [...playerSlots];
           newSlots[idx] = { ...clickedSlot, isRevealed: false, revealedInAttack: false };
           setPlayerSlots(newSlots);
@@ -4005,11 +3638,46 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         return;
       }
 
+      if (isMultiplayer) {
+        setIsRefereeResolving(true);
+        supabaseService.invokeReferee({
+          action: "reveal_slot",
+          roomId: currentRoomId!,
+          role: multiplayerRole!,
+          slotIdx: idx,
+          hide: false
+        }).then((res) => {
+          if (res.success && res.game_state) {
+            applyRefereeGameState(res.game_state);
+            SoundEffects.playCardDraw();
+            if (clickedSlot.card!.ability) {
+              setCinematicEvent({
+                type: "ability",
+                title: "تفعيل قدرة أسطورية! 👑",
+                subtitle: clickedSlot.card!.description || "",
+                cardName: clickedSlot.card!.name,
+                cardIcon: clickedSlot.card!.avatar,
+                isLegend: clickedSlot.card!.isLegend
+              });
+              setTimeout(() => setCinematicEvent(null), 1800);
+            }
+          } else {
+            addLog(res.error || "خطأ عند كشف الكارت.", "danger");
+          }
+        }).catch((err) => {
+          console.error("Error revealing slot via referee:", err);
+          addLog("فشل كشف الكارت عبر الحكم المحايد.", "danger");
+        }).finally(() => {
+          setIsRefereeResolving(false);
+        });
+        return;
+      }
+
       // Turn Face Up to help defense
       const newSlots = [...playerSlots];
       newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
       setPlayerSlots(newSlots);
-      setDefenseMovesLeft((prev) => prev - 1);
+      setDefenseMovesLeft((prev) => Math.max(0, prev - 1));
       setTempPhaseLogs((prev) => [
         ...prev,
         {
@@ -4083,35 +3751,44 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
             SoundEffects.playCardDraw();
 
             if (isMultiplayer) {
-              syncToSupabaseInstance(
-                "player_turn",
-                newSlots,
-                undefined,
-                undefined,
-                undefined,
-                undefined,
-                undefined,
-                movesAfterCancel,
-                undefined,
-                logs,
-                null,
-                null,
-                undefined,
-                undefined,
-                undefined,
-                undefined,
-                undefined,
-                undefined,
-                undefined,
-                undefined,
-                finalBoosterDeck,
-                null
-              );
+              syncToSupabaseInstance({
+                phase: "player_turn",
+                playerSlots: newSlots,
+                playerMoves: movesAfterCancel,
+                logs: logs,
+                currentBooster: null,
+                currentAttackIdx: null,
+                boosterDeck: finalBoosterDeck,
+                attackerRole: null
+              });
             }
             return;
           } else {
             if (clickedSlot.confirmedInAttack) {
               addLog("🚫 خطأ تكتيكي: لا يمكنك إلغاء قلب هذا المهاجم لأنه تم استخدامه للتسديد في خطوة سابقة!", "warning");
+              return;
+            }
+            if (isMultiplayer) {
+              setIsRefereeResolving(true);
+              supabaseService.invokeReferee({
+                action: "reveal_slot",
+                roomId: currentRoomId!,
+                role: multiplayerRole!,
+                slotIdx: idx,
+                hide: true
+              }).then((res) => {
+                if (res.success && res.game_state) {
+                  applyRefereeGameState(res.game_state);
+                  SoundEffects.playCardDraw();
+                } else {
+                  addLog(res.error || "خطأ عند إلغاء كشف الكارت.", "danger");
+                }
+              }).catch((err) => {
+                console.error("Error hiding slot via referee:", err);
+                addLog("فشل إلغاء كشف الكارت عبر الحكم المحايد.", "danger");
+              }).finally(() => {
+                setIsRefereeResolving(false);
+              });
               return;
             }
             // Cancel additional reveal
@@ -4143,11 +3820,46 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         return;
       }
 
+      if (isMultiplayer) {
+        setIsRefereeResolving(true);
+        supabaseService.invokeReferee({
+          action: "reveal_slot",
+          roomId: currentRoomId!,
+          role: multiplayerRole!,
+          slotIdx: idx,
+          hide: false
+        }).then((res) => {
+          if (res.success && res.game_state) {
+            applyRefereeGameState(res.game_state);
+            SoundEffects.playCardDraw();
+            if (clickedSlot.card!.ability) {
+              setCinematicEvent({
+                type: "ability",
+                title: "تفعيل قدرة أسطورية! 👑",
+                subtitle: clickedSlot.card!.description || "",
+                cardName: clickedSlot.card!.name,
+                cardIcon: clickedSlot.card!.avatar,
+                isLegend: clickedSlot.card!.isLegend
+              });
+              setTimeout(() => setCinematicEvent(null), 1800);
+            }
+          } else {
+            addLog(res.error || "خطأ عند كشف الكارت.", "danger");
+          }
+        }).catch((err) => {
+          console.error("Error revealing slot via referee:", err);
+          addLog("فشل كشف الكارت عبر الحكم المحايد.", "danger");
+        }).finally(() => {
+          setIsRefereeResolving(false);
+        });
+        return;
+      }
+
       // "إذا تبقت لك حركة إضافية كمهاجم، يمكنك كشف مهاجم آخر في ملعبك لزيادة قوتك"
       const newSlots = [...playerSlots];
       newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
       setPlayerSlots(newSlots);
-      setPlayerMovesLeft((prev) => prev - 1);
+      setPlayerMovesLeft((prev) => Math.max(0, prev - 1));
       setTempPhaseLogs((prev) => [
         ...prev,
         {
@@ -4286,9 +3998,43 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       revealedInTurn: turnCount,
       revealedInAttack: true
     };
-    setPlayerSlots(cleanPlayerSlots);
+
+    const nextAiSlots = aiSlots.map((s) => ({ ...s, revealedInAttack: false }));
+
+    const tempGS = {
+      host_slots: cleanPlayerSlots,
+      opponent_slots: nextAiSlots,
+      host_hand: [...playerHand],
+      opponent_hand: [...aiHand],
+      host_moves: playerMovesLeft - 1,
+      opponent_moves: aiMovesLeft,
+      extra_draws_limit: 0,
+      logs: [...logs],
+      attacker_role: 'host' as const,
+      turn_count: turnCount,
+      active_specials_host: [...playerActiveSpecial],
+      active_specials_opponent: [...aiActiveSpecial],
+      host_deck: [...playerDeck],
+      opponent_deck: [...aiDeck],
+      special_deck: [...specialDeck],
+    };
 
     if (attacker.ability) {
+      executeCardInstantEffects(tempGS, attacker, 'host', "CardRevealed", coachName, opponentName);
+      executeCardInstantEffects(tempGS, attacker, 'host', "CardPlayed", coachName, opponentName);
+      
+      // triggerAttackStartedAbilities("player") logic on tempGS
+      tempGS.host_slots.forEach((slot) => {
+        if (slot.card && slot.isRevealed) {
+          executeCardInstantEffects(tempGS, slot.card, 'host', "AttackStarted", coachName, opponentName);
+        }
+      });
+      tempGS.opponent_slots.forEach((slot) => {
+        if (slot.card && slot.isRevealed) {
+          executeCardInstantEffects(tempGS, slot.card, 'opponent', "DefenseStarted", coachName, opponentName);
+        }
+      });
+
       setCinematicEvent({
         type: "ability",
         title: "تفعيل قدرة أسطورية! 👑",
@@ -4298,17 +4044,34 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         isLegend: attacker.isLegend
       });
       setTimeout(() => setCinematicEvent(null), 1800);
-      setTimeout(() => {
-        triggerCardInstantEffects(attacker, true, "CardRevealed");
-        triggerCardInstantEffects(attacker, true, "CardPlayed");
-        triggerAttackStartedAbilities("player");
-      }, 50);
     } else {
-      triggerAttackStartedAbilities("player");
+      // triggerAttackStartedAbilities("player") logic on tempGS
+      tempGS.host_slots.forEach((slot) => {
+        if (slot.card && slot.isRevealed) {
+          executeCardInstantEffects(tempGS, slot.card, 'host', "AttackStarted", coachName, opponentName);
+        }
+      });
+      tempGS.opponent_slots.forEach((slot) => {
+        if (slot.card && slot.isRevealed) {
+          executeCardInstantEffects(tempGS, slot.card, 'opponent', "DefenseStarted", coachName, opponentName);
+        }
+      });
     }
 
-    // Reset AI slots revealedInAttack too
-    setAiSlots((prev) => prev.map((s) => ({ ...s, revealedInAttack: false })));
+    // Update React states using the final tempGS values
+    setPlayerSlots(tempGS.host_slots);
+    setAiSlots(tempGS.opponent_slots);
+    setPlayerHand(tempGS.host_hand);
+    setAiHand(tempGS.opponent_hand);
+    setPlayerMovesLeft(tempGS.host_moves);
+    setAiMovesLeft(tempGS.opponent_moves);
+    setPlayerDeck(tempGS.host_deck);
+    setAiDeck(tempGS.opponent_deck);
+    setSpecialDeck(tempGS.special_deck);
+    setLogs(tempGS.logs);
+    if (tempGS.extra_draws_limit > 0) {
+      setMaxDrawsPerTurn((prev) => prev + tempGS.extra_draws_limit);
+    }
 
     // 2. Draw Booster card
     if (boosterDeck.length === 0) {
@@ -4320,7 +4083,6 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
     // Deduct 1 move
     const movesAfterDeclare = playerMovesLeft - 1;
-    setPlayerMovesLeft(movesAfterDeclare);
     setPhase("attacking");
     setDefenseMovesLeft(maxMovesPerTurn);
     setHasAttackedThisTurn(true);
@@ -4329,31 +4091,18 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
     if (isMultiplayer) {
       setAttackerRole(multiplayerRole);
-      setTimeout(() => {
-        syncToSupabaseInstance(
-          "attacking",
-          cleanPlayerSlots,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          movesAfterDeclare,
-          undefined,
-          logs, // Keep existing logs unchanged
-          drawnBooster,
-          targetIdx,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          3, // Provide 3 defense moves for the opponent to react!
-          undefined,
-          undefined,
-          boosterDeck.slice(1),
-          multiplayerRole
-        );
-      }, 50);
+      hasPendingLocalChanges.current = true;
+      syncToSupabaseInstance({
+        phase: "attacking",
+        playerSlots: tempGS.host_slots,
+        playerMoves: tempGS.host_moves,
+        logs: tempGS.logs,
+        currentBooster: drawnBooster,
+        currentAttackIdx: targetIdx,
+        defenseMoves: maxMovesPerTurn,
+        boosterDeck: boosterDeck.slice(1),
+        attackerRole: multiplayerRole
+      });
     } else {
       // Offline mode starting attack is silent. Logs will be written on click of "Resolve Attack".
     }
@@ -4611,7 +4360,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   };
 
   // MAIN RESOLUTION OF ACTIVE PLAYER ATTACK
-  const handleResolveAttack = () => {
+  const handleResolveAttack = async () => {
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (isResolvingRef.current || phaseRef.current !== "attacking") return;
     isResolvingRef.current = true;
@@ -4675,6 +4424,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       setTempPhaseLogs([]);
 
       setIsRefereeResolving(true);
+      await awaitPendingSyncs();
       supabaseService.invokeReferee({
         action: "resolve_combat",
         actionType: "resolve_attack",
@@ -4712,8 +4462,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         const attackerName = playerSlots[currentAttackerIdx]?.card?.name || "لاعبك";
 
         // Get detailed calculations
-        const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentBooster, playerActiveSpecial, updatedSpecials, playerSlots, updatedSlots);
-        const defDetail = getDetailedCalculation(false, false, null, null, playerActiveSpecial, updatedSpecials, playerSlots, updatedSlots);
+        const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentBooster, playerActiveSpecial, updatedSpecials, playerSlots as SlotData[], updatedSlots as SlotData[], isPlayerAttacker);
+        const defDetail = getDetailedCalculation(false, false, null, null, playerActiveSpecial, updatedSpecials, playerSlots as SlotData[], updatedSlots as SlotData[], isPlayerAttacker);
 
         if (isGoal) {
           const newScore = playerScore + 1;
@@ -4814,8 +4564,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     });
 
     // Accumulate scores for final consolation modal
-    const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentBooster, playerActiveSpecial, aiActiveSpecial, playerSlots, aiSlots);
-    const defDetail = getDetailedCalculation(false, false, null, null, playerActiveSpecial, aiActiveSpecial, playerSlots, aiSlots);
+    const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentBooster, playerActiveSpecial, aiActiveSpecial, playerSlots as SlotData[], aiSlots as SlotData[], isPlayerAttacker);
+    const defDetail = getDetailedCalculation(false, false, null, null, playerActiveSpecial, aiActiveSpecial, playerSlots as SlotData[], aiSlots as SlotData[], isPlayerAttacker);
     const computedAttack = attackDetail.total;
     const computedDefense = defDetail.total;
 
@@ -4970,7 +4720,9 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       setIsAttackBlocked(false);
 
       const attackerMovesLeft = wasMeAttacker ? playerMovesLeft : aiMovesLeft;
-      const attackerHasMovesLeft = attackerMovesLeft > 0;
+      const attackerDrawn = wasMeAttacker ? cardsDrawnThisTurn : aiCardsDrawnThisTurn;
+      const deckHasCards = wasMeAttacker ? (playerDeck.length > 0 || specialDeck.length > 0) : true;
+      const attackerHasMovesLeft = attackerMovesLeft > 0 || (attackerDrawn < maxDrawsPerTurn && deckHasCards);
 
       if (isMultiplayer) {
         if (attackerHasMovesLeft) {
@@ -4981,8 +4733,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
           setPhase(nextPhaseState as any);
 
           const logText = standsAsMe 
-            ? `⚽ متابعة دور هجومك! متبقي لك عدد ${playerMovesLeft} حركات تكتيكية لإدارتها.`
-            : `⏳ الخصم يتابع دور هجومه مع بقاء حركات لديه. يرجى الانتظار...`;
+            ? `⚽ متابعة دور هجومك! متبقي لك حركات تكتيكية أو سحبات كروت لإدارتها.`
+            : `⏳ الخصم يتابع دور هجومه مع بقاء حركات أو سحبات لديه. يرجى الانتظار...`;
 
           const nextLogs = [
             ...logs,
@@ -4996,31 +4748,26 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
           setLogs(nextLogs);
 
           if (wasMeAttacker) {
-            setTimeout(() => {
-              syncToSupabaseInstance(
-                nextPhaseState as any,
-                nextPlayerSlots,
-                nextAiSlots,
-                undefined,
-                undefined,
-                undefined,
-                undefined,
-                playerMovesLeft,
-                aiMovesLeft,
-                nextLogs,
-                null,
-                null,
-                nextPlayerSpecials,
-                nextAiSpecials,
-                cardsDrawnThisTurn,
-                turnCount,
-                maxMovesPerTurn,
-                undefined,
-                undefined,
-                undefined,
-                undefined,
-                nextTurnRole
-              );
+            if (isMultiplayer) {
+              hasPendingLocalChanges.current = true;
+            }
+            scheduleSync(() => {
+              syncToSupabaseInstance({
+                phase: nextPhaseState as any,
+                playerSlots: nextPlayerSlots,
+                aiSlots: nextAiSlots,
+                playerMoves: playerMovesLeft,
+                aiMoves: aiMovesLeft,
+                logs: nextLogs,
+                currentBooster: null,
+                currentAttackIdx: null,
+                activeSpecialPlayer: nextPlayerSpecials,
+                activeSpecialAi: nextAiSpecials,
+                cardsDrawn: cardsDrawnThisTurn,
+                turnCount: turnCount,
+                defenseMoves: maxMovesPerTurn,
+                attackerRole: nextTurnRole
+              });
             }, 50);
           }
         } else {
@@ -5071,31 +4818,26 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
           setHasAttackedThisTurn(false);
 
           if (wasMeAttacker) {
-            setTimeout(() => {
-              syncToSupabaseInstance(
-                nextPhaseState as any,
-                nextPlayerSlots,
-                nextAiSlots,
-                undefined,
-                undefined,
-                undefined,
-                undefined,
-                nextMoves,
-                nextAiMoves,
-                nextLogs,
-                null,
-                null,
-                nextPlayerSpecials,
-                nextAiSpecials,
-                0,
-                nextTurnCount,
-                maxMovesPerTurn,
-                undefined,
-                undefined,
-                undefined,
-                undefined,
-                nextTurnRole
-              );
+            if (isMultiplayer) {
+              hasPendingLocalChanges.current = true;
+            }
+            scheduleSync(() => {
+              syncToSupabaseInstance({
+                phase: nextPhaseState as any,
+                playerSlots: nextPlayerSlots,
+                aiSlots: nextAiSlots,
+                playerMoves: nextMoves,
+                aiMoves: nextAiMoves,
+                logs: nextLogs,
+                currentBooster: null,
+                currentAttackIdx: null,
+                activeSpecialPlayer: nextPlayerSpecials,
+                activeSpecialAi: nextAiSpecials,
+                cardsDrawn: 0,
+                turnCount: nextTurnCount,
+                defenseMoves: maxMovesPerTurn,
+                attackerRole: nextTurnRole
+              });
             }, 50);
           }
         }
@@ -5154,7 +4896,9 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
     if (isMultiplayer) {
       const attackerMovesLeft = wasMeAttacker ? playerMovesLeft : aiMovesLeft;
-      const attackerHasMovesLeft = attackerMovesLeft > 0;
+      const attackerDrawn = wasMeAttacker ? cardsDrawnThisTurn : aiCardsDrawnThisTurn;
+      const deckHasCards = wasMeAttacker ? (playerDeck.length > 0 || specialDeck.length > 0) : true;
+      const attackerHasMovesLeft = attackerMovesLeft > 0 || (attackerDrawn < maxDrawsPerTurn && deckHasCards);
 
       let nextTurnRole: "host" | "opponent";
       if (attackerHasMovesLeft) {
@@ -5167,7 +4911,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       const nextPhaseState = standsAsMe ? "player_turn" : "ai_turn";
       setPhase(nextPhaseState as any);
 
-      const nextDrawn = 0;
+      const nextDrawn = attackerHasMovesLeft ? attackerDrawn : 0;
       let nextMoves: number;
       let nextAiMoves: number;
       
@@ -5183,8 +4927,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
       const logText = attackerHasMovesLeft
         ? (standsAsMe 
-            ? `⚽ متابعة دور هجومك! متبقي لك عدد ${playerMovesLeft} حركات تكتيكية لإدارتها.`
-            : `⏳ الخصم يتابع دور هجومه مع بقاء حركات لديه. يرجى الانتظار...`)
+            ? `⚽ متابعة دور هجومك! متبقي لك حركات تكتيكية أو سحبات كروت لإدارتها.`
+            : `⏳ الخصم يتابع دور هجومه مع بقاء حركات أو سحبات لديه. يرجى الانتظار...`)
         : (standsAsMe 
             ? "⚽ انتقل الدور والتحكم الفني لك الآن! قم بسحب كارتين لتنظيم عمليتك الهجومية!"
             : "⏳ تكتيك الخصم بدأ، يرجى الانتظار ريثما يستنفد المدرب خصمك حركاته التكتيكية.");
@@ -5199,39 +4943,42 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         }
       ];
 
-      setCardsDrawnThisTurn(nextDrawn);
+      if (wasMeAttacker) {
+        setCardsDrawnThisTurn(nextDrawn);
+        setAiCardsDrawnThisTurn(0);
+      } else {
+        setAiCardsDrawnThisTurn(nextDrawn);
+        setCardsDrawnThisTurn(0);
+      }
       setPlayerMovesLeft(nextMoves);
       setAiMovesLeft(nextAiMoves);
       setLogs(nextLogs);
       setAttackerRole(nextTurnRole);
-      setHasAttackedThisTurn(false);
+      if (!attackerHasMovesLeft) {
+        setHasAttackedThisTurn(false);
+      }
 
       if (wasMeAttacker) {
-        setTimeout(() => {
-          syncToSupabaseInstance(
-            nextPhaseState as any,
-            nextPlayerSlots,
-            nextAiSlots,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            nextMoves,
-            nextAiMoves,
-            nextLogs,
-            null, // Cleans currentPonto
-            null, // Cleans currentAttackerIdx
-            nextPlayerSpecials,
-            nextAiSpecials,
-            nextDrawn,
-            nextTurnCount,
-            maxMovesPerTurn, // Cleans defense_moves_left
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            nextTurnRole
-          );
+        if (isMultiplayer) {
+          hasPendingLocalChanges.current = true;
+        }
+        scheduleSync(() => {
+          syncToSupabaseInstance({
+            phase: nextPhaseState as any,
+            playerSlots: nextPlayerSlots,
+            aiSlots: nextAiSlots,
+            playerMoves: nextMoves,
+            aiMoves: nextAiMoves,
+            logs: nextLogs,
+            currentBooster: null,
+            currentAttackIdx: null,
+            activeSpecialPlayer: nextPlayerSpecials,
+            activeSpecialAi: nextAiSpecials,
+            cardsDrawn: nextDrawn,
+            turnCount: nextTurnCount,
+            defenseMoves: maxMovesPerTurn,
+            attackerRole: nextTurnRole
+          });
         }, 50);
       }
 
@@ -5243,10 +4990,11 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       setIsAttackBlocked(false);
       setDefenseMovesLeft(maxMovesPerTurn);
       if (isPlayerAttacker) {
-        if (playerMovesLeft > 0) {
+        const canDrawMore = cardsDrawnThisTurn < maxDrawsPerTurn && (playerDeck.length > 0 || specialDeck.length > 0);
+        if (playerMovesLeft > 0 || canDrawMore) {
           phaseRef.current = "player_turn";
           setPhase("player_turn");
-          addLog(`متابعة دور الماتش! متبقي لك عدد ${playerMovesLeft} حركات تكتيكية لإدارتها. يمكنك اللعب، سحب كروت أو النقر على "إنهاء الدور" يدوياً.`, "neutral");
+          addLog(`متابعة دور الماتش! متبقي لك حركات تكتيكية أو سحبات كروت لإدارتها. يمكنك اللعب، سحب كروت أو النقر على "إنهاء الدور" يدوياً.`, "neutral");
         } else {
           phaseRef.current = "ai_turn";
           setPhase("ai_turn");
@@ -5267,7 +5015,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   };
 
   // END YOUR TURN MANUALLY
-  const handleEndPlayerTurn = () => {
+  const handleEndPlayerTurn = async () => {
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (phaseRef.current !== "player_turn") return;
 
@@ -5284,6 +5032,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         return;
       }
 
+      await awaitPendingSyncs();
       supabaseService.invokeReferee({
         action: "end_turn",
         roomId: currentRoomId!,
@@ -5332,6 +5081,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     setSelectedHandCardId(null);
     setBurningCardIds([]);
   };
+  handleEndPlayerTurnRef.current = handleEndPlayerTurn;
 
   // THE AI TURN STRATEGY ENGINE (PvE AI AUTOMATED RUNNER)
   const handleAIPlayTurn = () => {
@@ -5732,6 +5482,13 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         setIsHandExpanded(true);
         setTurnCount((prev) => prev + 1);
         addLog(`⚽ انتهى دور الخصم بلا هجمات لخطوطه. عدنا لدورك! حظاً موفقاً في الدور ${turnCount + 1}`, "success");
+        if (isMultiplayer && currentRoomId) {
+          syncToSupabaseInstance({
+            phase: "player_turn",
+            turnCount: turnCount + 1,
+            logs: logs
+          });
+        }
         isAIExecutingRef.current = false; // RELEASE LOCK!
       }, 1200);
 
@@ -5745,12 +5502,13 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   }, [phase, isMultiplayer]);
 
   // PLAY CONFIRM DEFENSIVE ACTION RESULT
-  const handleConfirmDefense = () => {
+  const handleConfirmDefense = async () => {
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
     if (phaseRef.current !== "ai_attacking") return;
 
     if (isMultiplayer) {
       setIsRefereeResolving(true);
+      await awaitPendingSyncs();
       supabaseService.invokeReferee({
         action: "resolve_combat",
         actionType: "confirm_defense",
@@ -5801,8 +5559,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     const newLogs = [...logs, ...tempPhaseLogs, ...confirmDefenseLogs];
 
     // AI Attacks, Player Defends
-    let attackDetail = getDetailedCalculation(false, true, currentAttackerIdx, currentBooster, playerActiveSpecial, currentAiActiveSpecials, playerSlots, aiSlots);
-    let defDetail = getDetailedCalculation(true, false, null, null, playerActiveSpecial, currentAiActiveSpecials, playerSlots, aiSlots);
+    let attackDetail = getDetailedCalculation(false, true, currentAttackerIdx, currentBooster, playerActiveSpecial, currentAiActiveSpecials, playerSlots as SlotData[], aiSlots as SlotData[], isPlayerAttacker);
+    let defDetail = getDetailedCalculation(true, false, null, null, playerActiveSpecial, currentAiActiveSpecials, playerSlots as SlotData[], aiSlots as SlotData[], isPlayerAttacker);
 
     // Smart AI Offensive Specials Play:
     // If the AI is attacking and not scoring (finalAttack <= finalDefense), and has moves left,
@@ -5827,8 +5585,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         });
 
         // Recalculate details
-        attackDetail = getDetailedCalculation(false, true, currentAttackerIdx, currentBooster, playerActiveSpecial, currentAiActiveSpecials, playerSlots, aiSlots);
-        defDetail = getDetailedCalculation(true, false, null, null, playerActiveSpecial, currentAiActiveSpecials, playerSlots, aiSlots);
+        attackDetail = getDetailedCalculation(false, true, currentAttackerIdx, currentBooster, playerActiveSpecial, currentAiActiveSpecials, playerSlots as SlotData[], aiSlots as SlotData[], isPlayerAttacker);
+        defDetail = getDetailedCalculation(true, false, null, null, playerActiveSpecial, currentAiActiveSpecials, playerSlots as SlotData[], aiSlots as SlotData[], isPlayerAttacker);
       }
       
       // Update state if anything was played
@@ -5933,19 +5691,13 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     setTempPhaseLogs([]);
 
     if (isMultiplayer) {
-      setTimeout(() => {
-        syncToSupabaseInstance(
-          "resolution",
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          nextPlayerScore,
-          nextAiScore,
-          undefined,
-          undefined,
-          newLogs
-        );
+      scheduleSync(() => {
+        syncToSupabaseInstance({
+          phase: "resolution",
+          playerScore: nextPlayerScore,
+          aiScore: nextAiScore,
+          logs: newLogs
+        });
       }, 50);
     }
   };
@@ -6012,18 +5764,12 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     setPhase("game_over");
 
     if (isMultiplayer && currentRoomId) {
-      await syncToSupabaseInstance(
-        "game_over",
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        finalPlayerScore,
-        winningGoals,
-        undefined,
-        undefined,
-        updatedLogs
-      );
+      await syncToSupabaseInstance({
+        phase: "game_over",
+        playerScore: finalPlayerScore,
+        aiScore: winningGoals,
+        logs: updatedLogs
+      });
 
       try {
         await supabaseService.updateRoomState(currentRoomId, {
@@ -6948,152 +6694,33 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         onClose={() => setIsTutorialOpen(false)}
       />
 
-      {/* ABSOLUTE GOAL CELEBRATION OVERLAY CINEMATIC */}
-      <AnimatePresence>
-        {celebrationMessage && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-black/95 backdrop-blur-md cursor-pointer"
-            id="celebration_cinematic_dialog"
-            onClick={handleAcknowledgeResolution}
-          >
-            <motion.div
-              initial={{ scale: 0.8, y: 50 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.8, y: 50 }}
-              transition={{ type: "spring", damping: 15 }}
-              onClick={(e) => e.stopPropagation()}
-              className="max-w-md w-full max-h-[90%] overflow-y-auto rounded-xl p-4 sm:p-6 text-center border border-white/10 shadow-2xl relative bg-[#0c0d0c] text-white flex flex-col items-center cursor-default"
-            >
-              {/* Close Button X */}
-              <button 
-                onClick={handleAcknowledgeResolution}
-                className="absolute top-2.5 right-2.5 w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-20 cursor-pointer border-none text-xs"
-                title="إغلاق"
-              >
-                ✕
-              </button>
-
-              {/* Confetti or dust effect circles */}
-              <div className="absolute top-0 left-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
-              <div className="absolute bottom-0 right-0 w-24 h-24 bg-teal-500/10 rounded-full blur-xl pointer-events-none" />
-
-              {/* Animated Floating Emojis Burst */}
-              <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center">
-                {Array.from({ length: 14 }).map((_, i) => {
-                  const emojis = celebrationMessage.isGoal 
-                    ? ["⚽", "🥳", "🎉", "🔥", "🥅", "⚡", "🏆", "🌟", "📣", "🤩"]
-                    : ["🧤", "🛡️", "🚫", "💪", "👊", "💥", "⚡", "👑", "🎩", "🎯"];
-                  const emoji = emojis[i % emojis.length];
-                  
-                  // Vary coordinates and timing for a genuine burst/fading upward float
-                  const angle = (i / 14) * Math.PI * 2;
-                  const distance = 90 + Math.random() * 110;
-                  const targetX = Math.cos(angle) * distance;
-                  const targetY = Math.sin(angle) * distance - 120; // Float upwards and outwards
-
-                  return (
-                    <motion.span
-                      key={i}
-                      className="absolute text-lg sm:text-2xl md:text-3xl select-none filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)]"
-                      initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
-                      animate={{ 
-                        opacity: [0, 1, 1, 0], 
-                        scale: [0.1, 1.4, 1.1, 0.2], 
-                        x: [0, targetX], 
-                        y: [0, targetY],
-                        rotate: [0, Math.random() * 720 - 360]
-                      }}
-                      transition={{ 
-                        duration: 2.5, 
-                        delay: i * 0.08, 
-                        ease: "easeOut",
-                        repeat: Infinity,
-                        repeatDelay: 0.8
-                      }}
-                    >
-                      {emoji}
-                    </motion.span>
-                  );
-                })}
-              </div>
-
-              {/* Dynamic Scaling Hero Emoji with pulsate ripple */}
-              <div className="relative inline-block mb-3 sm:mb-6 z-10">
-                <motion.div
-                  className="absolute inset-0 bg-yellow-500/20 rounded-full blur-xl filter"
-                  animate={{
-                    scale: [1, 1.8, 1],
-                    opacity: [0.4, 0.8, 0.4]
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }}
-                />
-                
-                <motion.div
-                  className="text-4xl sm:text-5xl md:text-6xl block relative select-none cursor-pointer"
-                  animate={{
-                    scale: [1, 1.25, 0.9, 1.15, 1],
-                    rotate: [0, 15, -15, 8, -8, 0],
-                    y: [0, -12, 0, -5, 0]
-                  }}
-                  transition={{
-                    duration: 2.2,
-                    repeat: Infinity,
-                    repeatDelay: 0.5,
-                    ease: "easeInOut",
-                  }}
-                  whileHover={{ scale: 1.4, rotate: 360 }}
-                >
-                  {celebrationMessage.isGoal ? "⚽" : "🧤"}
-                </motion.div>
-              </div>
-
-              <h3 className="text-xl sm:text-2xl md:text-3xl font-serif font-extrabold tracking-tight bg-clip-text text-transparent bg-linear-to-r from-yellow-300 via-amber-400 to-yellow-200">
-                {celebrationMessage.title}
-              </h3>
-
-              <p className="mt-3 text-xs md:text-sm text-[#e0e0e0]/70 leading-relaxed max-w-sm mx-auto p-2.5 bg-black/40 rounded-xl border border-white/5">
-                {celebrationMessage.subtitle}
-              </p>
-
-              <button
-                onClick={handleCelebrationClick}
-                id="acknowledge_celebration_button"
-                className="relative overflow-hidden mt-4 sm:mt-6 px-10 py-2.5 bg-amber-600 hover:bg-amber-500 text-black font-extrabold rounded text-xs md:text-sm cursor-pointer transition-all duration-150 transform hover:scale-105 active:scale-95 hover:shadow-[0_0_20px_rgba(245,158,11,0.5)] border-none shadow-md"
-              >
-                {/* Visual ripple waves */}
-                {btnRipples.map((ripple) => (
-                  <motion.span
-                    key={ripple.id}
-                    initial={{ scale: 0, opacity: 0.65 }}
-                    animate={{ scale: 6, opacity: 0 }}
-                    transition={{ duration: 0.45, ease: "easeOut" }}
-                    className="absolute bg-amber-200/50 rounded-full pointer-events-none"
-                    style={{
-                      left: ripple.x,
-                      top: ripple.y,
-                      width: 40,
-                      height: 40,
-                      x: "-50%",
-                      y: "-50%",
-                    }}
-                  />
-                ))}
-                <span className="relative z-10 flex items-center justify-center gap-1.5">
-                  <span>متابعة تكتيك اللقاء الكروي</span>
-                  <span>➔</span>
-                </span>
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* FULLSCREEN VFX VIDEO OVERLAY */}
+      {activeVfxVideo && (
+        <div 
+          className="fixed inset-0 z-50 bg-black flex items-center justify-center pointer-events-auto"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+        >
+          <video
+            src={activeVfxVideo.src}
+            autoPlay
+            playsInline
+            className="w-full h-full object-contain"
+            onEnded={() => {
+              const cb = activeVfxVideo.callback;
+              setActiveVfxVideo(null);
+              if (cb) cb();
+            }}
+            onError={() => {
+              const cb = activeVfxVideo.callback;
+              setActiveVfxVideo(null);
+              if (cb) cb();
+            }}
+          />
+        </div>
+      )}
 
       {/* Cinematic detailed specialty inspector overlay */}
       <CardInspectorModal

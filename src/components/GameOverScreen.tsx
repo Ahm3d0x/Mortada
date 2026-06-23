@@ -761,7 +761,7 @@ export default function GameOverScreen({
                               </div>
                             </div>
 
-                            {/* Defenders list and ponto detail */}
+                            {/* Defenders list and booster detail */}
                             <div className="text-[9px] text-slate-400 leading-normal flex items-start gap-1 justify-end flex-row-reverse">
                               {round.boosterValue > 0 && (
                                 <span className="bg-[#0b100b] border border-emerald-500/10 px-1.5 py-0.2 rounded text-[8px] text-emerald-300 whitespace-nowrap">
