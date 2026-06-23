@@ -21,6 +21,8 @@ import {
 import { isSupabaseConfigured } from "../lib/supabase";
 import PackageManager from "./PackageManager";
 import SandboxTester from "./SandboxTester";
+import { GameToast } from "../components/GameDialog";
+import { AnimatePresence } from "motion/react";
 import "./admin.css";
 
 // Package Emoji Options
@@ -31,6 +33,7 @@ const PKG_EMOJIS = [
 ];
 
 export default function AdminApp() {
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" | "warning" } | null>(null);
   const [activeTab, setActiveTab] = useState<"packages" | "sandbox">("packages");
   const [packages, setPackages] = useState<AdminPackage[]>([]);
   const [cardCounts, setCardCounts] = useState<Record<string, number>>({});
@@ -171,17 +174,17 @@ export default function AdminApp() {
       const text = await file.text();
       const data: PackageExport = JSON.parse(text);
       if (data.version !== 1 || !data.package) {
-        alert("❌ ملف غير صالح! تأكد من أنه ملف تصدير حزمة مرتدة.");
+        setToast({ message: "❌ ملف غير صالح! تأكد من أنه ملف تصدير حزمة مرتدة.", type: "error" });
         return;
       }
       setLoading(true);
       const result = await importPackage(data);
       setSelectedPkgId(result.package.id);
       await refresh();
-      alert(`✅ تم استيراد "${result.package.name}" مع ${result.cardsImported} كارت!`);
+      setToast({ message: `✅ تم استيراد "${result.package.name}" مع ${result.cardsImported} كارت!`, type: "success" });
     } catch (err) {
       console.error("Error importing package:", err);
-      alert("❌ خطأ في قراءة أو استيراد الملف!");
+      setToast({ message: "❌ خطأ في قراءة أو استيراد الملف!", type: "error" });
     } finally {
       setLoading(false);
     }
@@ -597,6 +600,15 @@ export default function AdminApp() {
           </div>
         </div>
       )}
+      <AnimatePresence>
+        {toast && (
+          <GameToast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

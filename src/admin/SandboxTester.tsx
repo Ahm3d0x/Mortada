@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { CardAbility, CardAbilityAction, CardAbilityCondition, CardAbilityTriggerType } from "../types";
+import { GameToast } from "../components/GameDialog";
+import { AnimatePresence } from "motion/react";
 import {
   calculatePowerScore,
   explainAbility,
@@ -105,6 +107,7 @@ interface SimulatorSlot {
 }
 
 export default function SandboxTester() {
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" | "warning" } | null>(null);
   const [editMode, setEditMode] = useState<"visual" | "json" | "help">("visual");
   const [rawJson, setRawJson] = useState<string>(
     JSON.stringify(
@@ -484,7 +487,7 @@ export default function SandboxTester() {
   // Convert visual rule to card and save immediately (Online or Local Storage Fallback)
   const handleSaveCard = async () => {
     if (!saveName.trim()) {
-      alert("الرجاء إدخال اسم الكارت أولاً!");
+      setToast({ message: "الرجاء إدخال اسم الكارت أولاً!", type: "warning" });
       return;
     }
 
@@ -515,34 +518,34 @@ export default function SandboxTester() {
       cardPayload.image_url = "";
     }
 
-    try {
-      if (supabaseActive && selectedPkgId) {
-        // Save to Database Package
-        if (isSavePlayer) {
-          await createCardInPackage(selectedPkgId, cardPayload);
+      try {
+        if (supabaseActive && selectedPkgId) {
+          // Save to Database Package
+          if (isSavePlayer) {
+            await createCardInPackage(selectedPkgId, cardPayload);
+          } else {
+            await createSpecialCardInPackage(selectedPkgId, cardPayload);
+          }
+          setToast({ message: "🎉 تم حفظ الكارت بنجاح وربطه بالباقة في قاعدة البيانات!", type: "success" });
         } else {
-          await createSpecialCardInPackage(selectedPkgId, cardPayload);
+          // Save to Local Storage fallback
+          if (isSavePlayer) {
+            saveCardLocally(cardPayload);
+          } else {
+            saveSpecialCardLocally(cardPayload);
+          }
+          setToast({ message: "💾 تم حفظ الكارت محلياً بنجاح في المتصفح! ستتمكن من اللعب به فوراً في وضع الأوفلاين.", type: "success" });
         }
-        alert(`🎉 تم حفظ الكارت بنجاح وربطه بالباقة في قاعدة البيانات!`);
-      } else {
-        // Save to Local Storage fallback
-        if (isSavePlayer) {
-          saveCardLocally(cardPayload);
-        } else {
-          saveSpecialCardLocally(cardPayload);
-        }
-        alert(`💾 تم حفظ الكارت محلياً بنجاح في المتصفح! ستتمكن من اللعب به فوراً في وضع الأوفلاين.`);
-      }
 
-      // Reset save form states
-      setSaveName("");
-      setSaveDescription("");
-      setSaveArabicEffect("");
-    } catch (e: any) {
-      console.error(e);
-      alert(`خطأ في الحفظ: ${e.message || "حدث خطأ غير متوقع."}`);
-    }
-  };
+        // Reset save form states
+        setSaveName("");
+        setSaveDescription("");
+        setSaveArabicEffect("");
+      } catch (e: any) {
+        console.error(e);
+        setToast({ message: `خطأ في الحفظ: ${e.message || "حدث خطأ غير متوقع."}`, type: "error" });
+      }
+    };
 
   // ----------------------------------------------------
   // INTERACTIVE MINI-PITCH SIMULATOR LOGIC
@@ -2544,6 +2547,15 @@ export default function SandboxTester() {
         </div>
       </div>
       )}
+      <AnimatePresence>
+        {toast && (
+          <GameToast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

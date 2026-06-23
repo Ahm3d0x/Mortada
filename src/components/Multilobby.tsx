@@ -15,6 +15,7 @@ import { SoundEffects } from "../utils/sounds";
 import { gameAuth } from "../lib/gameAuth";
 import { getPackages } from "../admin/adminStore";
 import { AdminPackage } from "../admin/adminTypes";
+import { GameToast } from "./GameDialog";
 
 const MOCK_PACKAGES: AdminPackage[] = [
   { id: "pkg_egypt", name: "باقة الفراعنة 🇪🇬", description: "منتخب مصر والمحليين", image: "🇪🇬", type: "player", legend_percentage: 30, created_at: "", updated_at: "" },
@@ -63,6 +64,7 @@ interface MultilobbyProps {
 
 export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) {
   const currentUser = gameAuth.getCurrentUser();
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" | "warning" } | null>(null);
 
   // Lobby states
   const [activeRooms, setActiveRooms] = useState<MatchRoom[]>([]);
@@ -89,11 +91,11 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
   const [legendBurnLimit, setLegendBurnLimit] = useState<number>(2);
   const [maxBonusValue, setMaxBonusValue] = useState<number>(10);
 
-  // Advanced selection: Packages & Turn time limits
-  const [availablePackages, setAvailablePackages] = useState<AdminPackage[]>([]);
-  const [selectedPlayerPkgs, setSelectedPlayerPkgs] = useState<string[]>([]);
+  const [availablePackages, setAvailablePackages] = useState<AdminPackage[]>(MOCK_PACKAGES);
+  const [selectedPlayerPkgs, setSelectedPlayerPkgs] = useState<string[]>(["pkg_egypt"]);
   const [selectedSpecialPkgs, setSelectedSpecialPkgs] = useState<string[]>([]);
   const [turnTimeLimit, setTurnTimeLimit] = useState<number>(60); // default 60s
+  const [defenseTimeLimit, setDefenseTimeLimit] = useState<number>(30); // default 30s
   const [warmupTimeLimit, setWarmupTimeLimit] = useState<number>(30); // default 30s
 
   // Wizard lobby setup variables
@@ -368,6 +370,7 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
         if (defaults.legendBurnLimit !== undefined) setLegendBurnLimit(defaults.legendBurnLimit);
         if (defaults.maxBonusValue !== undefined) setMaxBonusValue(defaults.maxBonusValue);
         if (defaults.turnTimeLimit !== undefined) setTurnTimeLimit(defaults.turnTimeLimit);
+        if (defaults.defenseTimeLimit !== undefined) setDefenseTimeLimit(defaults.defenseTimeLimit);
         if (defaults.selectedPlayerPkgs !== undefined && defaults.selectedPlayerPkgs.length > 0) {
           setSelectedPlayerPkgs(defaults.selectedPlayerPkgs);
         }
@@ -480,6 +483,7 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
         legendBurnLimit,
         maxBonusValue,
         turnTimeLimit,
+        defenseTimeLimit,
         warmupTimeLimit,
         selectedPlayerPkgs,
         selectedSpecialPkgs
@@ -612,6 +616,7 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
     const currentMaxBonus = getValue("maxBonusValue", 10);
     const currentTurnTimeLimit = getValue("turnTimeLimit", 60);
     const currentWarmupTimeLimit = getValue("warmupTimeLimit", 30);
+    const currentDefenseTimeLimit = getValue("defenseTimeLimit", 30);
 
     return (
       <div className="space-y-4">
@@ -739,6 +744,23 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
               <option value={20}>20 ثانية ⏱️</option>
               <option value={30}>30 ثانية ⏱️</option>
               <option value={40}>40 ثانية ⏱️</option>
+            </select>
+          </div>
+
+          {/* Defense Time Limit Selector */}
+          <div className="bg-black/45 border border-white/5 p-2 rounded-xl flex flex-col justify-between min-h-[58px]">
+            <label className="block text-[9.5px] text-slate-400 font-bold mb-1">زمن الدفاع:</label>
+            <select
+              value={currentDefenseTimeLimit}
+              onChange={(e) => updateValue("defenseTimeLimit", Number(e.target.value), setDefenseTimeLimit)}
+              className="w-full bg-[#0a0a0a] border border-white/10 rounded p-0.5 text-[8.5px] text-[#e0e0e0] font-bold text-right cursor-pointer"
+            >
+              <option value={0}>بدون حد زمني ♾️</option>
+              <option value={15}>15 ثانية ⏱️</option>
+              <option value={20}>20 ثانية ⏱️</option>
+              <option value={30}>30 ثانية ⏱️</option>
+              <option value={45}>45 ثانية ⏱️</option>
+              <option value={60}>60 ثانية ⏱️</option>
             </select>
           </div>
 
@@ -1454,9 +1476,9 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
                       const success = await copyToClipboard(link);
                       SoundEffects.playWhistle();
                       if (success) {
-                        alert("تم نسخ رابط الغرفة بنجاح! ارسله لمنافسك 🔗");
+                        setToast({ message: "تم نسخ رابط الغرفة بنجاح! ارسله لمنافسك 🔗", type: "success" });
                       } else {
-                        alert(`فشل النسخ التلقائي. هذا هو الرابط لنسخه يدوياً:\n${link}`);
+                        setToast({ message: `فشل النسخ التلقائي. الرابط: ${link}`, type: "error" });
                       }
                     }}
                     className="flex-1 py-2 bg-amber-500 text-black rounded-xl font-bold text-xs flex items-center justify-center gap-1 hover:bg-amber-450 transition-all cursor-pointer"
@@ -1469,9 +1491,9 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
                       const success = await copyToClipboard(myHostedRoom.id);
                       SoundEffects.playWhistle();
                       if (success) {
-                        alert("تم نسخ رمز الغرفة بنجاح! 📋");
+                        setToast({ message: "تم نسخ رمز الغرفة بنجاح! 📋", type: "success" });
                       } else {
-                        alert(`فشل النسخ التلقائي. هذا هو الرمز لنسخه يدوياً:\n${myHostedRoom.id}`);
+                        setToast({ message: `فشل النسخ التلقائي. الرمز: ${myHostedRoom.id}`, type: "error" });
                       }
                     }}
                     className="flex-1 py-2 bg-white/5 text-white border border-white/10 rounded-xl font-bold text-xs flex items-center justify-center gap-1 hover:bg-white/10 transition-all cursor-pointer"
@@ -1531,6 +1553,16 @@ export default function Multilobby({ onStartMultiplayerGame }: MultilobbyProps) 
               </button>
             </footer>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {toast && (
+          <GameToast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
         )}
       </AnimatePresence>
 

@@ -5,7 +5,7 @@
 
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { Trophy, Swords, Shield, RefreshCw, Clock, Award, Activity, ScrollText, ShieldAlert } from "lucide-react";
+import { Trophy, Swords, Shield, RefreshCw, Clock, Award, Activity, ScrollText, ShieldAlert, Globe } from "lucide-react";
 import { ActionLog } from "../types";
 
 interface MatchRoundRecord {
@@ -43,6 +43,7 @@ interface GameOverScreenProps {
   logs: ActionLog[];
   matchRounds: MatchRoundRecord[];
   onRestart: () => void;
+  isOnline?: boolean;
 }
 
 interface StatCompareRowProps {
@@ -298,7 +299,7 @@ const renderDetailedLog = (log: ActionLog) => {
   );
 };
 
-const groupLogsByTurns = (logsList: ActionLog[]) => {
+const groupLogsByTurns = (logsList: ActionLog[], isOnline?: boolean, opponentName?: string) => {
   const groups: { title: string; type: "player" | "ai" | "system"; logs: ActionLog[] }[] = [];
   let currentGroup: { title: string; type: "player" | "ai" | "system"; logs: ActionLog[] } | null = null;
 
@@ -316,7 +317,9 @@ const groupLogsByTurns = (logsList: ActionLog[]) => {
       currentGroup = { title, type: "player", logs: [log] };
       groups.push(currentGroup);
     } else if (isAiTurnStart) {
-      currentGroup = { title: "دور المدرب الغريم (تكتيك روبوت)", type: "ai", logs: [log] };
+      const displayOpponentName = opponentName ? formatNameWithTitle(opponentName, "الكابتن") : "الخصم";
+      const title = isOnline ? `دور المنافس (${displayOpponentName})` : "دور المدرب الغريم (تكتيك روبوت)";
+      currentGroup = { title, type: "ai", logs: [log] };
       groups.push(currentGroup);
     } else if (isWarmupOrKickoff) {
       currentGroup = { title: "بداية اللقاء والتسخين", type: "system", logs: [log] };
@@ -343,6 +346,7 @@ export default function GameOverScreen({
   logs,
   matchRounds,
   onRestart,
+  isOnline = false,
 }: GameOverScreenProps) {
   const [activeTab, setActiveTab] = useState<"summary" | "stats" | "history">("summary");
   const [activeHistoryTab, setActiveHistoryTab] = useState<"rounds" | "logs">("rounds");
@@ -352,7 +356,7 @@ export default function GameOverScreen({
   const isPlayerWinner = playerScore > aiScore;
   const winnerName = isPlayerWinner 
     ? formatNameWithTitle(coachName || "المدرب اللاعب", "الكابتن") 
-    : formatNameWithTitle(aiCoachName, "المدرب");
+    : formatNameWithTitle(aiCoachName, isOnline ? "الكابتن" : "المدرب");
   
   const totalAttackPower = matchRounds
     .filter((r) => r.attacker === "player")
@@ -553,10 +557,16 @@ export default function GameOverScreen({
                   </h1>
                   <p className="text-[10px] sm:text-xs text-slate-400 font-medium max-w-md mx-auto leading-relaxed">
                     {isPlayerWinner
-                      ? `تهانينا لـ ${winnerName}! لقد أحرزت اللقب بعد تخطيط ذكي وتجاوز تكتلات الخصم.`
+                      ? (isOnline 
+                          ? `تهانينا لـ ${winnerName}! لقد حققت الفوز في هذه المواجهة المباشرة بعد أداء تكتيكي رائع.`
+                          : `تهانينا لـ ${winnerName}! لقد أحرزت اللقب بعد تخطيط ذكي وتجاوز تكتلات الخصم.`)
                       : isDraw
-                        ? `مباراة قوية ومتكافئة! تقاسم الكابتن ${formatNameWithTitle(coachName, "الكابتن")} والمدرب ${formatNameWithTitle(aiCoachName, "المدرب")} السيطرة والنتيجة بالتعادل بنتيجة ${playerScore} - ${aiScore}.`
-                        : `حظاً أوفر لـ ${formatNameWithTitle(coachName, "الكابتن")}! لقد تفوق ${winnerName} في الحسابات التكتيكية هذه المرة.`}
+                        ? (isOnline
+                            ? `مباراة قوية ومتكافئة! تقاسم الكابتن ${formatNameWithTitle(coachName, "الكابتن")} والكابتن ${formatNameWithTitle(aiCoachName, "الكابتن")} السيطرة والنتيجة بالتعادل بنتيجة ${playerScore} - ${aiScore}.`
+                            : `مباراة قوية ومتكافئة! تقاسم الكابتن ${formatNameWithTitle(coachName, "الكابتن")} والمدرب ${formatNameWithTitle(aiCoachName, "المدرب")} السيطرة والنتيجة بالتعادل بنتيجة ${playerScore} - ${aiScore}.`)
+                        : (isOnline
+                            ? `حظاً أوفر لـ ${formatNameWithTitle(coachName, "الكابتن")}! لقد تفوق الكابتن ${winnerName} في الحسابات التكتيكية للمباراة وحسم النصر.`
+                            : `حظاً أوفر لـ ${formatNameWithTitle(coachName, "الكابتن")}! لقد تفوق ${winnerName} في الحسابات التكتيكية هذه المرة.`)}
                   </p>
                 </motion.div>
 
@@ -573,7 +583,7 @@ export default function GameOverScreen({
                   </div>
                   <span className="text-lg sm:text-xl text-slate-500 font-bold">:</span>
                   <div className="text-left">
-                    <span className="block text-[9px] text-slate-400 font-bold uppercase">الكمبيوتر</span>
+                    <span className="block text-[9px] text-slate-400 font-bold uppercase">{isOnline ? aiCoachName : "الكمبيوتر"}</span>
                     <span className="text-xl sm:text-3xl font-mono font-black text-rose-400">{aiScore}</span>
                   </div>
                 </motion.div>
@@ -603,11 +613,15 @@ export default function GameOverScreen({
 
                 <div className="bg-[#121412]/60 border border-white/5 p-2.5 rounded-xl flex items-center justify-between flex-row-reverse text-right">
                   <div className="p-2 rounded-lg bg-teal-500/10 text-teal-400">
-                    <Award className="w-4 h-4" />
+                    {isOnline ? <Globe className="w-4 h-4" /> : <Award className="w-4 h-4" />}
                   </div>
                   <div>
-                    <span className="block text-[8px] sm:text-[9px] text-slate-400 font-bold">مستوى صعوبة اللقاء</span>
-                    <span className="text-xs sm:text-sm font-black text-white">{difficultyArabic}</span>
+                    <span className="block text-[8px] sm:text-[9px] text-slate-400 font-bold">
+                      {isOnline ? "نمط المواجهة" : "مستوى صعوبة اللقاء"}
+                    </span>
+                    <span className="text-xs sm:text-sm font-black text-white">
+                      {isOnline ? "تحدي أونلاين مباشر 🌐" : difficultyArabic}
+                    </span>
                   </div>
                 </div>
 
@@ -875,7 +889,7 @@ export default function GameOverScreen({
                           <p className="text-xs">سجل الأحداث فارغ بالكامل.</p>
                         </div>
                       ) : (
-                        groupLogsByTurns(logs).map((group, groupIdx) => {
+                        groupLogsByTurns(logs, isOnline, aiCoachName).map((group, groupIdx) => {
                           let borderClass = "border-blue-500/15";
                           let bgClass = "bg-linear-to-b from-blue-950/10 to-black/35";
                           let badgeColor = "bg-blue-500/5 text-blue-400 border-blue-500/15";

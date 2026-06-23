@@ -14,6 +14,7 @@ export interface MatchSettings {
   totalRounds?: number;
   halfTimeBreakDuration?: number;
   turnTimeLimit?: number;
+  defenseTimeLimit?: number;
   warmupTimeLimit?: number;
   selectedPlayerPkgs?: string[];
   selectedSpecialPkgs?: string[];

@@ -33,6 +33,7 @@ import DrawDecksDashboard from "./DrawDecksDashboard";
 import TopScoreHeader from "./TopScoreHeader";
 import CardInspectorModal from "./CardInspectorModal";
 import GameOverScreen from "./GameOverScreen";
+import { GameConfirmModal } from "./GameDialog";
 
 // Helper to format timestamps 
 import { getRandom } from "../utils/random";
@@ -661,6 +662,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
   // Main Game state variables
   const [phase, setPhase] = useState<GamePhase>("menu");
+  const [showForfeitModal, setShowForfeitModal] = useState(false);
   const phaseRef = useRef<GamePhase>("menu");
   const isResolvingRef = useRef<boolean>(false);
   const isAIExecutingRef = useRef<boolean>(false);
@@ -670,6 +672,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const currentCombatDetailRef = useRef<any>(null);
   const latestRoomRef = useRef<MatchRoom>(config.room);
   const handleEndPlayerTurnRef = useRef<any>(null);
+  const handleConfirmDefenseRef = useRef<any>(null);
 
   // Realtime Broadcast channel and DB tracking refs
   const gameChannelRef = useRef<any>(null);
@@ -831,6 +834,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const [halfTimeBreakLeft, setHalfTimeBreakLeft] = useState<number>(0);
   const [turnTimeLimit, setTurnTimeLimit] = useState<number>(0);
   const [turnTimeLeft, setTurnTimeLeft] = useState<number>(0);
+  const [defenseTimeLimit, setDefenseTimeLimit] = useState<number>(30);
+  const [defenseTimeLeft, setDefenseTimeLeft] = useState<number>(30);
 
   // Lifted state to control hand bag openness
   const [isHandExpanded, setIsHandExpanded] = useState<boolean>(false);
@@ -1251,6 +1256,9 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       }
       if (rs.warmupTimeLimit !== undefined) {
         setWarmupTimeLimit(rs.warmupTimeLimit);
+      }
+      if (rs.defenseTimeLimit !== undefined) {
+        setDefenseTimeLimit(rs.defenseTimeLimit);
       }
     }
 
@@ -1982,6 +1990,16 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
             // Opponent waits for host to sync break transition
             return Math.max(halfTimePoint + 1, nextVal);
           }
+
+          const isSafeToPause =
+            (phase === "player_turn" && playerMovesLeft === maxMovesPerTurn && cardsDrawnThisTurn === 0) ||
+            (phase === "ai_turn" && aiMovesLeft === maxMovesPerTurn && aiCardsDrawnThisTurn === 0);
+
+          if (!isSafeToPause) {
+            // Clock clamps at halftime (representing injury time) until it is safe
+            return halfTimePoint;
+          }
+
           clearInterval(timer);
           setIsHalfTimeBreak(true);
           setHalfTimeBreakLeft(halfTimeBreakDuration);
@@ -2031,7 +2049,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
             const lossMsg = `⏰ انتهى وقت المباراة الرسمي! للأسف الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`;
             setLogs(prevLogs => [
               { id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), text: lossMsg, type: "danger" },
-               ...prevLogs
+              ...prevLogs
             ]);
           } else {
             const drawMsg = `⏰ نهاية الوقت الأصلي بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}! ركلات الترجيح المفتوحة ستحرك الكأس!`;
@@ -2053,7 +2071,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [phase, playerScore, aiScore, coachName, aiCoachName, isMultiplayer, gameMode, isHalfTimeBreak, matchHalf, initialMatchTime, halfTimeBreakDuration, secondHalfKickoffRole]);
+  }, [phase, playerScore, aiScore, coachName, aiCoachName, isMultiplayer, gameMode, isHalfTimeBreak, matchHalf, initialMatchTime, halfTimeBreakDuration, secondHalfKickoffRole, playerMovesLeft, aiMovesLeft, cardsDrawnThisTurn, aiCardsDrawnThisTurn, maxMovesPerTurn]);
 
   // Turn Timer countdown hook
   useEffect(() => {
@@ -2099,6 +2117,47 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       setTurnTimeLeft(turnTimeLimit);
     }
   }, [phase, turnTimeLimit]);
+
+  // Defense Timer countdown hook
+  useEffect(() => {
+    if (phase === "menu" || phase === "game_over") return;
+    if (defenseTimeLimit <= 0) return;
+    if (!isShotDeclared) return;
+    if (phase !== "attacking" && phase !== "ai_attacking") return;
+
+    let lastDefenseTick = Date.now();
+    const timerId = setInterval(() => {
+      const now = Date.now();
+      const delta = Math.round((now - lastDefenseTick) / 1000);
+      lastDefenseTick = now;
+      if (delta <= 0) return;
+
+      setDefenseTimeLeft((prev) => {
+        const nextVal = Math.max(0, prev - delta);
+        if (nextVal <= 0) {
+          clearInterval(timerId);
+          if (phase === "ai_attacking") {
+            // Local player is defending, auto-confirm defense!
+            addLog("⏰ انتهى وقت الدفاع التكتيكي! تم تأكيد دفاعك تلقائياً بالوضع الحالي.", "danger");
+            if (handleConfirmDefenseRef.current) {
+              handleConfirmDefenseRef.current();
+            }
+          }
+          return 0;
+        }
+        return nextVal;
+      });
+    }, 1000);
+
+    return () => clearInterval(timerId);
+  }, [phase, isShotDeclared, defenseTimeLimit, isMultiplayer]);
+
+  // Reset defense timer when shot is declared
+  useEffect(() => {
+    if (isShotDeclared) {
+      setDefenseTimeLeft(defenseTimeLimit);
+    }
+  }, [isShotDeclared, defenseTimeLimit]);
 
   // Automatic transfer turn on completion of draws and moves - Requirement 3
   useEffect(() => {
@@ -2367,6 +2426,10 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     const customTurnTimeLimit = rs.turnTimeLimit !== undefined ? rs.turnTimeLimit : 0;
     setTurnTimeLimit(customTurnTimeLimit);
     setTurnTimeLeft(customTurnTimeLimit);
+
+    const customDefenseTimeLimit = rs.defenseTimeLimit !== undefined ? rs.defenseTimeLimit : 30;
+    setDefenseTimeLimit(customDefenseTimeLimit);
+    setDefenseTimeLeft(customDefenseTimeLimit);
 
     const customWarmupTimeLimit = rs.warmupTimeLimit !== undefined ? rs.warmupTimeLimit : 30;
     setWarmupTimeLimit(customWarmupTimeLimit);
@@ -2714,6 +2777,10 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const handleDrawCard = (deckType: "player" | "special") => {
     if (isRefereeResolving) return;
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
+    if (isHalfTimeBreak) {
+      addLog("لا يمكنك سحب كروت أثناء استراحة الشوطين!", "warning");
+      return;
+    }
     
     const canDraw = phase === "player_turn" || phase === "warmup";
     if (!canDraw) {
@@ -2912,6 +2979,10 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const handleSelectHandCard = (id: string) => {
     if (isRefereeResolving) return;
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
+    if (isHalfTimeBreak) {
+      addLog("لا يمكنك تحديد كروت اللعب أثناء استراحة الشوطين!", "warning");
+      return;
+    }
     if (phase === "ai_turn" || phase === "resolution") return;
 
     const card = playerHand.find((c) => c.id === id);
@@ -3034,6 +3105,10 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const handlePlaySpecialCard = (id: string) => {
     if (isRefereeResolving) return;
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
+    if (isHalfTimeBreak) {
+      addLog("لا يمكنك تفعيل الكروت التكتيكية أثناء استراحة الشوطين!", "warning");
+      return;
+    }
     if (phase === "warmup") {
       addLog("خطأ: لا يمكن تفعيل الكروت التكتيكية أثناء فترة الإحماء والتسخين!", "danger");
       return;
@@ -3263,6 +3338,10 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const handleSelectPitchSlot = (idx: number, isAi: boolean = false) => {
     if (isRefereeResolving) return;
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
+    if (isHalfTimeBreak) {
+      addLog("لا يمكنك اللعب في الملعب أثناء استراحة الشوطين!", "warning");
+      return;
+    }
     // 0. Handle active targeting card plays
     if (activeTargetingCard) {
       if (!isValidTargetForCard(activeTargetingCard, idx, isAi)) {
@@ -5504,6 +5583,10 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   // PLAY CONFIRM DEFENSIVE ACTION RESULT
   const handleConfirmDefense = async () => {
     if (celebrationMessage || cinematicEvent || inspectedCard || isTutorialOpen) return;
+    if (isHalfTimeBreak) {
+      addLog("لا يمكنك الدفاع أثناء استراحة الشوطين!", "warning");
+      return;
+    }
     if (phaseRef.current !== "ai_attacking") return;
 
     if (isMultiplayer) {
@@ -5701,6 +5784,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       }, 50);
     }
   };
+  handleConfirmDefenseRef.current = handleConfirmDefense;
 
   // RESET AND RETURN TO MAIN MENU
   const handleResetGame = () => {
@@ -5742,10 +5826,12 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   };
 
   // FORFEIT/WITHDRAW FROM THE MATCH
-  const handleForfeitMatch = async () => {
-    const confirmForfeit = window.confirm(`هل أنت متأكد من الانسحاب من المباراة؟ سيتم اعتبار الفريق الآخر فائزاً بالعلامة الكاملة (${winningGoals} أهداف).`);
-    if (!confirmForfeit) return;
+  const handleForfeitMatch = () => {
+    setShowForfeitModal(true);
+  };
 
+  const executeForfeitMatch = async () => {
+    setShowForfeitModal(false);
     SoundEffects.playWhistle();
 
     const finalPlayerScore = playerScore;
@@ -5823,12 +5909,13 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
           playerScore={playerScore}
           aiScore={aiScore}
           coachName={coachName}
-          aiCoachName={aiCoachName}
+          aiCoachName={opponentName}
           difficulty={difficulty}
           turnCount={turnCount}
           logs={logs}
           matchRounds={matchRounds}
           onRestart={handleResetGame}
+          isOnline={true}
         />
       ) : (
         <>
@@ -6361,6 +6448,20 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
                       </span>
                     </div>
                   )}
+
+                  {/* Defense Timer Badge */}
+                  {isShotDeclared && defenseTimeLimit > 0 && (phase === "attacking" || phase === "ai_attacking") && (
+                    <div className={`text-[7px] md:text-[9px] px-1.5 py-0.2 rounded font-black border flex items-center gap-0.5 ${
+                      phase === "ai_attacking"
+                        ? "bg-blue-950/60 border-blue-500/35 text-blue-350"
+                        : "bg-orange-950/60 border-orange-500/35 text-orange-350 animate-pulse"
+                    }`}>
+                      <span>🛡️</span>
+                      <span>
+                        دفاع {phase === "ai_attacking" ? "فريقك" : "الخصم"}: {defenseTimeLeft}ث
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Scoreboard Right Team (Opponent) */}
@@ -6800,6 +6901,69 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Halftime Break Overlay */}
+      <AnimatePresence>
+        {isHalfTimeBreak && !isHandExpanded && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md select-none"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-linear-to-b from-[#0b0f0c] to-black border border-emerald-500/30 rounded-3xl p-6 md:p-8 max-w-md w-full mx-4 text-center shadow-[0_0_50px_rgba(16,185,129,0.15)] flex flex-col items-center gap-4"
+              dir="rtl"
+            >
+              <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/35 rounded-full flex items-center justify-center text-3xl shadow-inner animate-pulse">
+                ⏸️
+              </div>
+              <h2 className="text-xl md:text-2xl font-black text-white">استراحة الشوطين</h2>
+              <p className="text-[10px] md:text-xs text-slate-400 max-w-xs leading-relaxed">
+                انتهى الشوط الأول التكتيكي. خذ قسطاً من الراحة لترتيب أوراقك وخططك للشوط الثاني!
+              </p>
+
+              {/* Countdown Progress Circle/Bar */}
+              <div className="flex flex-col items-center gap-1.5 bg-black/40 border border-white/5 px-4 py-2.5 rounded-2xl w-full">
+                <span className="text-[10px] text-slate-500 font-bold">الوقت المتبقي للاستراحة:</span>
+                <span className="text-2xl font-mono font-black text-emerald-400">
+                  {halfTimeBreakLeft} ثانية
+                </span>
+              </div>
+
+              {/* Action Button to inspect bench */}
+              <button
+                onClick={() => {
+                  SoundEffects.playCardDraw();
+                  setIsHandExpanded(true);
+                }}
+                className="w-full py-2.5 bg-linear-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-extrabold rounded-xl text-xs cursor-pointer shadow-md transition-all flex items-center justify-center gap-2"
+              >
+                <span>📋</span>
+                <span>عرض التشكيلة والبدلاء</span>
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showForfeitModal && (
+          <GameConfirmModal
+            isOpen={showForfeitModal}
+            title="هل أنت متأكد من الانسحاب من المباراة؟"
+            message={`سيتم اعتبار الفريق الآخر فائزاً بالعلامة الكاملة (${winningGoals} أهداف).`}
+            confirmLabel="نعم، انسحب 🏳️"
+            cancelLabel="إلغاء وتراجع ⚽"
+            onConfirm={executeForfeitMatch}
+            onCancel={() => setShowForfeitModal(false)}
+            type="danger"
+          />
         )}
       </AnimatePresence>
 
