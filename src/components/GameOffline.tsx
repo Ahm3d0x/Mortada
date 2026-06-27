@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Trophy, Swords, Shield, RefreshCw, Sparkles, HelpCircle, Volume2, Gamepad2, Timer, AlertCircle } from "lucide-react";
 
@@ -486,52 +486,143 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
            opponentSlots.some(s => s.card && s.isRevealed && !s.card.silenced && s.card.ability?.actions.some(a => a.type === "BlockDefense"));
   };
 
-  const triggerAttackStartedAbilities = (attackerSide: "player" | "ai") => {
+  const triggerAttackStartedAbilities = (
+    attackerSide: "player" | "ai",
+    customPlayerSlots?: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean }[],
+    customAiSlots?: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean }[],
+    customPlayerHand?: Card[],
+    customAiHand?: Card[],
+    customPlayerMoves?: number,
+    customAiMoves?: number
+  ) => {
+    let currentPSlots = customPlayerSlots || playerSlots;
+    let currentASlots = customAiSlots || aiSlots;
+    let currentPHand = customPlayerHand || playerHand;
+    let currentAHand = customAiHand || aiHand;
+    let currentPMoves = customPlayerMoves !== undefined ? customPlayerMoves : playerMovesLeft;
+    let currentAMoves = customAiMoves !== undefined ? customAiMoves : aiMovesLeft;
+
     if (attackerSide === "player") {
-      playerSlots.forEach((slot) => {
+      currentPSlots.forEach((slot) => {
         if (slot.card && slot.isRevealed) {
-          triggerCardInstantEffects(slot.card, true, "AttackStarted");
+          const res = triggerCardInstantEffects(slot.card, true, "AttackStarted", currentPSlots, currentPHand, currentASlots, currentAHand, currentPMoves, currentAMoves);
+          currentPSlots = res.playerSlots;
+          currentASlots = res.aiSlots;
+          currentPHand = res.playerHand;
+          currentAHand = res.aiHand;
+          currentPMoves = res.playerMoves;
+          currentAMoves = res.aiMoves;
         }
       });
-      aiSlots.forEach((slot) => {
+      currentASlots.forEach((slot) => {
         if (slot.card && slot.isRevealed) {
-          triggerCardInstantEffects(slot.card, false, "DefenseStarted");
+          const res = triggerCardInstantEffects(slot.card, false, "DefenseStarted", currentPSlots, currentPHand, currentASlots, currentAHand, currentPMoves, currentAMoves);
+          currentPSlots = res.playerSlots;
+          currentASlots = res.aiSlots;
+          currentPHand = res.playerHand;
+          currentAHand = res.aiHand;
+          currentPMoves = res.playerMoves;
+          currentAMoves = res.aiMoves;
         }
       });
     } else {
-      aiSlots.forEach((slot) => {
+      currentASlots.forEach((slot) => {
         if (slot.card && slot.isRevealed) {
-          triggerCardInstantEffects(slot.card, false, "AttackStarted");
+          const res = triggerCardInstantEffects(slot.card, false, "AttackStarted", currentPSlots, currentPHand, currentASlots, currentAHand, currentPMoves, currentAMoves);
+          currentPSlots = res.playerSlots;
+          currentASlots = res.aiSlots;
+          currentPHand = res.playerHand;
+          currentAHand = res.aiHand;
+          currentPMoves = res.playerMoves;
+          currentAMoves = res.aiMoves;
         }
       });
-      playerSlots.forEach((slot) => {
+      currentPSlots.forEach((slot) => {
         if (slot.card && slot.isRevealed) {
-          triggerCardInstantEffects(slot.card, true, "DefenseStarted");
+          const res = triggerCardInstantEffects(slot.card, true, "DefenseStarted", currentPSlots, currentPHand, currentASlots, currentAHand, currentPMoves, currentAMoves);
+          currentPSlots = res.playerSlots;
+          currentASlots = res.aiSlots;
+          currentPHand = res.playerHand;
+          currentAHand = res.aiHand;
+          currentPMoves = res.playerMoves;
+          currentAMoves = res.aiMoves;
         }
       });
     }
+
+    return {
+      playerSlots: currentPSlots,
+      aiSlots: currentASlots,
+      playerHand: currentPHand,
+      aiHand: currentAHand,
+      playerMoves: currentPMoves,
+      aiMoves: currentAMoves
+    };
   };
 
-  const triggerCardDestroyedAbilities = (destroyedCard: PlayerCard, isPlayer: boolean) => {
+  const triggerCardDestroyedAbilities = (
+    destroyedCard: PlayerCard,
+    isPlayer: boolean,
+    customPlayerSlots?: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean }[],
+    customAiSlots?: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean }[],
+    customPlayerHand?: Card[],
+    customAiHand?: Card[],
+    customPlayerMoves?: number,
+    customAiMoves?: number
+  ) => {
+    let currentPSlots = customPlayerSlots || playerSlots;
+    let currentASlots = customAiSlots || aiSlots;
+    let currentPHand = customPlayerHand || playerHand;
+    let currentAHand = customAiHand || aiHand;
+    let currentPMoves = customPlayerMoves !== undefined ? customPlayerMoves : playerMovesLeft;
+    let currentAMoves = customAiMoves !== undefined ? customAiMoves : aiMovesLeft;
+
     if (destroyedCard.ability?.trigger === "CardDestroyed") {
-      triggerCardInstantEffects(destroyedCard, isPlayer, "CardDestroyed");
+      const res = triggerCardInstantEffects(destroyedCard, isPlayer, "CardDestroyed", currentPSlots, currentPHand, currentASlots, currentAHand, currentPMoves, currentAMoves);
+      currentPSlots = res.playerSlots;
+      currentASlots = res.aiSlots;
+      currentPHand = res.playerHand;
+      currentAHand = res.aiHand;
+      currentPMoves = res.playerMoves;
+      currentAMoves = res.aiMoves;
     }
-    const mySlots = isPlayer ? playerSlots : aiSlots;
+    const mySlots = isPlayer ? currentPSlots : currentASlots;
     mySlots.forEach((slot) => {
       if (slot.card && slot.card.id !== destroyedCard.id && slot.isRevealed) {
         if (slot.card.ability?.trigger === "CardDestroyed") {
-          triggerCardInstantEffects(slot.card, isPlayer, "CardDestroyed");
+          const res = triggerCardInstantEffects(slot.card, isPlayer, "CardDestroyed", currentPSlots, currentPHand, currentASlots, currentAHand, currentPMoves, currentAMoves);
+          currentPSlots = res.playerSlots;
+          currentASlots = res.aiSlots;
+          currentPHand = res.playerHand;
+          currentAHand = res.aiHand;
+          currentPMoves = res.playerMoves;
+          currentAMoves = res.aiMoves;
         }
       }
     });
-    const opponentSlots = isPlayer ? aiSlots : playerSlots;
+    const opponentSlots = isPlayer ? currentASlots : currentPSlots;
     opponentSlots.forEach((slot) => {
       if (slot.card && slot.isRevealed) {
         if (slot.card.ability?.trigger === "CardDestroyed") {
-          triggerCardInstantEffects(slot.card, !isPlayer, "CardDestroyed");
+          const res = triggerCardInstantEffects(slot.card, !isPlayer, "CardDestroyed", currentPSlots, currentPHand, currentASlots, currentAHand, currentPMoves, currentAMoves);
+          currentPSlots = res.playerSlots;
+          currentASlots = res.aiSlots;
+          currentPHand = res.playerHand;
+          currentAHand = res.aiHand;
+          currentPMoves = res.playerMoves;
+          currentAMoves = res.aiMoves;
         }
       }
     });
+
+    return {
+      playerSlots: currentPSlots,
+      aiSlots: currentASlots,
+      playerHand: currentPHand,
+      aiHand: currentAHand,
+      playerMoves: currentPMoves,
+      aiMoves: currentAMoves
+    };
   };
 
   // Static AI properties
@@ -653,6 +744,8 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
   const phaseRef = useRef<GamePhase>("menu");
   const isResolvingRef = useRef<boolean>(false);
   const isAIExecutingRef = useRef<boolean>(false);
+  const aiTimeoutId1 = useRef<any>(null);
+  const aiTimeoutId2 = useRef<any>(null);
 
   // Keep phaseRef synchronized with state phase
   useEffect(() => {
@@ -670,8 +763,20 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
   const [playerDeck, setPlayerDeck] = useState<PlayerCard[]>([]);
   const [aiDeck, setAiDeck] = useState<PlayerCard[]>([]);
 
-  const recyclePlayerCard = (card: PlayerCard) => {
-    triggerCardDestroyedAbilities(card, true);
+  const recyclePlayerCard = (
+    card: PlayerCard,
+    customPlayerSlots?: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean }[],
+    customAiSlots?: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean }[],
+    customPlayerHand?: Card[],
+    customAiHand?: Card[],
+    customPlayerMoves?: number,
+    customAiMoves?: number
+  ) => {
+    const nextPMoves = customPlayerMoves !== undefined ? customPlayerMoves : playerMovesLeft;
+    const nextAMoves = customAiMoves !== undefined ? customAiMoves : aiMovesLeft;
+    setTimeout(() => {
+      triggerCardDestroyedAbilities(card, true, customPlayerSlots, customAiSlots, customPlayerHand, customAiHand, nextPMoves, nextAMoves);
+    }, 50);
     const cleaned: PlayerCard = {
       ...card,
       id: `recycled_${card.id.split('_')[0] || 'card'}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -685,8 +790,20 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     setPlayerDeck((prev) => [...prev, cleaned]);
   };
 
-  const recycleAiCard = (card: PlayerCard) => {
-    triggerCardDestroyedAbilities(card, false);
+  const recycleAiCard = (
+    card: PlayerCard,
+    customPlayerSlots?: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean }[],
+    customAiSlots?: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean }[],
+    customPlayerHand?: Card[],
+    customAiHand?: Card[],
+    customPlayerMoves?: number,
+    customAiMoves?: number
+  ) => {
+    const nextPMoves = customPlayerMoves !== undefined ? customPlayerMoves : playerMovesLeft;
+    const nextAMoves = customAiMoves !== undefined ? customAiMoves : aiMovesLeft;
+    setTimeout(() => {
+      triggerCardDestroyedAbilities(card, false, customPlayerSlots, customAiSlots, customPlayerHand, customAiHand, nextPMoves, nextAMoves);
+    }, 50);
     const cleaned: PlayerCard = {
       ...card,
       id: `recycled_${card.id.split('_')[0] || 'card'}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -749,11 +866,30 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
   const [tempPhaseLogs, setTempPhaseLogs] = useState<ActionLog[]>([]);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const [showCommentary, setShowCommentary] = useState(false);
+  const [logsClearedTime, setLogsClearedTime] = useState<number>(0);
   const [showTips, setShowTips] = useState(false);
 
   // Goal explosion cinematic state
   const [celebrationMessage, setCelebrationMessage] = useState<{ title: string; subtitle: string; isGoal: boolean } | null>(null);
-  const [activeVfxVideo, setActiveVfxVideo] = useState<{ src: string; callback?: () => void } | null>(null);
+  const [activeVfxVideo, setActiveVfxVideo] = useState<{ src: string; callback?: () => void } | null>({
+    src: `/vfx/room to club transtion.mp4?v=${Date.now()}`
+  });
+  const [vfxQueue, setVfxQueue] = useState<{ src: string; callback?: () => void }[]>([]);
+  const transitionPrevPhaseRef = useRef<GamePhase>("menu");
+
+  const triggerVfx = useCallback((src: string, callback?: () => void) => {
+    const busterSrc = `${src}?v=${Date.now()}`;
+    setVfxQueue((prev) => [...prev, { src: busterSrc, callback }]);
+  }, []);
+
+  useEffect(() => {
+    if (!activeVfxVideo && vfxQueue.length > 0) {
+      const nextVfx = vfxQueue[0];
+      setActiveVfxVideo(nextVfx);
+      setVfxQueue((prev) => prev.slice(1));
+    }
+  }, [activeVfxVideo, vfxQueue]);
+
   const lastPlayedCelebrationKeyRef = useRef<string | null>(null);
   const prevSlotsRef = useRef<{ player: any[]; ai: any[] } | null>(null);
   const prevSpecialsRef = useRef<{ player: any[]; ai: any[] } | null>(null);
@@ -791,6 +927,12 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
   const [matchHalf, setMatchHalf] = useState<1 | 2>(1);
   const [isHalfTimeBreak, setIsHalfTimeBreak] = useState<boolean>(false);
   const [halfTimeBreakLeft, setHalfTimeBreakLeft] = useState<number>(0);
+
+  const isHalfTimeBreakRef = useRef<boolean>(false);
+  useEffect(() => {
+    isHalfTimeBreakRef.current = isHalfTimeBreak;
+  }, [isHalfTimeBreak]);
+
   const [turnTimeLimit, setTurnTimeLimit] = useState<number>(0);
   const [turnTimeLeft, setTurnTimeLeft] = useState<number>(0);
 
@@ -822,14 +964,14 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
   // Trigger VFX when celebration message is set
   useEffect(() => {
     if (celebrationMessage) {
-      setActiveVfxVideo({
-        src: celebrationMessage.isGoal ? "/vfx/goal.mp4" : "/vfx/save.mp4",
-        callback: () => {
+      triggerVfx(
+        celebrationMessage.isGoal ? "/vfx/goal.mp4" : "/vfx/save.mp4",
+        () => {
           handleAcknowledgeResolution();
         }
-      });
+      );
     }
-  }, [celebrationMessage]);
+  }, [celebrationMessage, triggerVfx]);
 
   // Safety timeout for activeVfxVideo overlay
   useEffect(() => {
@@ -839,10 +981,11 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         const cb = activeVfxVideo.callback;
         setActiveVfxVideo(null);
         if (cb) cb();
-      }, 5000);
+      }, 12000);
       return () => clearTimeout(timer);
     }
   }, [activeVfxVideo]);
+
 
   // Detect Legendary Landing and Tactical Cards Played
   useEffect(() => {
@@ -853,7 +996,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         if (slot.card && slot.card.isLegend) {
           const isNewLegend = !prevSlot || !prevSlot.card || prevSlot.card.id !== slot.card.id;
           if (isNewLegend) {
-            setActiveVfxVideo({ src: "/vfx/legandry land.mp4" });
+            triggerVfx("/vfx/legandry land.mp4");
           }
         }
       });
@@ -862,7 +1005,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         if (slot.card && slot.card.isLegend) {
           const isNewLegend = !prevSlot || !prevSlot.card || prevSlot.card.id !== slot.card.id;
           if (isNewLegend) {
-            setActiveVfxVideo({ src: "/vfx/legandry land.mp4" });
+            triggerVfx("/vfx/legandry land.mp4");
           }
         }
       });
@@ -875,11 +1018,15 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         const wasPresent = prevSpecialsRef.current?.player.some((ps) => ps.id === spec.id);
         if (!wasPresent) {
           if (spec.effect === "offside") {
-            setActiveVfxVideo({ src: "/vfx/offside tactic.mp4" });
+            triggerVfx("/vfx/offside tactic.mp4");
           } else if (spec.effect === "wet_pitch") {
-            setActiveVfxVideo({ src: "/vfx/wet gros tactic.mp4" });
+            triggerVfx("/vfx/wet gros tactic.mp4");
           } else if (spec.effect === "park_the_bus") {
-            setActiveVfxVideo({ src: "/vfx/bus tactic.mp4" });
+            triggerVfx("/vfx/bus tactic.mp4");
+          } else if (spec.effect === "fans") {
+            triggerVfx("/vfx/fans tactic.mp4");
+          } else if (spec.effect === "red_card") {
+            triggerVfx("/vfx/red caed tactic.mp4");
           }
         }
       });
@@ -887,17 +1034,21 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         const wasPresent = prevSpecialsRef.current?.ai.some((ps) => ps.id === spec.id);
         if (!wasPresent) {
           if (spec.effect === "offside") {
-            setActiveVfxVideo({ src: "/vfx/offside tactic.mp4" });
+            triggerVfx("/vfx/offside tactic.mp4");
           } else if (spec.effect === "wet_pitch") {
-            setActiveVfxVideo({ src: "/vfx/wet gros tactic.mp4" });
+            triggerVfx("/vfx/wet gros tactic.mp4");
           } else if (spec.effect === "park_the_bus") {
-            setActiveVfxVideo({ src: "/vfx/bus tactic.mp4" });
+            triggerVfx("/vfx/bus tactic.mp4");
+          } else if (spec.effect === "fans") {
+            triggerVfx("/vfx/fans tactic.mp4");
+          } else if (spec.effect === "red_card") {
+            triggerVfx("/vfx/red caed tactic.mp4");
           }
         }
       });
     }
     prevSpecialsRef.current = { player: playerActiveSpecial, ai: aiActiveSpecial };
-  }, [playerSlots, aiSlots, playerActiveSpecial, aiActiveSpecial]);
+  }, [playerSlots, aiSlots, playerActiveSpecial, aiActiveSpecial, triggerVfx]);
 
   // Sync current local state to Supabase
   // Sync current local state to Supabase
@@ -1243,6 +1394,16 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
           setIsHalfTimeBreak(true);
           setHalfTimeBreakLeft(halfTimeBreakDuration);
 
+          if (aiTimeoutId1.current) {
+            clearTimeout(aiTimeoutId1.current);
+            aiTimeoutId1.current = null;
+          }
+          if (aiTimeoutId2.current) {
+            clearTimeout(aiTimeoutId2.current);
+            aiTimeoutId2.current = null;
+          }
+          isAIExecutingRef.current = false;
+
           setCurrentAttackerIdx(null);
           setCurrentBooster(null);
           setPlayerActiveSpecial([]);
@@ -1258,6 +1419,17 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
           if (isMultiplayer && multiplayerRole !== "host") {
             return 0;
           }
+
+          // Check if it is safe to end the match (no active round in progress)
+          const isSafeToEnd =
+            (phase === "player_turn" && playerMovesLeft === maxMovesPerTurn && cardsDrawnThisTurn === 0) ||
+            (phase === "ai_turn" && aiMovesLeft === maxMovesPerTurn && aiCardsDrawnThisTurn === 0);
+
+          if (!isSafeToEnd) {
+            // Clamp clock at 1 (injury/stoppage time) – wait for the current round to finish
+            return 1;
+          }
+
           clearInterval(timer);
           SoundEffects.playWhistle();
           setPhase("game_over");
@@ -1265,20 +1437,20 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
           if (playerScore > aiScore) {
             const victoryMsg = `⏰ انتهى وقت المباراة الرسمي! تكتيكات ${formatNameWithTitle(coachName, "الكابتن")} حسمت النصر التاريخي بالنتيجة ${playerScore} - ${aiScore}! ⚽🏆`;
             setLogs(prevLogs => [
-              { id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), text: victoryMsg, type: "success" },
+              { id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), text: victoryMsg, type: "success", sender: "system", round: completedRounds + 1, createdAt: Date.now() },
               ...prevLogs
             ]);
             setShowConfetti(true);
           } else if (aiScore > playerScore) {
             const lossMsg = `⏰ انتهى وقت المباراة الرسمي! للأسف الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} حقق الفوز تكتيكياً بنتيجة ${aiScore} - ${playerScore}.`;
             setLogs(prevLogs => [
-              { id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), text: lossMsg, type: "danger" },
+              { id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), text: lossMsg, type: "danger", sender: "system", round: completedRounds + 1, createdAt: Date.now() },
               ...prevLogs
             ]);
           } else {
             const drawMsg = `⏰ نهاية الوقت الأصلي بالتعادل التكتيكي المثير ${playerScore} - ${aiScore}! ركلات الترجيح المفتوحة ستحرك الكأس!`;
             setLogs(prevLogs => [
-              { id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), text: drawMsg, type: "neutral" },
+              { id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), text: drawMsg, type: "neutral", sender: "system", round: completedRounds + 1, createdAt: Date.now() },
               ...prevLogs
             ]);
           }
@@ -1403,32 +1575,63 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
   useEffect(() => {
     const prevPhase = prevPhaseRef.current;
     if (prevPhase !== phase) {
+      let currentPSlots = playerSlots;
+      let currentASlots = aiSlots;
+      let currentPHand = playerHand;
+      let currentAHand = aiHand;
+      let pMoves = playerMovesLeft;
+      let aMoves = aiMovesLeft;
+
       // Turn Ended Triggers
       if (prevPhase === "player_turn") {
-        playerSlots.forEach((slot) => {
+        currentPSlots.forEach((slot) => {
           if (slot.card && slot.isRevealed) {
-            triggerCardInstantEffects(slot.card, true, "TurnEnded");
+            const res = triggerCardInstantEffects(slot.card, true, "TurnEnded", currentPSlots, currentPHand, currentASlots, currentAHand, pMoves, aMoves);
+            currentPSlots = res.playerSlots;
+            currentASlots = res.aiSlots;
+            currentPHand = res.playerHand;
+            currentAHand = res.aiHand;
+            pMoves = res.playerMoves;
+            aMoves = res.aiMoves;
           }
         });
       } else if (prevPhase === "ai_turn") {
-        aiSlots.forEach((slot) => {
+        currentASlots.forEach((slot) => {
           if (slot.card && slot.isRevealed) {
-            triggerCardInstantEffects(slot.card, false, "TurnEnded");
+            const res = triggerCardInstantEffects(slot.card, false, "TurnEnded", currentPSlots, currentPHand, currentASlots, currentAHand, pMoves, aMoves);
+            currentPSlots = res.playerSlots;
+            currentASlots = res.aiSlots;
+            currentPHand = res.playerHand;
+            currentAHand = res.aiHand;
+            pMoves = res.playerMoves;
+            aMoves = res.aiMoves;
           }
         });
       }
 
       // Turn Started Triggers
       if (phase === "player_turn") {
-        playerSlots.forEach((slot) => {
+        currentPSlots.forEach((slot) => {
           if (slot.card && slot.isRevealed) {
-            triggerCardInstantEffects(slot.card, true, "TurnStarted");
+            const res = triggerCardInstantEffects(slot.card, true, "TurnStarted", currentPSlots, currentPHand, currentASlots, currentAHand, pMoves, aMoves);
+            currentPSlots = res.playerSlots;
+            currentASlots = res.aiSlots;
+            currentPHand = res.playerHand;
+            currentAHand = res.aiHand;
+            pMoves = res.playerMoves;
+            aMoves = res.aiMoves;
           }
         });
       } else if (phase === "ai_turn") {
-        aiSlots.forEach((slot) => {
+        currentASlots.forEach((slot) => {
           if (slot.card && slot.isRevealed) {
-            triggerCardInstantEffects(slot.card, false, "TurnStarted");
+            const res = triggerCardInstantEffects(slot.card, false, "TurnStarted", currentPSlots, currentPHand, currentASlots, currentAHand, pMoves, aMoves);
+            currentPSlots = res.playerSlots;
+            currentASlots = res.aiSlots;
+            currentPHand = res.playerHand;
+            currentAHand = res.aiHand;
+            pMoves = res.playerMoves;
+            aMoves = res.aiMoves;
           }
         });
       }
@@ -1801,18 +2004,24 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
       setPhase("warmup");
       
-      const kickoffLogs = [
+      const kickoffLogs: ActionLog[] = [
         {
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
           text: `صافرة بداية مباراة الأونلاين! كود الغرفة المميز: ${room.id} ⚽`,
-          type: "success" as const
+          type: "success" as const,
+          sender: "system",
+          round: completedRounds + 1,
+          createdAt: Date.now()
         },
         {
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
           text: `المضيف ${myName} ضد الضيف المبارز ${enemyName}! مرحلة تسخين تكتيكي صامتة لتعديل تمركز الأوراق.`,
-          type: "info" as const
+          type: "info" as const,
+          sender: "system",
+          round: completedRounds + 1,
+          createdAt: Date.now()
         }
       ];
       setLogs(kickoffLogs);
@@ -1866,13 +2075,19 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
           text: `مرحباً بك كابتن ${myName}! تم الدخول للملعب أونلاين بكود: ${room.id} ⚽`,
-          type: "success" as const
+          type: "success" as const,
+          sender: "system",
+          round: completedRounds + 1,
+          createdAt: Date.now()
         },
         {
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
           text: `مرحلة التسخين جارية لحين تأكيد الخطة وبدء اللقاء.`,
-          type: "info" as const
+          type: "info" as const,
+          sender: "system",
+          round: completedRounds + 1,
+          createdAt: Date.now()
         }
       ]);
     }
@@ -1954,13 +2169,27 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
   // Add a standard log helper
   const addLog = (text: string, type: ActionLog["type"] = "neutral") => {
+    const isError = type === "warning" || type === "danger";
+    let sender: ActionLog["sender"] = "system";
+    if (isError) {
+      sender = "player";
+    } else if (phaseRef.current === "player_turn" || phaseRef.current === "attacking") {
+      sender = "player";
+    } else if (phaseRef.current === "ai_turn" || phaseRef.current === "ai_attacking") {
+      sender = "ai";
+    }
+
     const newLog: ActionLog = {
       id: Math.random().toString(36).substr(2, 9),
       timestamp: getFormattedTime(),
       text,
-      type
+      type,
+      sender,
+      localOnly: isError,
+      round: completedRounds + 1,
+      createdAt: Date.now()
     };
-    if ((phaseRef.current === "attacking" || phaseRef.current === "ai_attacking") && type !== "warning" && type !== "danger") {
+    if ((phaseRef.current === "attacking" || phaseRef.current === "ai_attacking") && !isError) {
       setTempPhaseLogs((prev) => [...prev, newLog]);
     } else {
       setLogs((prev) => [...prev, newLog]);
@@ -2094,6 +2323,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       // Switch to Warmup
       setPhase("warmup");
       setLogs([]);
+      setLogsClearedTime(0);
       addLog(`صافرة البداية! دخل ${formatNameWithTitle(name, "المدرب")} بهوية ${vibe} لملاقاة خصمه ذو الصعوبة [${diff === "normal" ? "ناشئ" : diff === "tactical" ? "محترف" : "أسطوري"}].`, "success");
       addLog(`مرحلة التسخين نشطة! الملعب فارغ حالياً، قم بسحب ${initialCards} لاعبين لتوزيع مراكزهم بالضغط على زر 'سحب لاعب' (سيكون اللاعبون مقلوبين تكتيكياً)، ثم اضغط على زر 'بدء اللقاء' لتنطلق صافرة الحكم.`, "info");
       addLog("حقيبة الكروت بيدك فارغة حالياً. بمجرد تأكيد الخطة وبدء اللقاء، يمكنك سحب كروت تكتيكية جديدة في أدوارك ليدك لدعم مهارات وهجوم فريقك.", "neutral");
@@ -2157,6 +2387,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     setPlayerHand(newHand);
     setPlayerSlots(newSlots);
     setSelectedHandCardId(null);
+    setIsHandExpanded(false);
     SoundEffects.playCardDraw();
     syncMultiplayerIfActive();
   };
@@ -2306,7 +2537,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         setPlayerDeck(updatedDeck);
 
         const drawnCount = updatedSlots.filter((s) => s.card !== null).length;
-        addLog(`[التسخين] لقد سحبت اللاعب مقلوباً ووضعته بيدك بمركز الملعب [ ${emptyIdx + 1} ]. (سحبت ${drawnCount}/${initialCardsCount})`, "success");
+        // Warmup draw is intermediate, so we do not add a log here.
         SoundEffects.playCardDraw();
         syncMultiplayerIfActive();
       } else {
@@ -2316,7 +2547,10 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     }
 
     const currentDrawLimit = phase === "ai_attacking" ? defenseDrawsLimit : maxDrawsPerTurn;
-    if (cardsDrawnThisTurn >= currentDrawLimit) return;
+    if (cardsDrawnThisTurn >= currentDrawLimit) {
+      addLog(`⚠️ خطأ: لقد وصلت للحد الأقصى لعدد السحبات في هذا الدور (${currentDrawLimit} سحبة)!`, "warning");
+      return;
+    }
 
     if (deckType === "player") {
       if (playerDeck.length === 0) {
@@ -2350,14 +2584,24 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
 
 
 
-  const triggerCardInstantEffects = (card: Card, isPlayerOwned: boolean, trigger: CardAbilityTriggerType) => {
+  const triggerCardInstantEffects = (
+    card: Card,
+    isPlayerOwned: boolean,
+    trigger: CardAbilityTriggerType,
+    customPlayerSlots?: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean }[],
+    customPlayerHand?: Card[],
+    customAiSlots?: { card: PlayerCard | null; isRevealed: boolean; spent?: boolean; revealedInAttack?: boolean; confirmedInAttack?: boolean }[],
+    customAiHand?: Card[],
+    customPlayerMoves?: number,
+    customAiMoves?: number
+  ) => {
     const gs = {
-      host_slots: playerSlots,
-      opponent_slots: aiSlots,
-      host_hand: playerHand,
-      opponent_hand: aiHand,
-      host_moves: playerMovesLeft,
-      opponent_moves: aiMovesLeft,
+      host_slots: customPlayerSlots || playerSlots,
+      opponent_slots: customAiSlots || aiSlots,
+      host_hand: customPlayerHand || playerHand,
+      opponent_hand: customAiHand || aiHand,
+      host_moves: customPlayerMoves !== undefined ? customPlayerMoves : playerMovesLeft,
+      opponent_moves: customAiMoves !== undefined ? customAiMoves : aiMovesLeft,
       extra_draws_limit: 0,
       logs: [...logs],
       attacker_role: isPlayerAttacker ? 'host' : 'opponent' as const,
@@ -2394,29 +2638,59 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       setMaxDrawsPerTurn((prev) => prev + gs.extra_draws_limit);
     }
 
-    const playerHandDiff = gs.host_hand.length - playerHand.length;
-    const opponentHandDiff = gs.opponent_hand.length - aiHand.length;
+    const currentHandLength = (customPlayerHand || playerHand).length;
+    const currentAiHandLength = (customAiHand || aiHand).length;
+    const playerHandDiff = gs.host_hand.length - currentHandLength;
+    const opponentHandDiff = gs.opponent_hand.length - currentAiHandLength;
     if (playerHandDiff > 0 || opponentHandDiff > 0) {
       SoundEffects.playCardDraw();
     }
     if (opponentHandDiff > 0 && !isPlayerOwned) {
       setAiCardsDrawnThisTurn((prev) => prev + opponentHandDiff);
     }
+
+    return {
+      playerSlots: gs.host_slots,
+      aiSlots: gs.opponent_slots,
+      playerHand: gs.host_hand,
+      aiHand: gs.opponent_hand,
+      playerMoves: gs.host_moves,
+      aiMoves: gs.opponent_moves,
+    };
   };
 
   const triggerAllGoalScoredAbilities = (scoringSide: "player" | "ai") => {
-    playerSlots.forEach((slot) => {
+    let currentPSlots = playerSlots;
+    let currentASlots = aiSlots;
+    let currentPHand = playerHand;
+    let currentAHand = aiHand;
+    let pMoves = playerMovesLeft;
+    let aMoves = aiMovesLeft;
+
+    currentPSlots.forEach((slot) => {
       if (slot.card && slot.isRevealed) {
         if (slot.card.ability?.trigger === "GoalScored" && scoringSide === "player") {
-          triggerCardInstantEffects(slot.card, true, "GoalScored");
+          const res = triggerCardInstantEffects(slot.card, true, "GoalScored", currentPSlots, currentPHand, currentASlots, currentAHand, pMoves, aMoves);
+          currentPSlots = res.playerSlots;
+          currentASlots = res.aiSlots;
+          currentPHand = res.playerHand;
+          currentAHand = res.aiHand;
+          pMoves = res.playerMoves;
+          aMoves = res.aiMoves;
         }
       }
     });
 
-    aiSlots.forEach((slot) => {
+    currentASlots.forEach((slot) => {
       if (slot.card && slot.isRevealed) {
         if (slot.card.ability?.trigger === "GoalScored" && scoringSide === "ai") {
-          triggerCardInstantEffects(slot.card, false, "GoalScored");
+          const res = triggerCardInstantEffects(slot.card, false, "GoalScored", currentPSlots, currentPHand, currentASlots, currentAHand, pMoves, aMoves);
+          currentPSlots = res.playerSlots;
+          currentASlots = res.aiSlots;
+          currentPHand = res.playerHand;
+          currentAHand = res.aiHand;
+          pMoves = res.playerMoves;
+          aMoves = res.aiMoves;
         }
       }
     });
@@ -2677,10 +2951,6 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       let logMsg = "";
       if (phase === "player_turn") {
         logMsg = `✨ تكتيك عام: قمت بتفعيل كارت التكتيك [ ${card.name} ] (استهلكت حركة واحدة)`;
-      } else if (phase === "attacking") {
-        logMsg = `⚔️ تعزيز الهجوم: قمت بتفعيل كارت التكتيك [ ${card.name} ] لتعزيز الهجمة! (استهلكت حركة واحدة)`;
-      } else if (phase === "ai_attacking") {
-        logMsg = `🛡️ تعزيز الدفاع: قمت بتفعيل كارت التكتيك [ ${card.name} ] لصد الهجوم! (استهلكت حركة واحدة)`;
       }
       if (logMsg) addLog(logMsg, "success");
     }
@@ -2688,17 +2958,20 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     setSelectedHandCardId(null);
     SoundEffects.playCardDraw();
 
-    setCinematicEvent({
-      type: "tactical",
-      title: "تفعيل تكتيك خاص! ⚡",
-      subtitle: card.description || "",
-      cardName: card.name,
-      cardIcon: card.icon,
-      isLegend: false
-    });
-    setTimeout(() => {
-      setCinematicEvent(null);
-    }, 1800);
+    const hasVfxVideo = card.effect === "offside" || card.effect === "wet_pitch" || card.effect === "park_the_bus" || card.effect === "fans" || card.effect === "red_card";
+    if (!hasVfxVideo) {
+      setCinematicEvent({
+        type: "tactical",
+        title: "تفعيل تكتيك خاص! ⚡",
+        subtitle: card.description || "",
+        cardName: card.name,
+        cardIcon: card.icon,
+        isLegend: false
+      });
+      setTimeout(() => {
+        setCinematicEvent(null);
+      }, 1800);
+    }
 
     syncMultiplayerIfActive();
   };
@@ -2743,7 +3016,6 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       }
 
       const targetSlots = isAi ? aiSlots : playerSlots;
-      const setTargetSlots = isAi ? setAiSlots : setPlayerSlots;
       const targetSlot = targetSlots[idx];
       if (!targetSlot.card) return;
 
@@ -2752,45 +3024,79 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       const durationTurns = actions[0]?.durationTurns || 2;
       const actType = actions[0]?.type || (activeTargetingCard.effect === "red_card" ? "DestroyCard" : "DestroyCard");
 
-      setTargetSlots((prev) => {
-        const next = [...prev];
-        if (actType === "DestroyCard") {
-          next[idx] = { card: null, isRevealed: false };
-          if (isAi) {
-            recycleAiCard(targetCard);
-          } else {
-            recyclePlayerCard(targetCard);
-          }
-        } else if (actType === "ReturnToHand") {
-          next[idx] = { card: null, isRevealed: false };
-          if (isAi) {
-            setAiHand((p) => [...p, targetCard]);
-          } else {
-            setPlayerHand((p) => [...p, targetCard]);
-          }
+      // Compute new slots array directly
+      const newTargetSlots = targetSlots.map((s, sIdx) => {
+        if (sIdx !== idx) return s;
+        if (actType === "DestroyCard" || actType === "ReturnToHand") {
+          return { card: null, isRevealed: false };
         } else if (actType === "FreezeCard") {
-          targetCard.frozen = true;
-          targetCard.frozenTurnsLeft = durationTurns;
-          next[idx] = { ...prev[idx], card: targetCard };
+          return { ...s, card: { ...targetCard, frozen: true, frozenTurnsLeft: durationTurns } };
         } else if (actType === "SilenceCard") {
-          targetCard.silenced = true;
-          targetCard.silencedTurnsLeft = durationTurns;
-          next[idx] = { ...prev[idx], card: targetCard };
+          return { ...s, card: { ...targetCard, silenced: true, silencedTurnsLeft: durationTurns } };
         } else if (actType === "StunCard") {
-          targetCard.stunned = true;
-          targetCard.stunnedTurnsLeft = durationTurns;
-          next[idx] = { ...prev[idx], card: targetCard };
+          return { ...s, card: { ...targetCard, stunned: true, stunnedTurnsLeft: durationTurns } };
         } else if (actType === "RevealCard") {
-          next[idx] = { ...prev[idx], isRevealed: true, revealedInTurn: turnCount, revealedByAbility: true };
-          setTimeout(() => {
-            triggerCardInstantEffects(targetCard, !isAi, "CardRevealed");
-            triggerCardInstantEffects(targetCard, !isAi, "CardPlayed");
-          }, 50);
+          return { ...s, isRevealed: true, revealedInTurn: turnCount, revealedByAbility: true };
         } else if (actType === "HideCard") {
-          next[idx] = { ...prev[idx], isRevealed: false };
+          return { ...s, isRevealed: false };
         }
-        return next;
+        return s;
       });
+
+      if (isAi) {
+        setAiSlots(newTargetSlots);
+      } else {
+        setPlayerSlots(newTargetSlots);
+      }
+
+      let newPlayerHand = playerHand;
+      let newAiHand = aiHand;
+
+      const nextPMoves = (phase === "player_turn" || phase === "attacking") ? Math.max(0, playerMovesLeft - 1) : playerMovesLeft;
+      const nextAMoves = aiMovesLeft;
+
+      if (actType === "DestroyCard") {
+        if (isAi) {
+          recycleAiCard(targetCard, playerSlots, newTargetSlots, playerHand, aiHand, nextPMoves, nextAMoves);
+        } else {
+          recyclePlayerCard(targetCard, newTargetSlots, aiSlots, playerHand, aiHand, nextPMoves, nextAMoves);
+        }
+      } else if (actType === "ReturnToHand") {
+        if (isAi) {
+          newAiHand = [...aiHand, targetCard];
+          setAiHand(newAiHand);
+        } else {
+          newPlayerHand = [...playerHand, targetCard];
+          setPlayerHand(newPlayerHand);
+        }
+      }
+
+      if (actType === "RevealCard") {
+        setTimeout(() => {
+          triggerCardInstantEffects(
+            targetCard,
+            !isAi,
+            "CardRevealed",
+            isAi ? playerSlots : newTargetSlots,
+            newPlayerHand,
+            isAi ? newTargetSlots : aiSlots,
+            newAiHand,
+            nextPMoves,
+            nextAMoves
+          );
+          triggerCardInstantEffects(
+            targetCard,
+            !isAi,
+            "CardPlayed",
+            isAi ? playerSlots : newTargetSlots,
+            newPlayerHand,
+            isAi ? newTargetSlots : aiSlots,
+            newAiHand,
+            nextPMoves,
+            nextAMoves
+          );
+        }, 50);
+      }
 
       // Deduct move
       if (phase === "player_turn" || phase === "attacking") {
@@ -2800,7 +3106,8 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       }
 
       // Remove from hand
-      setPlayerHand((prev) => prev.filter((c) => c.id !== activeTargetingCard.id));
+      const nextHand = newPlayerHand.filter((c) => c.id !== activeTargetingCard.id);
+      setPlayerHand(nextHand);
 
       // Logger
       let actMsg = "";
@@ -2900,45 +3207,54 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
             return;
           }
 
+          const nextPMoves = Math.max(0, playerMovesLeft - 1);
+
           // Execute Legend placement
           // 1. Remove and recycle the burnt cards (if any) and the played card itself
-          if (legendBurnLimit > 0) {
-            playerHand.forEach((c) => {
-              if (burningCardIds.includes(c.id) && c.type === "player") {
-                recyclePlayerCard(c as PlayerCard);
-              }
-            });
-            setPlayerHand((prev) => prev.filter((c) => !burningCardIds.includes(c.id) && c.id !== selectedHandCardId));
-          } else {
-            setPlayerHand((prev) => prev.filter((c) => c.id !== selectedHandCardId));
-          }
-
-          // 2. Place Legend, resolving swap rules on replaced player
+          let newHand = playerHand.filter((c) => c.id !== selectedHandCardId);
           const targetSlot = playerSlots[idx];
           const newSlots = [...playerSlots];
           newSlots[idx] = { card: playerCard, isRevealed: false };
+
+          if (legendBurnLimit > 0) {
+            newHand = playerHand.filter((c) => !burningCardIds.includes(c.id) && c.id !== selectedHandCardId);
+            playerHand.forEach((c) => {
+              if (burningCardIds.includes(c.id) && c.type === "player") {
+                recyclePlayerCard(c as PlayerCard, newSlots, aiSlots, newHand, aiHand, nextPMoves, aiMovesLeft);
+              }
+            });
+          }
+
+          // 2. Place Legend, resolving swap rules on replaced player
           setPlayerSlots(newSlots);
 
           const burnLogText = legendBurnLimit > 0 ? `تم حرق ${legendBurnLimit} كروت و` : "تم ";
           if (targetSlot.card) {
             if (targetSlot.isRevealed) {
+              recyclePlayerCard(targetSlot.card, newSlots, aiSlots, newHand, aiHand, nextPMoves, aiMovesLeft);
               addLog(`🔥 🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز [ ${idx + 1} ] (تضحية فائقة - استهلكت حركة واحدة). ${burnLogText}عزل اللاعب المكشوف خارج الماتش ونزول لاعب جديد مقلوباً.`, "success");
             } else {
               // Face down, returns to hand
-              setPlayerHand((prev) => [...prev, targetSlot.card!]);
+              newHand = [...newHand, targetSlot.card!];
               addLog(`🔥 🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز [ ${idx + 1} ] (تضحية فائقة - استهلكت حركة واحدة). ${burnLogText}استرجاع اللاعب المقلوب ليدك ونزول لاعب جديد مقلوباً.`, "success");
             }
           } else {
             addLog(`🔥 🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز الخالي [ ${idx + 1} ] (تنزيل لاعب - استهلكت حركة واحدة). ${burnLogText}نزول لاعب جديد مقلوباً.`, "success");
           }
 
-          setPlayerMovesLeft((prev) => Math.max(0, prev - 1));
+          setPlayerHand(newHand);
+          setPlayerMovesLeft(nextPMoves);
           handleCancelSelection();
+          setIsHandExpanded(false);
           SoundEffects.playWhistle();
-          triggerCardInstantEffects(playerCard, true, "CardPlayed");
+          setTimeout(() => {
+            triggerCardInstantEffects(playerCard, true, "CardPlayed", newSlots, newHand, aiSlots, aiHand, nextPMoves, aiMovesLeft);
+          }, 50);
           syncMultiplayerIfActive();
           return;
         }
+
+        const nextPMoves = Math.max(0, playerMovesLeft - 1);
 
         // Regular player Swap logic:
         const currentPitchItem = playerSlots[idx];
@@ -2947,26 +3263,30 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         setPlayerSlots(newSlots);
 
         // Remove card from hand
-        setPlayerHand((prev) => prev.filter((c) => c.id !== selectedHandCardId));
+        let newHand = playerHand.filter((c) => c.id !== selectedHandCardId);
 
         if (currentPitchItem.card) {
           if (currentPitchItem.isRevealed) {
             // "إذا تبدل لاعب مكشوف يخرج خارج اللعب تماماً" (disappears/burned)
-            recyclePlayerCard(currentPitchItem.card);
+            recyclePlayerCard(currentPitchItem.card, newSlots, aiSlots, newHand, aiHand, nextPMoves, aiMovesLeft);
             addLog(`🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز [ ${idx + 1} ] (استبدال حاسم - استهلكت حركة واحدة). تم طرد اللاعب المكشوف خارج الملعب ونزول لاعب جديد مقلوباً.`, "warning");
           } else {
             // "ترجعه ليدك وتضع الجديد مقلوباً"
-            setPlayerHand((prev) => [...prev, currentPitchItem.card!]);
+            newHand = [...newHand, currentPitchItem.card!];
             addLog(`🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز [ ${idx + 1} ] (مبادلة جيدة - استهلكت حركة واحدة). تم استرجاع اللاعب المقلوب ليدك ونزول لاعب جديد مقلوباً.`, "success");
           }
         } else {
           addLog(`🔄 تم استبدال لاعب من الدكة بلاعب من الملعب بالمركز الخالي [ ${idx + 1} ] (تنزيل صامت - استهلكت حركة واحدة). وضع لاعب جديد مقلوباً.`, "info");
         }
 
-        setPlayerMovesLeft((prev) => Math.max(0, prev - 1));
+        setPlayerHand(newHand);
+        setPlayerMovesLeft(nextPMoves);
         setSelectedHandCardId(null);
+        setIsHandExpanded(false);
         SoundEffects.playCardDraw();
-        triggerCardInstantEffects(playerCard, true, "CardPlayed");
+        setTimeout(() => {
+          triggerCardInstantEffects(playerCard, true, "CardPlayed", newSlots, newHand, aiSlots, aiHand, nextPMoves, aiMovesLeft);
+        }, 50);
         syncMultiplayerIfActive();
         return;
       }
@@ -3030,7 +3350,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
       setPlayerSlots(newSlots);
       setDefenseMovesLeft((prev) => Math.max(0, prev - 1));
-      addLog(`🛡️ تم كشف المدافع [ ${clickedSlot.card.name} ] لصد الهجوم! (استهلكت حركة واحدة)`, "success");
+      // Immediate defender reveal is silenced; logged at confirmation.
       SoundEffects.playCardDraw();
       syncMultiplayerIfActive();
 
@@ -3045,8 +3365,8 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         });
         setTimeout(() => setCinematicEvent(null), 1800);
         setTimeout(() => {
-          triggerCardInstantEffects(clickedSlot.card!, true, "CardRevealed");
-          triggerCardInstantEffects(clickedSlot.card!, true, "CardPlayed");
+          triggerCardInstantEffects(clickedSlot.card!, true, "CardRevealed", newSlots, playerHand, aiSlots, aiHand, playerMovesLeft, aiMovesLeft);
+          triggerCardInstantEffects(clickedSlot.card!, true, "CardPlayed", newSlots, playerHand, aiSlots, aiHand, playerMovesLeft, aiMovesLeft);
         }, 50);
       }
     }
@@ -3160,7 +3480,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
       setPlayerSlots(newSlots);
       setPlayerMovesLeft((prev) => Math.max(0, prev - 1));
-      addLog(`⚔️ تم كشف المهاجم الداعم [ ${clickedSlot.card.name} ] لتعزيز الهجمة! (استهلكت حركة واحدة)`, "success");
+      // Immediate supporting striker reveal is silenced; logged at confirmation.
       SoundEffects.playCardDraw();
       syncMultiplayerIfActive();
 
@@ -3175,8 +3495,9 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         });
         setTimeout(() => setCinematicEvent(null), 1800);
         setTimeout(() => {
-          triggerCardInstantEffects(clickedSlot.card!, true, "CardRevealed");
-          triggerCardInstantEffects(clickedSlot.card!, true, "CardPlayed");
+          const nextPMoves = Math.max(0, playerMovesLeft - 1);
+          triggerCardInstantEffects(clickedSlot.card!, true, "CardRevealed", newSlots, playerHand, aiSlots, aiHand, nextPMoves, aiMovesLeft);
+          triggerCardInstantEffects(clickedSlot.card!, true, "CardPlayed", newSlots, playerHand, aiSlots, aiHand, nextPMoves, aiMovesLeft);
         }, 50);
       }
     }
@@ -3189,8 +3510,8 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     }
 
     if (phase === "warmup") {
-      // In Warmup only player slots are swappable if card selected
-      return !isAi && selectedHandCardId !== null;
+      // In Warmup allow swapping of pitch slots even without a hand card selected
+      return !isAi;
     }
 
     if (phase === "player_turn") {
@@ -3268,15 +3589,21 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     }
 
     // We must have selected a valid Face Down player slot
-    const targetIdx = selectedPitchSlotIdx !== null ? selectedPitchSlotIdx : playerSlots.findIndex((s) => s.card !== null && !s.isRevealed);
-    if (targetIdx === -1 || !playerSlots[targetIdx].card) {
+    if (selectedPitchSlotIdx === null) {
+      addLog("خطأ: يرجى تحديد كرت لاعب مقفول بملعبك أولاً لقيادة غارتك الهجومية!", "danger");
+      return;
+    }
+    const targetIdx = selectedPitchSlotIdx;
+    if (!playerSlots[targetIdx].card || playerSlots[targetIdx].isRevealed) {
       addLog("خطأ: يرجى تحديد كرت لاعب مقفول بملعبك أولاً لقيادة غارتك الهجومية!", "danger");
       return;
     }
 
+    const movesAfterDeclare = Math.max(0, playerMovesLeft - 1);
     const attacker = playerSlots[targetIdx].card!;
     setCurrentAttackerIdx(targetIdx);
     setIsPlayerAttacker(true);
+    setSelectedPitchSlotIdx(null);
 
     // 1. Flip attacker Face Up and reset slots' active attack reveal state
     const cleanPlayerSlots = playerSlots.map((s, idx) => ({
@@ -3302,12 +3629,12 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       });
       setTimeout(() => setCinematicEvent(null), 1800);
       setTimeout(() => {
-        triggerCardInstantEffects(attacker, true, "CardRevealed");
-        triggerCardInstantEffects(attacker, true, "CardPlayed");
-        triggerAttackStartedAbilities("player");
+        const res1 = triggerCardInstantEffects(attacker, true, "CardRevealed", cleanPlayerSlots, undefined, undefined, undefined, movesAfterDeclare, aiMovesLeft);
+        const res2 = triggerCardInstantEffects(attacker, true, "CardPlayed", res1.playerSlots, res1.playerHand, res1.aiSlots, res1.aiHand, res1.playerMoves, res1.aiMoves);
+        triggerAttackStartedAbilities("player", res2.playerSlots, res2.aiSlots, res2.playerHand, res2.aiHand, res2.playerMoves, res2.aiMoves);
       }, 50);
     } else {
-      triggerAttackStartedAbilities("player");
+      triggerAttackStartedAbilities("player", cleanPlayerSlots, undefined, undefined, undefined, movesAfterDeclare, aiMovesLeft);
     }
 
     // Reset AI slots revealedInAttack too
@@ -3322,7 +3649,6 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     setBoosterDeck((prev) => prev.slice(1));
 
     // Deduct 1 move
-    const movesAfterDeclare = Math.max(0, playerMovesLeft - 1);
     setPlayerMovesLeft(movesAfterDeclare);
     setPhase("attacking");
     setDefenseMovesLeft(maxMovesPerTurn);
@@ -3634,15 +3960,18 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         id: Math.random().toString(36).substr(2, 9),
         timestamp: getFormattedTime(),
         text,
-        type
+        type,
+        sender: "player",
+        round: completedRounds + 1,
+        createdAt: Date.now()
       });
     };
 
     // 1. Initial declare log
     addConfirmLog(`⚔️ تم بدء الهجمة بقيادة المهاجم [ ${attacker.name} ] بقوة هجوم أساسية ${attacker.attack}، وسحبت معزز [ ${currentBooster.text} ] (+${currentBooster.value})! (استهلكت حركة واحدة)`, "info");
     
-    // 2. Opponent study log
-    addConfirmLog(`🛡️ الخصم يدرس التمريرات ويتمااسك دفاعياً بانتظار تسديدتك الحاسمة ليرى تشكيلتك كاملة...`, "neutral");
+    // 2. Opponent study log (offline/AI mode)
+    addConfirmLog(`🛡️ الخصم يدرس التمريرات ويتمسك دفاعياً بانتظار تسديدتك الحاسمة...`, "neutral");
 
     // 3. Supporting strikers reveals (if any)
     playerSlots.forEach((slot, idx) => {
@@ -3660,9 +3989,8 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     playerActiveSpecial.forEach((spec) => {
       addConfirmLog(`✨ تم تعزيز الهجوم بكارت التكتيك [ ${spec.name} ]!`, "success");
     });
+    // Note: No duplicate "final shot" log — attacker is already named above and will appear in the summary.
 
-    // 6. Final shoot log
-    addConfirmLog(`⚽ تسديدة حاسمة: قام المهاجم [ ${attacker.name} ] بالتسديد بقوة ${attacker.attack}!`, "info");
 
     const updatedLogs = [...logs, ...confirmLogs];
 
@@ -3803,15 +4131,18 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         id: Math.random().toString(36).substr(2, 9),
         timestamp: getFormattedTime(),
         text,
-        type
+        type,
+        sender: "player",
+        round: completedRounds + 1,
+        createdAt: Date.now()
       });
     };
 
     // 1. Initial declare log
     addConfirmLog(`⚔️ تم بدء الهجمة بقيادة المهاجم [ ${attacker.name} ] بقوة هجوم أساسية ${attacker.attack}، وسحبت معزز [ ${currentBooster?.text} ] (+${currentBooster?.value})! (استهلكت حركة واحدة)`, "info");
     
-    // 2. Opponent study log
-    addConfirmLog(`🛡️ الخصم يدرس التمريرات ويتمااسك دفاعياً بانتظار تسديدتك الحاسمة ليرى تشكيلتك كاملة...`, "neutral");
+    // 2. Opponent study log (offline/AI mode)
+    addConfirmLog(`🛡️ الخصم يدرس التمريرات ويتمسك دفاعياً بانتظار تسديدتك الحاسمة...`, "neutral");
 
     // 3. Supporting strikers reveals (if any)
     playerSlots.forEach((slot, idx) => {
@@ -3829,6 +4160,8 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     playerActiveSpecial.forEach((spec) => {
       addConfirmLog(`✨ تم تعزيز الهجوم بكارت التكتيك [ ${spec.name} ]!`, "success");
     });
+    // Note: No duplicate "final shot" log — attacker is already named above and will appear in the summary.
+
 
     // Accumulate scores for final consolation modal
     const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentBooster, playerActiveSpecial, aiActiveSpecial, playerSlots as SlotData[], aiSlots as SlotData[], isPlayerAttacker);
@@ -4209,7 +4542,10 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
           text: logText,
-          type: standsAsMe ? ("success" as const) : ("neutral" as const)
+          type: standsAsMe ? ("success" as const) : ("neutral" as const),
+          sender: "system",
+          round: completedRounds + 1,
+          createdAt: Date.now()
         }
       ];
 
@@ -4319,7 +4655,10 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
             id: Math.random().toString(),
             timestamp: getFormattedTime(),
             text: `🏁 أنهيت جولة هجومك يدوياً بدون هجمات (جولة رقم ${nextRounds}). دور الخصم الآن!`,
-            type: "info" as const
+            type: "info" as const,
+            sender: "system",
+            round: nextRounds,
+            createdAt: Date.now()
           }
         ];
         setLogs(nextLogs);
@@ -4372,7 +4711,10 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
           text: "🏁 قمت بنقل دور اللعب والتوجيه يدوياً للمدرب الخصم.",
-          type: "info" as const
+          type: "info" as const,
+          sender: "system",
+          round: completedRounds + 1,
+          createdAt: Date.now()
         }
       ];
       setLogs(nextLogs);
@@ -4457,13 +4799,28 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     if (isAIExecutingRef.current) return;
     isAIExecutingRef.current = true;
 
+    // Clear existing AI timeouts just in case
+    if (aiTimeoutId1.current) {
+      clearTimeout(aiTimeoutId1.current);
+      aiTimeoutId1.current = null;
+    }
+    if (aiTimeoutId2.current) {
+      clearTimeout(aiTimeoutId2.current);
+      aiTimeoutId2.current = null;
+    }
+
     phaseRef.current = "ai_turn";
     setPhase("ai_turn");
     setAiMovesLeft(maxMovesPerTurn); // Reset AI moves count to the match setting!
     setAiCardsDrawnThisTurn(0); // Reset AI draws for this turn!
     addLog(`🏁 الآن ينتقل دور التوجيه واللعب للخصم: ${formatNameWithTitle(aiCoachName, "المدرب")}.`, "info");
 
-    setTimeout(() => {
+    aiTimeoutId1.current = setTimeout(() => {
+      aiTimeoutId1.current = null;
+      if (isHalfTimeBreakRef.current) {
+        isAIExecutingRef.current = false;
+        return;
+      }
       // AI Draws 2 cards
       let updatedAiDeck = [...aiDeck];
       let updatedAiSpecial = [...specialDeck];
@@ -4488,7 +4845,12 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
       addLog(`🤖 الخصم ${formatNameWithTitle(aiCoachName, "المدرب")} يسحب كارتين مميزين ليده التكتيكية.`, "neutral");
 
       // AI Moves execution
-      setTimeout(() => {
+      aiTimeoutId2.current = setTimeout(() => {
+        aiTimeoutId2.current = null;
+        if (isHalfTimeBreakRef.current) {
+          isAIExecutingRef.current = false;
+          return;
+        }
         let aiMoves = maxMovesPerTurn;
         const currentAiSlots = [...aiSlots];
 
@@ -4569,21 +4931,22 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
             
             // Recycle the old spent card!
             const oldCard = currentAiSlots[spentSlotIdx].card!;
-            if (oldCard) {
-              recycleAiCard(oldCard);
-            }
             
             currentAiSlots[spentSlotIdx] = { card: bestPlayer, isRevealed: false, spent: false };
             newAiHand = newAiHand.filter((c) => c.id !== bestPlayer.id);
             handPlayerCards = handPlayerCards.filter((c) => c.id !== bestPlayer.id);
             
+            if (oldCard) {
+              recycleAiCard(oldCard, playerSlots, currentAiSlots, playerHand, newAiHand, playerMovesLeft, aiMoves - 1);
+            }
+            
             aiMoves--;
             addLog(`🤖 🔄 تم استبدال لاعب من الدكة بلاعب من الملعب في المركز [ ${spentSlotIdx + 1} ] (استهلك حركة واحدة). تم استبدال لاعب مستهلك بلاعب جديد مقلوباً.`, "success");
             triggerAiHandCardPlayed(bestPlayer);
           } else {
-            // No empty or spent slots. Assess swapping any weak unrevealed card
+            // No empty or spent slots. Assess swapping any weak card (revealed or unrevealed)
             const weakSlotIdx = currentAiSlots.findIndex(
-              (s) => s.card !== null && !s.card.isLegend && s.card.attack < 6 && s.card.defense < 6 && !s.isRevealed
+              (s) => s.card !== null && !s.card.isLegend && s.card.attack < 6 && s.card.defense < 6
             );
             
             if (weakSlotIdx !== -1) {
@@ -4592,13 +4955,22 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
               const bestPlayer = handPlayerCards[0];
 
               if ((bestPlayer.attack + bestPlayer.defense) > (weakCard.attack + weakCard.defense) + 2) {
+                const wasRevealed = currentAiSlots[weakSlotIdx].isRevealed;
                 currentAiSlots[weakSlotIdx] = { card: bestPlayer, isRevealed: false, spent: false };
                 newAiHand = newAiHand.filter((c) => c.id !== bestPlayer.id);
-                newAiHand.push(weakCard); // Reclaimed back to hand
                 handPlayerCards = handPlayerCards.filter((c) => c.id !== bestPlayer.id);
                 
+                if (wasRevealed) {
+                  // If it was revealed, it is recycled out of the match
+                  recycleAiCard(weakCard, playerSlots, currentAiSlots, playerHand, newAiHand, playerMovesLeft, aiMoves - 1);
+                  addLog(`🤖 🔄 تم استبدال لاعب مكشوف بالملعب بالمركز [ ${weakSlotIdx + 1} ] (استبدال حاسم - استهلك حركة واحدة). تم طرد اللاعب المكشوف خارج الملعب ونزول لاعب جديد مقلوباً.`, "warning");
+                } else {
+                  // If it was unrevealed, it returns to hand
+                  newAiHand.push(weakCard);
+                  addLog(`🤖 🔄 تم استبدال لاعب من الدكة بلاعب من الملعب في المركز [ ${weakSlotIdx + 1} ] (استهلك حركة واحدة). تم مبادلة لاعب مقلوب بلاعب آخر من الدكة.`, "info");
+                }
+                
                 aiMoves--;
-                addLog(`🤖 🔄 تم استبدال لاعب من الدكة بلاعب من الملعب في المركز [ ${weakSlotIdx + 1} ] (استهلك حركة واحدة). تم مبادلة لاعب مقلوب بلاعب آخر من الدكة.`, "info");
                 triggerAiHandCardPlayed(bestPlayer);
               } else {
                 break;
@@ -4648,37 +5020,38 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
               const targetCard = { ...target.slot.card! };
               const durationTurns = action?.durationTurns || 2;
 
-              setPlayerSlots((prev) => {
-                const next = [...prev];
+              const newPlayerSlots = playerSlots.map((s, sIdx) => {
+                if (sIdx !== target.idx) return s;
                 if (actType === "DestroyCard" || actType === "ReturnToHand") {
-                  next[target.idx] = { card: null, isRevealed: false };
-                  if (actType === "DestroyCard") {
-                    recyclePlayerCard(targetCard);
-                  }
+                  return { card: null, isRevealed: false };
                 } else if (actType === "FreezeCard") {
-                  targetCard.frozen = true;
-                  targetCard.frozenTurnsLeft = durationTurns;
-                  next[target.idx] = { ...target.slot, card: targetCard };
+                  return { ...s, card: { ...targetCard, frozen: true, frozenTurnsLeft: durationTurns } };
                 } else if (actType === "SilenceCard") {
-                  targetCard.silenced = true;
-                  targetCard.silencedTurnsLeft = durationTurns;
-                  next[target.idx] = { ...target.slot, card: targetCard };
+                  return { ...s, card: { ...targetCard, silenced: true, silencedTurnsLeft: durationTurns } };
                 } else if (actType === "StunCard") {
-                  targetCard.stunned = true;
-                  targetCard.stunnedTurnsLeft = durationTurns;
-                  next[target.idx] = { ...target.slot, card: targetCard };
+                  return { ...s, card: { ...targetCard, stunned: true, stunnedTurnsLeft: durationTurns } };
                 } else if (actType === "RevealCard") {
-                  next[target.idx] = { ...target.slot, isRevealed: true, revealedInTurn: turnCount };
-                  setTimeout(() => {
-                    triggerCardInstantEffects(targetCard, true, "CardRevealed");
-                    triggerCardInstantEffects(targetCard, true, "CardPlayed");
-                  }, 50);
+                  return { ...s, isRevealed: true, revealedInTurn: turnCount };
                 }
-                return next;
+                return s;
               });
 
-              if (actType === "ReturnToHand") {
-                setPlayerHand((prev) => [...prev, targetCard]);
+              setPlayerSlots(newPlayerSlots);
+
+              let newPlayerHand = playerHand;
+              const nextAMoves = aiMoves - 1;
+              if (actType === "DestroyCard") {
+                recyclePlayerCard(targetCard, newPlayerSlots, currentAiSlots, playerHand, newAiHand, playerMovesLeft, nextAMoves);
+              } else if (actType === "ReturnToHand") {
+                newPlayerHand = [...playerHand, targetCard];
+                setPlayerHand(newPlayerHand);
+              }
+
+              if (actType === "RevealCard") {
+                setTimeout(() => {
+                  triggerCardInstantEffects(targetCard, true, "CardRevealed", newPlayerSlots, newPlayerHand, currentAiSlots, newAiHand, playerMovesLeft, nextAMoves);
+                  triggerCardInstantEffects(targetCard, true, "CardPlayed", newPlayerSlots, newPlayerHand, currentAiSlots, newAiHand, playerMovesLeft, nextAMoves);
+                }, 50);
               }
 
               // Remove card from AI hand
@@ -4764,6 +5137,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
           currentAiSlots[aiAttackSlotIdx].revealedInAttack = true;
           setAiSlots(currentAiSlots);
 
+          const nextAMoves = aiMoves - 1;
           if (aiAttacker.ability) {
             setCinematicEvent({
               type: "ability",
@@ -4775,12 +5149,12 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
             });
             setTimeout(() => setCinematicEvent(null), 1800);
             setTimeout(() => {
-              triggerCardInstantEffects(aiAttacker, false, "CardRevealed");
-              triggerCardInstantEffects(aiAttacker, false, "CardPlayed");
-              triggerAttackStartedAbilities("ai");
+              triggerCardInstantEffects(aiAttacker, false, "CardRevealed", playerSlots, playerHand, currentAiSlots, newAiHand, playerMovesLeft, nextAMoves);
+              triggerCardInstantEffects(aiAttacker, false, "CardPlayed", playerSlots, playerHand, currentAiSlots, newAiHand, playerMovesLeft, nextAMoves);
+              triggerAttackStartedAbilities("ai", playerSlots, currentAiSlots, playerHand, newAiHand, playerMovesLeft, nextAMoves);
             }, 50);
           } else {
-            triggerAttackStartedAbilities("ai");
+            triggerAttackStartedAbilities("ai", playerSlots, currentAiSlots, playerHand, newAiHand, playerMovesLeft, nextAMoves);
           }
 
           // Reset Player slots' revealedInAttack
@@ -4821,10 +5195,10 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
   };
 
   useEffect(() => {
-    if (phase === "ai_turn" && !isMultiplayer) {
+    if (phase === "ai_turn" && !isHalfTimeBreak && !isMultiplayer) {
       handleAIPlayTurn();
     }
-  }, [phase, isMultiplayer]);
+  }, [phase, isHalfTimeBreak, isMultiplayer]);
 
   // PLAY CONFIRM DEFENSIVE ACTION RESULT
   const handleConfirmDefense = () => {
@@ -4849,7 +5223,10 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         id: Math.random().toString(36).substr(2, 9),
         timestamp: getFormattedTime(),
         text,
-        type
+        type,
+        sender: "player",
+        round: completedRounds + 1,
+        createdAt: Date.now()
       });
     };
 
@@ -4888,7 +5265,10 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
           text: `🤖 الخصم يلعب كارت تكتيكي هجومي من يده: [ ${chosenSpecial.name} ] لتعزيز الهجوم! (استهلك حركة واحدة)`,
-          type: "danger" as const
+          type: "danger" as const,
+          sender: "ai",
+          round: completedRounds + 1,
+          createdAt: Date.now()
         });
 
         // Recalculate details
@@ -4927,7 +5307,10 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
         id: Math.random().toString(),
         timestamp: getFormattedTime(),
         text: formatGoalLog(false, finalAttack, finalDefense, attackDetail.breakdown, defDetail.breakdown, `${playerScore} - ${nextAiScore}`),
-        type: "danger" as const
+        type: "danger" as const,
+        sender: "system",
+        round: completedRounds + 1,
+        createdAt: Date.now()
       });
       recordRound("ai", finalAttack, finalDefense, currentBooster.value, currentBooster.text, true, attackerName, defenders, playerScore, nextAiScore);
       setPhase("resolution");
@@ -4968,7 +5351,10 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
           text: `🚨 الخصم يدفع بنجم الهجوم [ ${bestNominee.s.card!.name} ] لمضاعفة الضغط بـ +${bestNominee.s.card!.attack}! (استهلك حركة واحدة)`,
-          type: "warning" as const
+          type: "warning" as const,
+          sender: "ai",
+          round: completedRounds + 1,
+          createdAt: Date.now()
         });
         addLog(`🛡️ الخصم يواصل ضغطه هجومياً! يمكنك البقاء وإضافة مدافعين جدد ثم النقر على "تأكيد الدفاع" مجدداً لصد التعزيز!`, "info");
         
@@ -4987,7 +5373,10 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
           id: Math.random().toString(),
           timestamp: getFormattedTime(),
           text: formatBlockLog(false, finalAttack, finalDefense, attackDetail.breakdown, defDetail.breakdown, `${playerScore} - ${aiScore}`),
-          type: "success" as const
+          type: "success" as const,
+          sender: "system",
+          round: completedRounds + 1,
+          createdAt: Date.now()
         });
         recordRound("ai", finalAttack, finalDefense, currentBooster.value, currentBooster.text, false, attackerName, defenders, playerScore, aiScore);
         setPhase("resolution");
@@ -5048,6 +5437,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     setActiveTargetingCard(null);
     setShowConfetti(false);
     setLogs([]);
+    setLogsClearedTime(0);
     setTempPhaseLogs([]);
     setMatchRounds([]);
     setAiCardsDrawnThisTurn(0);
@@ -5070,7 +5460,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
     const forfeitMsg = `🏳️ انسحاب! قام الكابتن ${formatNameWithTitle(coachName, "الكابتن")} بالانسحاب من المباراة. يعتبر الفريق المنافس [${opponentTeamName}] هو الفائز بالعلامة الكاملة ${winningGoals} - ${playerScore}!`;
     
     const updatedLogs: ActionLog[] = [
-      { id: Date.now().toString(), timestamp: getFormattedTime(), text: forfeitMsg, type: "danger" },
+      { id: Date.now().toString(), timestamp: getFormattedTime(), text: forfeitMsg, type: "danger", sender: "system", round: completedRounds + 1, createdAt: Date.now() },
       ...logs
     ];
 
@@ -5272,95 +5662,17 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
               </div>
 
               {/* Box 2 (Actions Commentary Log) - Scrollable list strictly bounded with custom thin scrollbar */}
-              <div 
-                id="commentary_sidebar_panel"
-                className="border border-[#125827]/45 bg-[#050a06] rounded-xl flex-1 flex flex-col overflow-hidden p-2 shadow-sm min-h-[90px]"
-              >
-                <div className="text-white/40 text-[8.5px] font-bold font-sans border-b border-white/5 pb-0.5 mb-1 text-right flex items-center justify-between shrink-0">
-                  <span>⏱️ التعليق المباشر</span>
-                  <span>سجل حركات اللعب</span>
-                </div>
-                <div 
-                  ref={customLogContainerRef}
-                  className="flex-1 overflow-y-auto space-y-1 pr-1 scroll-smooth text-right direction-rtl select-text scrollbar-thin scrollbar-thumb-emerald-800/50"
-                >
-                  {logs.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-white/20 text-[8.5px] p-1.5 leading-relaxed">
-                      <span>جرى التحضير... ابدأ بتحريك خطوطك! 🏃‍♂️</span>
-                    </div>
-                  ) : (
-                    groupLogsByTurns(logs).map((group, groupIdx) => {
-                      let borderClass = "border-blue-500/15";
-                      let bgClass = "bg-linear-to-b from-blue-950/10 to-[#050a06]";
-                      let badgeColor = "bg-blue-500/5 text-blue-400 border-blue-500/15";
-                      let badgeText = "مباراة";
-                      let titleColor = "text-blue-400";
-                      
-                      if (group.type === "player") {
-                        borderClass = "border-emerald-500/20";
-                        bgClass = "bg-linear-to-b from-emerald-950/15 to-[#050a06]";
-                        badgeColor = "bg-emerald-500/5 text-emerald-400 border-emerald-500/15";
-                        badgeText = "دورك";
-                        titleColor = "text-emerald-400";
-                      } else if (group.type === "ai") {
-                        borderClass = "border-rose-500/15";
-                        bgClass = "bg-linear-to-b from-rose-950/10 to-[#050a06]";
-                        badgeColor = "bg-rose-500/5 text-rose-400 border-rose-500/15";
-                        badgeText = "الخصم";
-                        titleColor = "text-rose-400";
-                      }
-                      
-                      const groupTime = group.logs[0]?.timestamp || "";
-                      
-                      return (
-                        <div 
-                          key={`commentary-group-${groupIdx}`} 
-                          className={`border ${borderClass} ${bgClass} rounded-lg p-1 px-1.5 flex flex-col gap-1 transition-all mb-1.5`}
-                        >
-                          {/* Group Header */}
-                          <div className="flex items-center justify-between flex-row-reverse border-b border-white/5 pb-0.5 text-[8px] font-bold">
-                            <span className={`${titleColor}`}>{group.title}</span>
-                            <div className="flex items-center gap-1 flex-row">
-                              {groupTime && (
-                                <span className="text-slate-400 font-mono text-[7px] bg-white/5 px-1 py-0.2 rounded border border-white/5">
-                                  ⏱ {groupTime}
-                                </span>
-                              )}
-                              <span className={`px-1 py-0.2 rounded text-[7px] border font-sans font-black ${badgeColor}`}>
-                                {badgeText}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          {/* Group Logs */}
-                          <div className="flex flex-col gap-0.5">
-                            {group.logs.map((log) => {
-                              const isDetailed = log.text.includes("تفاصيل الحسبة الفنية:");
-                              if (isDetailed) {
-                                return renderDetailedLog(log);
-                              }
-                              
-                              const isDanger = log.type === "danger";
-                              const isSuccess = log.type === "success";
-                              const isWarning = log.type === "warning";
-                              let colorClass = "text-white/70";
-                              if (isDanger) colorClass = "text-[#ff6b6b]";
-                              else if (isSuccess) colorClass = "text-[#00ff88] font-semibold";
-                              else if (isWarning) colorClass = "text-amber-400";
-                              
-                              return (
-                                <div key={log.id} className="text-[8.5px] leading-snug border-b border-white/5 last:border-0 pb-0.5 last:pb-0 flex items-start gap-1 justify-end font-sans">
-                                  <span className={`${colorClass} flex-1 text-right whitespace-pre-line`}>{log.text}</span>
-                                  <span className="text-emerald-500/40 shrink-0 self-center text-[7px]">•</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+              <div className={`flex flex-col overflow-hidden transition-all duration-300 ${
+                showCommentary 
+                  ? "h-[36px] min-h-[36px]" 
+                  : "flex-1 min-h-0"
+              }`}>
+                <ActionTickerLog
+                  logs={logs.filter(log => !log.createdAt || log.createdAt > logsClearedTime)}
+                  onClear={() => setLogsClearedTime(Date.now())}
+                  isOffline={true}
+                  collapsed={showCommentary}
+                />
               </div>
 
               {/* Box 3 (Draw Decks & Substitutes controls) - Standard compact sizes exactly as requested */}
@@ -6115,26 +6427,37 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md select-none"
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black select-none overflow-hidden"
           >
+            {/* Background Looping Halftime Video */}
+            <video
+              src={`/vfx/Mid rest.mp4?v=${Date.now()}`}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover opacity-60 z-0"
+            />
+            
+            {/* Glassmorphic overlay HUD */}
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="bg-linear-to-b from-[#0b0f0c] to-black border border-emerald-500/30 rounded-3xl p-6 md:p-8 max-w-md w-full mx-4 text-center shadow-[0_0_50px_rgba(16,185,129,0.15)] flex flex-col items-center gap-4"
+              className="relative z-10 bg-black/50 backdrop-blur-lg border border-white/10 rounded-3xl p-6 md:p-8 max-w-md w-full mx-4 text-center shadow-[0_0_80px_rgba(0,0,0,0.8)] flex flex-col items-center gap-4"
               dir="rtl"
             >
-              <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/35 rounded-full flex items-center justify-center text-3xl shadow-inner animate-pulse">
+              <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center text-3xl shadow-inner animate-pulse">
                 ⏸️
               </div>
               <h2 className="text-xl md:text-2xl font-black text-white">استراحة الشوطين</h2>
-              <p className="text-[10px] md:text-xs text-slate-400 max-w-xs leading-relaxed">
+              <p className="text-[10px] md:text-xs text-slate-300 max-w-xs leading-relaxed">
                 انتهى الشوط الأول التكتيكي. خذ قسطاً من الراحة لترتيب أوراقك وخططك للشوط الثاني!
               </p>
 
               {/* Countdown Progress Circle/Bar */}
               <div className="flex flex-col items-center gap-1.5 bg-black/40 border border-white/5 px-4 py-2.5 rounded-2xl w-full">
-                <span className="text-[10px] text-slate-500 font-bold">الوقت المتبقي للاستراحة:</span>
+                <span className="text-[10px] text-slate-400 font-bold">الوقت المتبقي للاستراحة:</span>
                 <span className="text-2xl font-mono font-black text-emerald-400">
                   {halfTimeBreakLeft} ثانية
                 </span>
@@ -6146,7 +6469,7 @@ export default function GameOffline({ config, onReturnToMenu }: GameOfflineProps
                   SoundEffects.playCardDraw();
                   setIsHandExpanded(true);
                 }}
-                className="w-full py-2.5 bg-linear-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-extrabold rounded-xl text-xs cursor-pointer shadow-md transition-all flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl text-xs cursor-pointer shadow-lg transition-all flex items-center justify-center gap-2"
               >
                 <span>📋</span>
                 <span>عرض التشكيلة والبدلاء</span>

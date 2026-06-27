@@ -1059,6 +1059,19 @@ export const supabaseService = {
       return new Date().toLocaleTimeString("en-US", { hour12: false });
     };
 
+    const pushRefereeLog = (gs: any, text: string, type: "info" | "success" | "warning" | "danger" | "neutral" = "neutral", sender: "host" | "opponent" | "system" = "system", indexOffset = 0) => {
+      if (!gs.logs) gs.logs = [];
+      gs.logs.push({
+        id: Math.random().toString(),
+        timestamp: getFormattedTime(),
+        text,
+        type,
+        sender,
+        round: (gs.completed_rounds || 0) + 1,
+        createdAt: Date.now() + indexOffset
+      });
+    };
+
     const recordRoundHistory = (
       gs: any,
       activeRole: "host" | "opponent",
@@ -1237,6 +1250,9 @@ export const supabaseService = {
             timestamp: getFormattedTime(),
             text: `صافرة بداية مباراة الأونلاين! كود الغرفة: ${body.roomId} ⚽`,
             type: "success",
+            sender: "system",
+            round: 1,
+            createdAt: Date.now()
           },
         ],
         version: 1,
@@ -1280,18 +1296,8 @@ export const supabaseService = {
         gameState.current_turn_auth_id = kickoffAuthId;
         updates.current_turn_auth_id = kickoffAuthId;
 
-        gameState.logs.push({
-          id: Math.random().toString(),
-          timestamp: getFormattedTime(),
-          text: `🏁 صافرة البداية — المباراة بين ${room.host_name} و ${room.opponent_name || "الخصم"}!`,
-          type: "info",
-        });
-        gameState.logs.push({
-          id: Math.random().toString(),
-          timestamp: getFormattedTime(),
-          text: `تم تأكيد خطة الفريقين! ركلة البداية مع ${hostStarts ? room.host_name : (room.opponent_name || "الخصم")}! ⚽🏁`,
-          type: "success",
-        });
+        pushRefereeLog(gameState, `🏁 صافرة البداية — المباراة بين ${room.host_name} و ${room.opponent_name || "الخصم"}!`, "info", "system", 0);
+        pushRefereeLog(gameState, `تم تأكيد خطة الفريقين! ركلة البداية مع ${hostStarts ? room.host_name : (room.opponent_name || "الخصم")}! ⚽🏁`, "success", "system", 1);
 
         updates.status = "playing";
         updates.current_turn = startRole;
@@ -1305,6 +1311,9 @@ export const supabaseService = {
       const details = body.details || {};
 
       if (actionType === "resolve_attack") {
+        if (gameState.is_shot_declared) {
+          return { success: false, error: "Shot already declared." };
+        }
         gameState.is_shot_declared = true;
         if (details.playerSlots) {
           if (body.role === "host") {
@@ -1408,10 +1417,9 @@ export const supabaseService = {
                 executeCardInstantEffects(gameState, slot.card, scoringRole, "GoalScored", room.host_name, room.opponent_name || "الخصم");
               }
             });
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: formatRefereeGoalLog(
+            pushRefereeLog(
+              gameState,
+              formatRefereeGoalLog(
                 isHostAttacker ? 'host' : 'opponent',
                 attackPower,
                 defensePower,
@@ -1421,8 +1429,9 @@ export const supabaseService = {
                 room.host_name,
                 room.opponent_name || 'الخصم'
               ),
-              type: "success",
-            });
+              "success",
+              "system"
+            );
 
             const attackerCardName = isHostAttacker
               ? (gameState.host_slots[gameState.current_attacker_idx]?.card?.name || "مهاجم")
@@ -1460,12 +1469,12 @@ export const supabaseService = {
             gameState.active_specials_opponent = filterSpecials(opponentSpecials);
           } else {
             if (canReinforce) {
-              gameState.logs.push({
-                id: Math.random().toString(),
-                timestamp: getFormattedTime(),
-                text: `🧤 إنقاذ! صد دفاع ${defenderName} (${defensePower}) محاولة تسديد ${attackerName} (${attackPower})! وبما أنه متبقي لدى المهاجم حركات وكروت مقلوبة، يستمر النزاع!`,
-                type: "neutral",
-              });
+              pushRefereeLog(
+                gameState,
+                `🧤 إنقاذ! صد دفاع ${defenderName} (${defensePower}) محاولة تسديد ${attackerName} (${attackPower})! وبما أنه متبقي لدى المهاجم حركات وكروت مقلوبة، يستمر النزاع!`,
+                "neutral",
+                "system"
+              );
 
               const lockSlots = (slots: any[]) => slots.map((s: any) => {
                 if (s && s.revealedInAttack) {
@@ -1482,10 +1491,9 @@ export const supabaseService = {
               gameState.active_specials_host = hostSpecials;
               gameState.active_specials_opponent = opponentSpecials;
             } else {
-              gameState.logs.push({
-                id: Math.random().toString(),
-                timestamp: getFormattedTime(),
-                text: formatRefereeBlockLog(
+              pushRefereeLog(
+                gameState,
+                formatRefereeBlockLog(
                   isHostAttacker ? 'host' : 'opponent',
                   attackPower,
                   defensePower,
@@ -1495,8 +1503,9 @@ export const supabaseService = {
                   room.host_name,
                   room.opponent_name || 'الخصم'
                 ),
-                type: "neutral",
-              });
+                "neutral",
+                "system"
+              );
 
               const attackerCardName = isHostAttacker
                 ? (gameState.host_slots[gameState.current_attacker_idx]?.card?.name || "مهاجم")
@@ -1537,6 +1546,9 @@ export const supabaseService = {
         }
       } 
       else if (actionType === "confirm_defense") {
+        if (!gameState.is_shot_declared) {
+          return { success: false, error: "No active shot to defend." };
+        }
         const defenderRole = body.role;
         const attackerRole = defenderRole === "host" ? "opponent" : "host";
 
@@ -1550,23 +1562,26 @@ export const supabaseService = {
         const isHostAttacker = gameState.attacker_role === "host";
 
         // Log each defender's confirmation individually
+        let indexOffset = 0;
         defenderSlots.forEach((slot: any) => {
           if (slot && slot.card && slot.isRevealed && slot.revealedInAttack) {
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: `🧱 تم تأكيد الدفاع باللاعب [ ${slot.card.name} ] لصد الهجوم بقوة دفاع +${slot.card.defense}!`,
-              type: "info",
-            });
+            pushRefereeLog(
+              gameState,
+              `🧱 تم تأكيد الدفاع باللاعب [ ${slot.card.name} ] لصد الهجوم بقوة دفاع +${slot.card.defense}!`,
+              "info",
+              defenderRole,
+              indexOffset++
+            );
           }
         });
         (details.specials || []).forEach((spec: any) => {
-          gameState.logs.push({
-            id: Math.random().toString(),
-            timestamp: getFormattedTime(),
-            text: `🛡️ تم تعزيز الدفاع بكارت التكتيك [ ${spec.name} ]!`,
-            type: "success",
-          });
+          pushRefereeLog(
+            gameState,
+            `🛡️ تم تعزيز الدفاع بكارت التكتيك [ ${spec.name} ]!`,
+            "success",
+            defenderRole,
+            indexOffset++
+          );
         });
 
         const attackDetail = getDetailedCalculation(
@@ -1622,10 +1637,9 @@ export const supabaseService = {
               executeCardInstantEffects(gameState, slot.card, scoringRole, "GoalScored", room.host_name, room.opponent_name || "الخصم");
             }
           });
-          gameState.logs.push({
-            id: Math.random().toString(),
-            timestamp: getFormattedTime(),
-            text: formatRefereeGoalLog(
+          pushRefereeLog(
+            gameState,
+            formatRefereeGoalLog(
               isHostAttacker ? 'host' : 'opponent',
               attackPower,
               defensePower,
@@ -1635,8 +1649,9 @@ export const supabaseService = {
               room.host_name,
               room.opponent_name || 'الخصم'
             ),
-            type: "success",
-          });
+            "success",
+            "system"
+          );
 
           const attackerCardName = isHostAttacker
             ? (gameState.host_slots[gameState.current_attacker_idx]?.card?.name || "مهاجم")
@@ -1674,12 +1689,12 @@ export const supabaseService = {
           gameState.active_specials_opponent = filterSpecials(opponentSpecials);
         } else {
           if (canReinforce) {
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: `🧤 إنقاذ! صد دفاع ${defenderName} (${defensePower}) محاولة تسديد ${attackerName} (${attackPower})! وبما أنه متبقي لدى المهاجم حركات وكروت مقلوبة، يستمر النزاع!`,
-              type: "neutral",
-            });
+            pushRefereeLog(
+              gameState,
+              `🧤 إنقاذ! صد دفاع ${defenderName} (${defensePower}) محاولة تسديد ${attackerName} (${attackPower})! وبما أنه متبقي لدى المهاجم حركات وكروت مقلوبة، يستمر النزاع!`,
+              "neutral",
+              "system"
+            );
 
             const lockSlots = (slots: any[]) => slots.map((s: any) => {
               if (s && s.revealedInAttack) {
@@ -1696,10 +1711,9 @@ export const supabaseService = {
             gameState.active_specials_host = hostSpecials;
             gameState.active_specials_opponent = opponentSpecials;
           } else {
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: formatRefereeBlockLog(
+            pushRefereeLog(
+              gameState,
+              formatRefereeBlockLog(
                 isHostAttacker ? 'host' : 'opponent',
                 attackPower,
                 defensePower,
@@ -1709,8 +1723,9 @@ export const supabaseService = {
                 room.host_name,
                 room.opponent_name || 'الخصم'
               ),
-              type: "neutral",
-            });
+              "neutral",
+              "system"
+            );
 
             const attackerCardName = isHostAttacker
               ? (gameState.host_slots[gameState.current_attacker_idx]?.card?.name || "مهاجم")
@@ -1795,24 +1810,8 @@ export const supabaseService = {
         }
       });
 
-      gameState.logs.push({
-        id: Math.random().toString(),
-        timestamp: getFormattedTime(),
-        text: `🏁 جولة جديدة — بداية دور ${nextTurn === "host" ? room.host_name : (room.opponent_name || "الخصم")}!`,
-        type: "info",
-      });
-      gameState.logs.push({
-        id: Math.random().toString(),
-        timestamp: getFormattedTime(),
-        text: `🏁 جولة جديدة — بداية دور ${nextTurn === "host" ? room.host_name : (room.opponent_name || "الخصم")}!`,
-        type: "info",
-      });
-      gameState.logs.push({
-        id: Math.random().toString(),
-        timestamp: getFormattedTime(),
-        text: `⏳ انتهى دور ${isHost ? room.host_name : (room.opponent_name || "الخصم")}! الدور الآن للطرف الآخر لشن الخطط!`,
-        type: "info",
-      });
+      pushRefereeLog(gameState, `⏳ انتهى دور ${isHost ? room.host_name : (room.opponent_name || "الخصم")}! الدور الآن للطرف الآخر لشن الخطط!`, "info", "system", 0);
+      pushRefereeLog(gameState, `🏁 جولة جديدة — بداية دور ${nextTurn === "host" ? room.host_name : (room.opponent_name || "الخصم")}!`, "info", "system", 1);
 
       const nextTurnAuthId = nextTurn === "host" ? room.host_id : room.opponent_id;
       gameState.current_turn_auth_id = nextTurnAuthId;
@@ -1887,14 +1886,6 @@ export const supabaseService = {
           gameState.opponent_slots = slots;
         }
 
-        const drawnCount = slots.filter((s: any) => s && s.card !== null).length;
-        const playerName = isHost ? room.host_name : (room.opponent_name || "الخصم");
-        gameState.logs.push({
-          id: Math.random().toString(),
-          timestamp: getFormattedTime(),
-          text: `[التسخين] قام ${playerName} بسحب اللاعب مقلوباً بمركز الملعب [ ${emptyIdx + 1} ]. (سحب ${drawnCount}/${gameState.room_settings?.initialCardsCount ?? 5})`,
-          type: "success",
-        });
       } else {
         hand.push(drawnCard);
         if (isHost) {
@@ -1905,12 +1896,12 @@ export const supabaseService = {
 
         gameState.cards_drawn = (gameState.cards_drawn || 0) + 1;
         const playerName = isHost ? room.host_name : (room.opponent_name || "الخصم");
-        gameState.logs.push({
-          id: Math.random().toString(),
-          timestamp: getFormattedTime(),
-          text: `لقد سحب ${playerName} كارت ${deckType === "player" ? "لاعب جديد" : "تكتيك إضافي"} ليده.`,
-          type: "info",
-        });
+        pushRefereeLog(
+          gameState,
+          `لقد سحب ${playerName} كارت ${deckType === "player" ? "لاعب جديد" : "تكتيك إضافي"} ليده.`,
+          "info",
+          body.role as any
+        );
       }
 
       gameState.last_updated_by = "referee";
@@ -1998,12 +1989,12 @@ export const supabaseService = {
         if (targetSlot && targetSlot.card) {
           if (targetSlot.isRevealed) {
             recycleCard(gameState, targetSlot.card, isHost);
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: `🔄 تم استبدال لاعب بالمركز [ ${targetSlotIdx + 1} ]. تم استبعاد اللاعب المكشوف ونزول لاعب جديد مقلوباً.`,
-              type: "warning",
-            });
+            pushRefereeLog(
+              gameState,
+              `🔄 تم استبدال لاعب بالمركز [ ${targetSlotIdx + 1} ]. تم استبعاد اللاعب المكشوف ونزول لاعب جديد مقلوباً.`,
+              "info",
+              body.role as any
+            );
           } else {
             const currentHand = isHost ? gameState.host_hand : gameState.opponent_hand;
             currentHand.push(targetSlot.card);
@@ -2012,20 +2003,20 @@ export const supabaseService = {
             } else {
               gameState.opponent_hand = currentHand;
             }
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: `🔄 تم استبدال لاعب بالمركز [ ${targetSlotIdx + 1} ]. تم استرجاع اللاعب المقلوب ونزول لاعب جديد مقلوباً.`,
-              type: "success",
-            });
+            pushRefereeLog(
+              gameState,
+              `🔄 تم استبدال لاعب بالمركز [ ${targetSlotIdx + 1} ]. تم استرجاع اللاعب المقلوب ونزول لاعب جديد مقلوباً.`,
+              "success",
+              body.role as any
+            );
           }
         } else {
-          gameState.logs.push({
-            id: Math.random().toString(),
-            timestamp: getFormattedTime(),
-            text: `🔄 تم تنزيل لاعب بالمركز الخالي [ ${targetSlotIdx + 1} ]. وضع لاعب جديد مقلوباً.`,
-            type: "info",
-          });
+          pushRefereeLog(
+            gameState,
+            `🔄 تم تنزيل لاعب بالمركز الخالي [ ${targetSlotIdx + 1} ]. وضع لاعب جديد مقلوباً.`,
+            "info",
+            body.role as any
+          );
         }
 
         slots[targetSlotIdx] = { card: card, isRevealed: false };
@@ -2069,74 +2060,74 @@ export const supabaseService = {
           if (actType === "DestroyCard") {
             targetSlots[targetSlotIdx] = { card: null, isRevealed: false };
             recycleCard(gameState, targetCard, !isEnemySideTarget);
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: `🟥 كارت أحمر: قام ${playerName} بطرد واستبعاد اللاعب [ ${targetCard.name} ] خارج الملعب تماماً!`,
-              type: "danger",
-            });
+            pushRefereeLog(
+              gameState,
+              `🟥 كارت أحمر: قام ${playerName} بطرد واستبعاد اللاعب [ ${targetCard.name} ] خارج الملعب تماماً!`,
+              "danger",
+              body.role as any
+            );
           } else if (actType === "ReturnToHand") {
             targetSlots[targetSlotIdx] = { card: null, isRevealed: false };
             const sideHand = isEnemySideTarget
               ? (isHost ? gameState.opponent_hand : gameState.host_hand)
               : (isHost ? gameState.host_hand : gameState.opponent_hand);
             sideHand.push(targetCard);
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: `🔄 سحب لليد: قام ${playerName} بإرجاع اللاعب [ ${targetCard.name} ] ليد المدرب.`,
-              type: "success",
-            });
+            pushRefereeLog(
+              gameState,
+              `🔄 سحب لليد: قام ${playerName} بإرجاع اللاعب [ ${targetCard.name} ] ليد المدرب.`,
+              "success",
+              body.role as any
+            );
           } else if (actType === "FreezeCard") {
             targetCard.frozen = true;
             targetCard.frozenTurnsLeft = durationTurns;
             targetSlots[targetSlotIdx] = { ...targetSlot, card: targetCard };
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: `❄️ تجميد: قام ${playerName} بتجميد لاعب [ ${targetCard.name} ] لمدة ${durationTurns} أدوار!`,
-              type: "neutral",
-            });
+            pushRefereeLog(
+              gameState,
+              `❄️ تجميد: قام ${playerName} بتجميد لاعب [ ${targetCard.name} ] لمدة ${durationTurns} أدوار!`,
+              "neutral",
+              body.role as any
+            );
           } else if (actType === "SilenceCard") {
             targetCard.silenced = true;
             targetCard.silencedTurnsLeft = durationTurns;
             targetSlots[targetSlotIdx] = { ...targetSlot, card: targetCard };
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: `🔇 كتم القدرة: قام ${playerName} بإلغاء قدرة لاعب [ ${targetCard.name} ] لمدة ${durationTurns} أدوار!`,
-              type: "neutral",
-            });
+            pushRefereeLog(
+              gameState,
+              `🔇 كتم القدرة: قام ${playerName} بإلغاء قدرة لاعب [ ${targetCard.name} ] لمدة ${durationTurns} أدوار!`,
+              "neutral",
+              body.role as any
+            );
           } else if (actType === "StunCard") {
             targetCard.stunned = true;
             targetCard.stunnedTurnsLeft = durationTurns;
             targetSlots[targetSlotIdx] = { ...targetSlot, card: targetCard };
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: `💫 صدمة تكتيكية: قام ${playerName} بتعطيل لاعب [ ${targetCard.name} ] لمدة ${durationTurns} أدوار!`,
-              type: "neutral",
-            });
+            pushRefereeLog(
+              gameState,
+              `💫 صدمة تكتيكية: قام ${playerName} بتعطيل لاعب [ ${targetCard.name} ] لمدة ${durationTurns} أدوار!`,
+              "neutral",
+              body.role as any
+            );
           } else if (actType === "RevealCard") {
             targetSlot.isRevealed = true;
             targetSlot.revealedInTurn = gameState.turn_count || 1;
             targetSlot.revealedByAbility = true;
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: `👁️ كشف: قام ${playerName} بقلب لاعب [ ${targetCard.name} ] ليصبح مكشوفاً.`,
-              type: "success",
-            });
+            pushRefereeLog(
+              gameState,
+              `👁️ كشف: قام ${playerName} بقلب لاعب [ ${targetCard.name} ] ليصبح مكشوفاً.`,
+              "success",
+              body.role as any
+            );
             executeCardInstantEffects(gameState, targetCard, !isEnemySideTarget ? (body.role as any) : (isHost ? "opponent" : "host"), "CardRevealed", hostName, opponentName);
             executeCardInstantEffects(gameState, targetCard, !isEnemySideTarget ? (body.role as any) : (isHost ? "opponent" : "host"), "CardPlayed", hostName, opponentName);
           } else if (actType === "HideCard") {
             targetSlot.isRevealed = false;
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: `🎭 إخفاء: قام ${playerName} بقلب لاعب [ ${targetCard.name} ] ليصبح مقلوباً.`,
-              type: "success",
-            });
+            pushRefereeLog(
+              gameState,
+              `🎭 إخفاء: قام ${playerName} بقلب لاعب [ ${targetCard.name} ] ليصبح مقلوباً.`,
+              "success",
+              body.role as any
+            );
           }
 
           if (isEnemySideTarget) {
@@ -2175,12 +2166,12 @@ export const supabaseService = {
             } else {
               gameState.opponent_hand = nextHand;
             }
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: `🏆 تم تفعيل ${card.name}! استهلكت حركة واحدة وسحبت ورقتين فوراً من الباقات.`,
-              type: "success",
-            });
+            pushRefereeLog(
+              gameState,
+              `🏆 تم تفعيل ${card.name}! استهلكت حركة واحدة وسحبت ورقتين فوراً من الباقات.`,
+              "success",
+              body.role as any
+            );
           } else {
             const activeSpecials = isHost ? (gameState.active_specials_host || []) : (gameState.active_specials_opponent || []);
             activeSpecials.push(card);
@@ -2201,15 +2192,13 @@ export const supabaseService = {
             let phaseName = "";
             if (gameState.phase === "player_turn") {
               phaseName = "تكتيك عام";
-            } else if (gameState.phase === "attacking" || gameState.phase === "ai_attacking") {
-              phaseName = isMyTurn ? "تعزيز الهجوم" : "تعزيز الدفاع";
+              pushRefereeLog(
+                gameState,
+                `✨ ${phaseName}: قام ${playerName} بتفعيل كارت التكتيك [ ${card.name} ]!`,
+                "success",
+                body.role as any
+              );
             }
-            gameState.logs.push({
-              id: Math.random().toString(),
-              timestamp: getFormattedTime(),
-              text: `✨ ${phaseName}: قام ${playerName} بتفعيل كارت التكتيك [ ${card.name} ]!`,
-              type: "success",
-            });
           }
         }
 
@@ -2273,12 +2262,7 @@ export const supabaseService = {
           }
         }
         
-        gameState.logs.push({
-          id: Math.random().toString(),
-          timestamp: getFormattedTime(),
-          text: `🎭 إلغاء كشف: قام ${playerName} بإعادة قلب كارت اللاعب [ ${slot.card.name} ] ليكون مقلوباً ومخفياً.`,
-          type: "neutral",
-        });
+        // Hiding is an intermediate selection step, so we do not log it.
       } 
       else {
         if (slot.isRevealed) {
@@ -2317,24 +2301,12 @@ export const supabaseService = {
 
         if (isDefending) {
           gameState.defense_moves_left = Math.max(0, (gameState.defense_moves_left || 0) - 1);
-          gameState.logs.push({
-            id: Math.random().toString(),
-            timestamp: getFormattedTime(),
-            text: `🛡️ تم كشف المدافع [ ${slot.card.name} ] لصد الهجوم! (استهلكت حركة واحدة)`,
-            type: "success",
-          });
         } else {
           if (isHost) {
             gameState.host_moves = Math.max(0, (gameState.host_moves || 0) - 1);
           } else {
             gameState.opponent_moves = Math.max(0, (gameState.opponent_moves || 0) - 1);
           }
-          gameState.logs.push({
-            id: Math.random().toString(),
-            timestamp: getFormattedTime(),
-            text: `⚔️ تم كشف المهاجم الداعم [ ${slot.card.name} ] لتعزيز الهجمة! (استهلكت حركة واحدة)`,
-            type: "success",
-          });
         }
 
         executeCardInstantEffects(gameState, slot.card, body.role as any, "CardRevealed", hostName, opponentName);

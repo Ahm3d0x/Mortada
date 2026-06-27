@@ -9,6 +9,18 @@ export interface SlotData {
   spent?: boolean;
 }
 
+const pushRulesEngineLog = (gs: any, text: string, type: "info" | "success" | "warning" | "danger" | "neutral" = "neutral", isHost: boolean) => {
+  if (!gs.logs) gs.logs = [];
+  gs.logs.push({
+    id: Math.random().toString(),
+    timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
+    text,
+    type,
+    sender: isHost ? "host" : "opponent",
+    round: (gs.completed_rounds || 0) + 1,
+    createdAt: Date.now()
+  });
+};
 
 export const VALID_TRIGGERS = [
   "CardPlayed",
@@ -1068,12 +1080,7 @@ export function executeCardInstantEffects(
         gs.host_moves = Math.max(0, (gs.host_moves || 0) - val);
       }
       if (!gs.logs) gs.logs = [];
-      gs.logs.push({
-        id: Math.random().toString(),
-        timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
-        text: `📉 قدرة [ ${card.name} ]: تم تقليص حركات الخصم بـ -${val}!`,
-        type: isHost ? "success" : "danger"
-      });
+      pushRulesEngineLog(gs, `📉 قدرة [ ${card.name} ]: تم تقليص حركات الخصم بـ -${val}!`, isHost ? "success" : "danger", isHost);
     }
 
     // 2. Draw Cards
@@ -1109,12 +1116,7 @@ export function executeCardInstantEffects(
           gs.host_slots = (gs.host_slots || []).map((s: any) => s?.card ? { ...s, card: modifyStats(s.card, true) } : s);
           gs.opponent_slots = (gs.opponent_slots || []).map((s: any) => s?.card ? { ...s, card: modifyStats(s.card, false) } : s);
           if (!gs.logs) gs.logs = [];
-          gs.logs.push({
-            id: Math.random().toString(),
-            timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
-            text: `⚡ تعديل طاقات: تم تعديل طاقة [ ${act.stat === "attack" ? "الهجوم" : "الدفاع"} ] للكروت المستهدفة بفعل [ ${card.name} ]!`,
-            type: isHost ? "success" : "danger"
-          });
+          pushRulesEngineLog(gs, `⚡ تعديل طاقات: تم تعديل طاقة [ ${act.stat === "attack" ? "الهجوم" : "الدفاع"} ] للكروت المستهدفة بفعل [ ${card.name} ]!`, isHost ? "success" : "danger", isHost);
         }
       } else if (act.stat === "moves") {
         const isTargetHost = (act.target === "Self" && isHost) ||
@@ -1160,12 +1162,7 @@ export function executeCardInstantEffects(
         }
 
         if (!gs.logs) gs.logs = [];
-        gs.logs.push({
-          id: Math.random().toString(),
-          timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
-          text: `💸 سرقة: [ ${ownerName} ] قام بسرقة كارت من يد [ ${enemyName} ]!`,
-          type: isHost ? "success" : "danger"
-        });
+        pushRulesEngineLog(gs, `💸 سرقة: [ ${ownerName} ] قام بسرقة كارت من يد [ ${enemyName} ]!`, isHost ? "success" : "danger", isHost);
       }
     }
 
@@ -1196,12 +1193,7 @@ export function executeCardInstantEffects(
         gs.host_slots = (gs.host_slots || []).map((s: any) => s?.card ? { ...s, card: copyStats(s.card) } : s);
         gs.opponent_slots = (gs.opponent_slots || []).map((s: any) => s?.card ? { ...s, card: copyStats(s.card) } : s);
         if (!gs.logs) gs.logs = [];
-        gs.logs.push({
-          id: Math.random().toString(),
-          timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
-          text: `👥 قدرة الكارت: نسخ الكارت [ ${card.name} ] طاقات وقدرات [ ${bestCard.name} ]!`,
-          type: isHost ? "success" : "danger"
-        });
+        pushRulesEngineLog(gs, `👥 قدرة الكارت: نسخ الكارت [ ${card.name} ] طاقات وقدرات [ ${bestCard.name} ]!`, isHost ? "success" : "danger", isHost);
       }
     }
 
@@ -1218,12 +1210,7 @@ export function executeCardInstantEffects(
           slots[i2] = { ...slots[i2], card: temp };
         }
         if (!gs.logs) gs.logs = [];
-        gs.logs.push({
-          id: Math.random().toString(),
-          timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
-          text: `🔄 قدرة [ ${card.name} ]: تم تبديل مراكز اللاعبين بالملعب بشكل عشوائي!`,
-          type: isHost ? "success" : "danger"
-        });
+        pushRulesEngineLog(gs, `🔄 قدرة [ ${card.name} ]: تم تبديل مراكز اللاعبين بالملعب بشكل عشوائي!`, isHost ? "success" : "danger", isHost);
       }
     }
 
@@ -1295,23 +1282,13 @@ export function executeCardInstantEffects(
       gs.host_slots = (gs.host_slots || []).map((s: any) => modifyStatus(s, true));
       gs.opponent_slots = (gs.opponent_slots || []).map((s: any) => modifyStatus(s, false));
       if (!gs.logs) gs.logs = [];
-      gs.logs.push({
-        id: Math.random().toString(),
-        timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
-        text: `⚡ تطبيق تأثير [ ${act.type} ] على الكروت المستهدفة بالملعب!`,
-        type: isHost ? "success" : "danger"
-      });
+      pushRulesEngineLog(gs, `⚡ تطبيق تأثير [ ${act.type} ] على الكروت المستهدفة بالملعب!`, isHost ? "success" : "danger", isHost);
     }
   });
 
   if (movesAdded > 0) {
     if (!gs.logs) gs.logs = [];
-    gs.logs.push({
-      id: Math.random().toString(),
-      timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
-      text: `⚡ قدرة الأسطورة [ ${card.name} ] : تم إضافة +${movesAdded} حركات تكتيكية!`,
-      type: isHost ? "success" : "danger"
-    });
+    pushRulesEngineLog(gs, `⚡ قدرة الأسطورة [ ${card.name} ] : تم إضافة +${movesAdded} حركات تكتيكية!`, isHost ? "success" : "danger", isHost);
   }
 
   // Draw cards if any requested by DrawCard
@@ -1342,22 +1319,12 @@ export function executeCardInstantEffects(
         gs.opponent_hand = [...(gs.opponent_hand || []), ...added];
         
         if (!gs.logs) gs.logs = [];
-        gs.logs.push({
-          id: Math.random().toString(),
-          timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
-          text: `⚡ قدرة الأسطورة [ ${card.name} ] (الخصم): قام الخصم بسحب عدد ${added.length} كروت تلقائياً ليده!`,
-          type: "danger"
-        });
+        pushRulesEngineLog(gs, `⚡ قدرة الأسطورة [ ${card.name} ] (الخصم): قام الخصم بسحب عدد ${added.length} كروت تلقائياً ليده!`, "danger", isHost);
       }
     } else {
       gs.extra_draws_limit = (gs.extra_draws_limit || 0) + cardsDrawn;
       if (!gs.logs) gs.logs = [];
-      gs.logs.push({
-        id: Math.random().toString(),
-        timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
-        text: `⚡ قدرة الأسطورة [ ${card.name} ]: تم زيادة فرصة السحب المتاحة لـ [ ${ownerName} ] بمقدار +${cardsDrawn} كروت إضافية اختيارياً! يمكنه سحبها الآن من المجموعات.`,
-        type: isHost ? "success" : "danger"
-      });
+      pushRulesEngineLog(gs, `⚡ قدرة الأسطورة [ ${card.name} ]: تم زيادة فرصة السحب المتاحة لـ [ ${ownerName} ] بمقدار +${cardsDrawn} كروت إضافية اختيارياً! يمكنه سحبها الآن من المجموعات.`, isHost ? "success" : "danger", isHost);
     }
   }
 

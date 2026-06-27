@@ -164,6 +164,10 @@ export interface ActionLog {
   timestamp: string; // Format like 12:30:15
   text: string;
   type: "info" | "success" | "warning" | "danger" | "neutral";
+  sender?: "host" | "opponent" | "player" | "ai" | "system";
+  localOnly?: boolean;
+  round?: number;
+  createdAt?: number;
 }
 
 export interface Coach {

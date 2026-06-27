@@ -5,9 +5,9 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Shield, Sparkles, Trophy, Users, Zap, Bot, ArrowRight, ArrowLeft, BookOpen, Settings, PlayCircle, Layers, Volume2, VolumeX, ChevronUp, ChevronDown, Lock, User, Image, Coins, LogOut, Globe } from "lucide-react";
+import { Shield, Sparkles, Trophy, Users, Zap, Bot, ArrowRight, ArrowLeft, BookOpen, Settings, PlayCircle, Layers, Volume2, VolumeX, ChevronUp, ChevronDown, Lock, User, Image, Coins, LogOut, Globe, Search, X, Star, Swords, ShieldCheck, ChevronLeft, SlidersHorizontal } from "lucide-react";
 import { SoundEffects } from "../utils/sounds";
-import { getPackages } from "../admin/adminStore";
+import { getPackages, getCardsByPackage, getSpecialCardsByPackage } from "../admin/adminStore";
 import { isSupabaseConfigured, MatchRoom } from "../lib/supabase";
 import { gameAuth } from "../lib/gameAuth";
 import Multilobby from "./Multilobby";
@@ -360,6 +360,20 @@ export default function WelcomeMenu({ onStartGame, onStartMultiplayerGame, isMob
   const [playerSearch, setPlayerSearch] = useState("");
   const [specialSearch, setSpecialSearch] = useState("");
 
+  // Decks Tab: Browse & Detail State
+  const [deckFilterType, setDeckFilterType] = useState<"all" | "player" | "special">("all");
+  const [deckSearch, setDeckSearch] = useState("");
+  const [selectedPackageForDetail, setSelectedPackageForDetail] = useState<any | null>(null);
+  const [packageDetailCards, setPackageDetailCards] = useState<any[]>([]);
+  const [packageDetailLoading, setPackageDetailLoading] = useState(false);
+  const [cardDetailPlayer, setCardDetailPlayer] = useState<any | null>(null);
+  // Inner player filters (inside package detail)
+  const [innerPlayerSearch, setInnerPlayerSearch] = useState("");
+  const [innerRoleFilter, setInnerRoleFilter] = useState<"all" | "attacker" | "midfielder" | "defender" | "goalkeeper">("all");
+  const [innerLegendFilter, setInnerLegendFilter] = useState<"all" | "legend" | "normal">("all");
+  const [innerSortBy, setInnerSortBy] = useState<"name" | "attack" | "defense">("name");
+
+
   useEffect(() => {
     const selectDefaults = (pkgs: any[]) => {
       const firstPlayer = pkgs.find(p => p.type === "player" || !p.type);
@@ -621,6 +635,32 @@ export default function WelcomeMenu({ onStartGame, onStartMultiplayerGame, isMob
       totalRounds,
       halfTimeBreakDuration
     );
+  };
+  // Decks Tab: Open a package and fetch its cards
+  const handleOpenPackage = async (pkg: any) => {
+    SoundEffects.playCardDraw();
+    setSelectedPackageForDetail(pkg);
+    setPackageDetailCards([]);
+    setCardDetailPlayer(null);
+    setInnerPlayerSearch("");
+    setInnerRoleFilter("all");
+    setInnerLegendFilter("all");
+    setInnerSortBy("name");
+
+    if (!isSupabaseConfigured) return;
+
+    setPackageDetailLoading(true);
+    try {
+      const isTactical = pkg.type === "special" || pkg.type === "tactical";
+      const cards = isTactical
+        ? await getSpecialCardsByPackage(pkg.id)
+        : await getCardsByPackage(pkg.id);
+      setPackageDetailCards(cards);
+    } catch (e) {
+      console.error("Failed to load package cards:", e);
+    } finally {
+      setPackageDetailLoading(false);
+    }
   };
 
   const triggerFullscreen = () => {
@@ -1482,40 +1522,475 @@ export default function WelcomeMenu({ onStartGame, onStartMultiplayerGame, isMob
           )}
 
           {/* TAB 3: DECKS GALLERY */}
-          {activeTab === "decks" && (
-            <motion.div
-              key="tab_decks"
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              className="w-full space-y-3"
-            >
-              <div className="text-right border-b border-white/5 pb-1.5">
-                <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">🎴 مستودع الباقات والتشكيلات</span>
-                <h3 className="text-sm font-black text-white">قائمة باقات اللعب المتوفرة بالنظام</h3>
-              </div>
+          {activeTab === "decks" && (() => {
+            // Filtered packages for the grid
+            const filteredPackages = dbPackages.filter(pkg => {
+              const matchType = deckFilterType === "all" || pkg.type === deckFilterType || (deckFilterType === "special" && pkg.type === "tactical");
+              const matchSearch = !deckSearch || pkg.name.toLowerCase().includes(deckSearch.toLowerCase()) || (pkg.description || "").toLowerCase().includes(deckSearch.toLowerCase());
+              return matchType && matchSearch;
+            });
 
-              <div className="max-h-[140px] overflow-y-auto space-y-1.5 pr-1 text-right scrollbar-thin scrollbar-thumb-emerald-500/20">
-                {dbPackages.length === 0 ? (
-                  <div className="p-3 bg-black/35 rounded-xl border border-white/5 text-[9px] text-slate-500 text-center leading-normal">
-                    لا يوجد باقات مخصصة حالياً بجدول Supabase. تعمل اللعبة بالباقات والتشكيلات المدمجة محلياً (30 لاعب أسطورة وعادي مع 6 كروت تكتيكية).
-                  </div>
-                ) : (
-                  dbPackages.map((pkg) => (
-                    <div key={pkg.id} className="p-2 bg-black/45 border border-white/5 rounded-lg flex items-center justify-between gap-2">
-                      <span className="text-[8px] text-slate-500">
-                        {pkg.type === "special" ? "باقة تكتيكية خاصة" : "باقة لاعبين"}
-                      </span>
-                      <div className="text-right">
-                        <span className="font-extrabold text-[10px] block text-emerald-400">{pkg.name} {pkg.image}</span>
-                        <span className="text-[8px] text-slate-500 block truncate max-w-[180px]">{pkg.description || "لا يوجد وصف لهذه الباقة"}</span>
+            // Filtered cards inside package detail
+            const isTacticalPkg = selectedPackageForDetail?.type === "special" || selectedPackageForDetail?.type === "tactical";
+            const filteredDetailCards = packageDetailCards.filter(card => {
+              if (isTacticalPkg) {
+                return !innerPlayerSearch || card.name?.toLowerCase().includes(innerPlayerSearch.toLowerCase());
+              }
+              const matchSearch = !innerPlayerSearch || card.name?.toLowerCase().includes(innerPlayerSearch.toLowerCase());
+              const matchRole = innerRoleFilter === "all" || card.role === innerRoleFilter;
+              const matchLegend = innerLegendFilter === "all" || (innerLegendFilter === "legend" ? card.is_legend : !card.is_legend);
+              return matchSearch && matchRole && matchLegend;
+            }).sort((a: any, b: any) => {
+              if (isTacticalPkg) return 0;
+              if (innerSortBy === "attack") return (b.attack || 0) - (a.attack || 0);
+              if (innerSortBy === "defense") return (b.defense || 0) - (a.defense || 0);
+              return (a.name || "").localeCompare(b.name || "", "ar");
+            });
+
+            const triggerTypeText = (t: string) => {
+              const m: Record<string, string> = { CardPlayed: "عند لعب الكارت", CardRevealed: "عند الكشف", AttackStarted: "عند بدء الهجوم", DefenseStarted: "عند بدء الدفاع", GoalScored: "عند تسجيل هدف", TurnStarted: "في بداية الدور", TurnEnded: "في نهاية الدور", CardDestroyed: "عند تدمير الكارت" };
+              return m[t] || t;
+            };
+            const actionTypeText = (t: string) => {
+              const m: Record<string, string> = { AddStat: "يُضيف", RemoveStat: "يُقلل", MultiplyStat: "يُضاعف", DestroyCard: "يُدمر", DrawCard: "يسحب كارت", SwapCard: "يبدّل", StealCard: "يسرق", FreezeCard: "يجمّد", SilenceCard: "يصمت", StunCard: "يصعق", BlockAttack: "يصد الهجوم", BlockDefense: "يصد الدفاع", BlockAbility: "يعطّل القدرة" };
+              return m[t] || t;
+            };
+            const targetText = (t: string) => {
+              const m: Record<string, string> = { Self: "نفسه", Allies: "الحلفاء", Enemies: "الأعداء", SelectedCard: "الكارت المختار", SelectedEnemy: "العدو المختار", CurrentAttack: "الهجمة الحالية", CurrentDefense: "الدفاع الحالي", All: "الجميع" };
+              return m[t] || t;
+            };
+            const durationText = (d: string) => {
+              const m: Record<string, string> = { Instant: "فوري", CurrentPhase: "هذه المرحلة", CurrentTurn: "هذا الدور", NextTurn: "الدور القادم", XTurns: "عدة أدوار", WhileFaceUp: "طالما مكشوف", WhileAlive: "طالما حي", UntilTrigger: "حتى الشرط" };
+              return m[d] || d;
+            };
+            const roleLabel = (r: string) => {
+              const m: Record<string, string> = { attacker: "⚡ مهاجم", midfielder: "🎯 خط وسط", defender: "🛡️ مدافع", goalkeeper: "🧤 حارس" };
+              return m[r] || r;
+            };
+
+            return (
+              <AnimatePresence mode="wait">
+                {/* ─── PLAYER ABILITY MODAL ─── */}
+                {cardDetailPlayer && (
+                  <motion.div
+                    key="card_modal_backdrop"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+                    onClick={() => setCardDetailPlayer(null)}
+                  >
+                    <motion.div
+                      key="card_modal"
+                      initial={{ opacity: 0, scale: 0.85, y: 20 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.85, y: 20 }}
+                      transition={{ type: "spring", stiffness: 350, damping: 28 }}
+                      className="w-full max-w-[320px] bg-gradient-to-b from-[#0d1f14] to-[#060f0a] border border-emerald-500/30 rounded-2xl shadow-2xl overflow-hidden"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      {/* Modal header */}
+                      <div className={`p-4 text-right relative ${cardDetailPlayer.is_legend ? "bg-gradient-to-l from-amber-500/20 to-transparent" : "bg-gradient-to-l from-emerald-500/15 to-transparent"}`}>
+                        <button
+                          type="button"
+                          onClick={() => setCardDetailPlayer(null)}
+                          className="absolute top-3 left-3 w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer transition-all"
+                        >
+                          <X className="w-3.5 h-3.5 text-slate-400" />
+                        </button>
+                        <div className="flex items-center gap-3 flex-row-reverse">
+                          {/* Avatar / Image */}
+                          <div className={`w-14 h-14 rounded-xl border-2 flex items-center justify-center text-3xl shadow-lg shrink-0 ${cardDetailPlayer.is_legend ? "border-amber-500/60 bg-amber-500/10" : "border-emerald-500/40 bg-emerald-500/10"}`}>
+                            {cardDetailPlayer.image_url ? (
+                              <img src={cardDetailPlayer.image_url} alt={cardDetailPlayer.name} className="w-full h-full object-cover rounded-xl" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                            ) : (
+                              <span>{cardDetailPlayer.avatar || cardDetailPlayer.icon || "⚽"}</span>
+                            )}
+                          </div>
+                          <div className="flex-1 text-right">
+                            {cardDetailPlayer.is_legend && (
+                              <span className="text-[8px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-full px-2 py-0.5 mb-1 inline-block">👑 أسطورة</span>
+                            )}
+                            <h3 className="text-sm font-black text-white leading-tight">{cardDetailPlayer.name}</h3>
+                            <p className="text-[9px] text-slate-400 mt-0.5">
+                              {cardDetailPlayer.team || cardDetailPlayer.effect_arabic || ""}
+                              {cardDetailPlayer.role && <span className="mr-1 text-slate-500">· {roleLabel(cardDetailPlayer.role)}</span>}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Stats row (player cards only) */}
+                        {!isTacticalPkg && (
+                          <div className="flex gap-2 mt-3 flex-row-reverse">
+                            <div className="flex-1 bg-red-500/10 border border-red-500/20 rounded-lg p-2 text-center">
+                              <div className="text-xs font-black text-red-400">{cardDetailPlayer.attack ?? "-"}</div>
+                              <div className="text-[8px] text-slate-500">هجوم ⚔️</div>
+                            </div>
+                            <div className="flex-1 bg-blue-500/10 border border-blue-500/20 rounded-lg p-2 text-center">
+                              <div className="text-xs font-black text-blue-400">{cardDetailPlayer.defense ?? "-"}</div>
+                              <div className="text-[8px] text-slate-500">دفاع 🛡️</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Description */}
+                      {cardDetailPlayer.description && (
+                        <div className="px-4 pt-3 pb-0 text-right">
+                          <p className="text-[9px] text-slate-400 leading-relaxed">{cardDetailPlayer.description}</p>
+                        </div>
+                      )}
+
+                      {/* Ability block */}
+                      {cardDetailPlayer.ability ? (
+                        <div className="p-4 text-right space-y-2">
+                          <div className="flex items-center gap-1.5 flex-row-reverse mb-2">
+                            <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+                            <span className="text-[10px] font-black text-violet-300">القدرة الخاصة</span>
+                          </div>
+
+                          {/* Trigger */}
+                          <div className="bg-violet-500/8 border border-violet-500/20 rounded-lg p-2">
+                            <span className="text-[8px] text-slate-500 block mb-0.5">شرط التفعيل:</span>
+                            <span className="text-[9px] font-bold text-violet-300">{triggerTypeText(cardDetailPlayer.ability.trigger)}</span>
+                          </div>
+
+                          {/* Conditions */}
+                          {cardDetailPlayer.ability.conditions && cardDetailPlayer.ability.conditions.length > 0 && (
+                            <div className="bg-amber-500/8 border border-amber-500/20 rounded-lg p-2">
+                              <span className="text-[8px] text-slate-500 block mb-1">الشروط:</span>
+                              {cardDetailPlayer.ability.conditions.map((cond: any, i: number) => (
+                                <div key={i} className="text-[9px] text-amber-300 font-medium">{cond.type}{cond.value ? `: ${cond.value}` : ""}</div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Actions */}
+                          {cardDetailPlayer.ability.actions && cardDetailPlayer.ability.actions.length > 0 && (
+                            <div className="bg-emerald-500/8 border border-emerald-500/20 rounded-lg p-2 space-y-1">
+                              <span className="text-[8px] text-slate-500 block mb-1">الإجراءات:</span>
+                              {cardDetailPlayer.ability.actions.map((act: any, i: number) => (
+                                <div key={i} className="text-[9px] text-emerald-300 flex items-center gap-1.5 flex-row-reverse">
+                                  <span className="text-[8px] text-slate-500 shrink-0">{durationText(act.duration || "")}</span>
+                                  <span className="flex-1 text-right">{actionTypeText(act.type)} {act.value != null ? `${act.value > 0 ? "+" : ""}${act.value}` : ""} {act.stat ? `(${act.stat})` : ""} → {targetText(act.target)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Max uses */}
+                          {cardDetailPlayer.ability.maxUses && (
+                            <div className="text-[8px] text-slate-500 text-right">الاستخدام الأقصى: {cardDetailPlayer.ability.maxUses} مرة</div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="px-4 pb-4 pt-2 text-right">
+                          <p className="text-[9px] text-slate-600 italic">لا توجد قدرة خاصة لهذا الكارت</p>
+                        </div>
+                      )}
+                    </motion.div>
+                  </motion.div>
+                )}
+
+                {/* ─── PACKAGE DETAIL VIEW ─── */}
+                {selectedPackageForDetail ? (
+                  <motion.div
+                    key="pkg_detail"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="w-full space-y-3"
+                  >
+                    {/* Header with back button */}
+                    <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+                      <button
+                        type="button"
+                        onClick={() => { SoundEffects.playCardDraw(); setSelectedPackageForDetail(null); setPackageDetailCards([]); setCardDetailPlayer(null); }}
+                        className="w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 border border-white/10 flex items-center justify-center cursor-pointer transition-all shrink-0"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5 text-slate-400" />
+                      </button>
+                      <div className="flex-1 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <div>
+                            <h3 className="text-xs font-black text-white leading-tight">{selectedPackageForDetail.name}</h3>
+                            <p className="text-[8px] text-slate-500">{selectedPackageForDetail.description || "لا يوجد وصف"}</p>
+                          </div>
+                          <span className="text-2xl shrink-0">{selectedPackageForDetail.image || "📦"}</span>
+                        </div>
                       </div>
                     </div>
-                  ))
+
+                    {/* Inner filters (player packages only) */}
+                    {!isTacticalPkg && (
+                      <div className="space-y-1.5">
+                        {/* Search */}
+                        <div className="relative">
+                          <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500 pointer-events-none" />
+                          <input
+                            type="text"
+                            value={innerPlayerSearch}
+                            onChange={e => setInnerPlayerSearch(e.target.value)}
+                            placeholder="ابحث عن لاعب..."
+                            className="w-full bg-black/40 border border-white/8 rounded-lg pr-8 pl-3 py-1.5 text-[9px] text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/40 text-right"
+                            dir="rtl"
+                          />
+                        </div>
+
+                        {/* Role filter chips */}
+                        <div className="flex gap-1 overflow-x-auto scrollbar-none flex-row-reverse">
+                          {(["all", "attacker", "midfielder", "defender", "goalkeeper"] as const).map(r => (
+                            <button
+                              key={r}
+                              type="button"
+                              onClick={() => setInnerRoleFilter(r)}
+                              className={`shrink-0 px-2 py-0.5 rounded-full text-[8px] font-black border cursor-pointer transition-all ${innerRoleFilter === r ? "bg-emerald-500 border-emerald-400 text-black" : "bg-black/40 border-white/10 text-slate-400 hover:text-white"}`}
+                            >
+                              {r === "all" ? "الكل" : r === "attacker" ? "⚡ مهاجم" : r === "midfielder" ? "🎯 وسط" : r === "defender" ? "🛡️ مدافع" : "🧤 حارس"}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Legend & Sort row */}
+                        <div className="flex items-center gap-2 flex-row-reverse">
+                          <div className="flex gap-1 flex-row-reverse">
+                            {(["all", "legend", "normal"] as const).map(l => (
+                              <button
+                                key={l}
+                                type="button"
+                                onClick={() => setInnerLegendFilter(l)}
+                                className={`shrink-0 px-2 py-0.5 rounded-full text-[8px] font-black border cursor-pointer transition-all ${innerLegendFilter === l ? "bg-amber-500 border-amber-400 text-black" : "bg-black/40 border-white/10 text-slate-400 hover:text-white"}`}
+                              >
+                                {l === "all" ? "الكل" : l === "legend" ? "👑 أساطير" : "عاديون"}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex-1" />
+                          <select
+                            value={innerSortBy}
+                            onChange={e => setInnerSortBy(e.target.value as any)}
+                            className="bg-black/40 border border-white/8 rounded-lg px-2 py-0.5 text-[8px] text-slate-400 focus:outline-none cursor-pointer"
+                            dir="rtl"
+                          >
+                            <option value="name">ترتيب: الاسم</option>
+                            <option value="attack">ترتيب: الهجوم</option>
+                            <option value="defense">ترتيب: الدفاع</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tactical search */}
+                    {isTacticalPkg && (
+                      <div className="relative">
+                        <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={innerPlayerSearch}
+                          onChange={e => setInnerPlayerSearch(e.target.value)}
+                          placeholder="ابحث عن كارت تكتيكي..."
+                          className="w-full bg-black/40 border border-white/8 rounded-lg pr-8 pl-3 py-1.5 text-[9px] text-white placeholder-slate-600 focus:outline-none focus:border-amber-500/40 text-right"
+                          dir="rtl"
+                        />
+                      </div>
+                    )}
+
+                    {/* Cards list */}
+                    <div className="max-h-[220px] overflow-y-auto space-y-1.5 pr-0.5 scrollbar-thin scrollbar-thumb-emerald-500/20">
+                      {packageDetailLoading ? (
+                        <div className="py-6 flex flex-col items-center gap-2">
+                          <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                          <span className="text-[9px] text-slate-500">جاري تحميل البيانات...</span>
+                        </div>
+                      ) : !isSupabaseConfigured ? (
+                        <div className="py-4 text-center text-[9px] text-slate-500 bg-black/30 rounded-xl border border-white/5 px-3">
+                          <span className="block text-2xl mb-1">🔌</span>
+                          الاتصال بـ Supabase غير مُفعّل. لا يمكن تحميل بيانات اللاعبين.
+                        </div>
+                      ) : filteredDetailCards.length === 0 ? (
+                        <div className="py-4 text-center text-[9px] text-slate-500 bg-black/30 rounded-xl border border-white/5 px-3">
+                          {packageDetailCards.length === 0 ? (
+                            <><span className="block text-2xl mb-1">📭</span>لا يوجد {isTacticalPkg ? "كروت تكتيكية" : "لاعبون"} في هذه الباقة بعد</>
+                          ) : (
+                            <><span className="block text-2xl mb-1">🔍</span>لا توجد نتائج للبحث الحالي</>
+                          )}
+                        </div>
+                      ) : (
+                        filteredDetailCards.map((card: any) => (
+                          <motion.button
+                            key={card.id}
+                            type="button"
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            onClick={() => { SoundEffects.playCardDraw(); setCardDetailPlayer(card); }}
+                            className={`w-full p-2 rounded-xl border flex items-center gap-2.5 flex-row-reverse text-right cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99] ${
+                              card.is_legend
+                                ? "bg-amber-500/5 border-amber-500/25 hover:border-amber-500/50 hover:bg-amber-500/10"
+                                : isTacticalPkg
+                                  ? "bg-violet-500/5 border-violet-500/20 hover:border-violet-500/40 hover:bg-violet-500/8"
+                                  : "bg-black/30 border-white/8 hover:border-emerald-500/30 hover:bg-white/3"
+                            }`}
+                          >
+                            {/* Avatar */}
+                            <div className={`w-9 h-9 rounded-lg border flex items-center justify-center text-lg shrink-0 overflow-hidden ${card.is_legend ? "border-amber-500/40 bg-amber-500/10" : isTacticalPkg ? "border-violet-500/30 bg-violet-500/10" : "border-white/10 bg-white/5"}`}>
+                              {card.image_url ? (
+                                <img src={card.image_url} alt={card.name} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                              ) : (
+                                <span>{card.avatar || card.icon || "⚽"}</span>
+                              )}
+                            </div>
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1 flex-row-reverse">
+                                {card.is_legend && <span className="text-[7px] text-amber-400 font-black shrink-0">👑</span>}
+                                {card.ability && <Sparkles className="w-2.5 h-2.5 text-violet-400 shrink-0" />}
+                                <span className="text-[10px] font-black text-white truncate">{card.name}</span>
+                              </div>
+                              <div className="text-[8px] text-slate-500 truncate">
+                                {isTacticalPkg ? (card.effect_arabic || card.description || "") : `${card.team || ""} ${card.role ? "· " + roleLabel(card.role) : ""}`}
+                              </div>
+                            </div>
+
+                            {/* Stats (player only) */}
+                            {!isTacticalPkg && (
+                              <div className="flex gap-1 shrink-0">
+                                <div className="text-center">
+                                  <div className="text-[9px] font-black text-red-400">{card.attack}</div>
+                                  <div className="text-[7px] text-slate-600">⚔️</div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-[9px] font-black text-blue-400">{card.defense}</div>
+                                  <div className="text-[7px] text-slate-600">🛡️</div>
+                                </div>
+                              </div>
+                            )}
+                          </motion.button>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Cards count footer */}
+                    {!packageDetailLoading && filteredDetailCards.length > 0 && (
+                      <div className="text-center text-[8px] text-slate-600">
+                        {filteredDetailCards.length} {isTacticalPkg ? "كارت تكتيكي" : "لاعب"} · اضغط على أي {isTacticalPkg ? "كارت" : "لاعب"} لعرض تفاصيله
+                      </div>
+                    )}
+                  </motion.div>
+                ) : (
+                  /* ─── PACKAGES GRID VIEW ─── */
+                  <motion.div
+                    key="tab_decks"
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    className="w-full space-y-2.5"
+                  >
+                    {/* Title */}
+                    <div className="text-right border-b border-white/5 pb-1.5">
+                      <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">🎴 مستودع الباقات والتشكيلات</span>
+                      <h3 className="text-sm font-black text-white">اضغط على باقة لاستعراض محتواها</h3>
+                    </div>
+
+                    {/* Filter & Search bar */}
+                    <div className="space-y-1.5">
+                      {/* Type filter */}
+                      <div className="flex gap-1.5 flex-row-reverse">
+                        {(["all", "player", "special"] as const).map(t => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => { SoundEffects.playCardDraw(); setDeckFilterType(t); }}
+                            className={`flex-1 py-1 rounded-lg text-[8.5px] font-black border cursor-pointer transition-all ${deckFilterType === t ? (t === "special" ? "bg-amber-500 border-amber-400 text-black" : "bg-emerald-500 border-emerald-400 text-black") : "bg-black/40 border-white/10 text-slate-400 hover:text-white"}`}
+                          >
+                            {t === "all" ? "🔎 الكل" : t === "player" ? "⚽ لاعبين" : "🃏 تكتيكية"}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Search */}
+                      <div className="relative">
+                        <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={deckSearch}
+                          onChange={e => setDeckSearch(e.target.value)}
+                          placeholder="ابحث عن باقة..."
+                          className="w-full bg-black/40 border border-white/8 rounded-lg pr-8 pl-3 py-1.5 text-[9px] text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/40 text-right"
+                          dir="rtl"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Package grid */}
+                    <div className="max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-emerald-500/20">
+                      {filteredPackages.length === 0 ? (
+                        <div className="py-5 text-center text-[9px] text-slate-500 bg-black/30 rounded-xl border border-white/5 px-3">
+                          <span className="block text-2xl mb-1">📭</span>
+                          {dbPackages.length === 0
+                            ? "لا توجد باقات متوفرة. تعمل اللعبة بالباقات المدمجة محلياً."
+                            : "لا توجد نتائج مطابقة للبحث"}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2 p-0.5">
+                          {filteredPackages.map((pkg: any) => {
+                            const isPlayerPkg = pkg.type === "player" || !pkg.type;
+                            const isTactical = pkg.type === "special" || pkg.type === "tactical";
+                            return (
+                              <motion.button
+                                key={pkg.id}
+                                type="button"
+                                whileHover={{ scale: 1.03 }}
+                                whileTap={{ scale: 0.97 }}
+                                onClick={() => handleOpenPackage(pkg)}
+                                className={`relative overflow-hidden rounded-xl border text-right cursor-pointer transition-all p-3 flex flex-col gap-1 min-h-[80px] ${
+                                  isTactical
+                                    ? "bg-gradient-to-br from-amber-500/10 to-black/60 border-amber-500/30 hover:border-amber-500/60"
+                                    : "bg-gradient-to-br from-emerald-500/8 to-black/60 border-emerald-500/20 hover:border-emerald-500/50"
+                                }`}
+                              >
+                                {/* Type badge */}
+                                <div className="flex items-center justify-between flex-row-reverse mb-0.5">
+                                  <span className="text-[7px] font-black uppercase tracking-wider opacity-60">
+                                    {isTactical ? "🃏 تكتيكية" : "⚽ لاعبين"}
+                                  </span>
+                                </div>
+
+                                {/* Emoji / Image */}
+                                <div className="text-3xl leading-none text-center my-1">{pkg.image || (isTactical ? "🃏" : "📦")}</div>
+
+                                {/* Package name */}
+                                <div className={`text-[9px] font-black leading-tight text-right ${isTactical ? "text-amber-200" : "text-emerald-200"}`}>
+                                  {pkg.name}
+                                </div>
+
+                                {/* Description snippet */}
+                                {pkg.description && (
+                                  <div className="text-[7.5px] text-slate-500 leading-tight line-clamp-2 text-right">
+                                    {pkg.description}
+                                  </div>
+                                )}
+
+                                {/* Explore arrow */}
+                                <div className={`absolute bottom-2 left-2 w-5 h-5 rounded-full flex items-center justify-center border ${isTactical ? "border-amber-500/30 text-amber-400" : "border-emerald-500/30 text-emerald-400"}`}>
+                                  <ChevronLeft className="w-3 h-3" />
+                                </div>
+                              </motion.button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer hint */}
+                    <div className="text-center text-[8px] text-slate-600">
+                      {filteredPackages.length} باقة متوفرة · اضغط على باقة لعرض لاعبيها
+                    </div>
+                  </motion.div>
                 )}
-              </div>
-            </motion.div>
-          )}
+              </AnimatePresence>
+            );
+          })()}
+
 
           {/* TAB 4: RULES BOOK */}
           {activeTab === "rules" && (
@@ -2094,6 +2569,18 @@ export default function WelcomeMenu({ onStartGame, onStartMultiplayerGame, isMob
                 >
                   <span>{isMuted ? "الصوت مكتوم 🔇" : "الصوت مفعل 🔊"}</span>
                 </button>
+
+                {/* Admin Dashboard Button - Only shown for admin users */}
+                {currentUser?.role === "admin" && (
+                  <a
+                    href="#/admin"
+                    className="w-full py-1.5 bg-purple-600/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-300 hover:text-purple-100 font-black text-[10px] rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all duration-150 transform hover:scale-[1.01] active:scale-[0.99]"
+                    title="لوحة إدارة النظام"
+                  >
+                    <span>⚙️</span>
+                    <span>لوحة تحكم الإدارة 🔒</span>
+                  </a>
+                )}
 
                 {/* Logout Button */}
                 <button

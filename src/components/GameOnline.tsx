@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Trophy, Swords, Shield, RefreshCw, Sparkles, HelpCircle, Volume2, Gamepad2, Timer, AlertCircle } from "lucide-react";
 
@@ -790,11 +790,30 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   const [tempPhaseLogs, setTempPhaseLogs] = useState<ActionLog[]>([]);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const [showCommentary, setShowCommentary] = useState(false);
+  const [logsClearedTime, setLogsClearedTime] = useState<number>(0);
   const [showTips, setShowTips] = useState(false);
 
   // Goal explosion cinematic state
   const [celebrationMessage, setCelebrationMessage] = useState<{ title: string; subtitle: string; isGoal: boolean } | null>(null);
-  const [activeVfxVideo, setActiveVfxVideo] = useState<{ src: string; callback?: () => void } | null>(null);
+  const [activeVfxVideo, setActiveVfxVideo] = useState<{ src: string; callback?: () => void } | null>({
+    src: `/vfx/room to club transtion.mp4?v=${Date.now()}`
+  });
+  const [vfxQueue, setVfxQueue] = useState<{ src: string; callback?: () => void }[]>([]);
+  const transitionPrevPhaseRef = useRef<GamePhase>("menu");
+
+  const triggerVfx = useCallback((src: string, callback?: () => void) => {
+    const busterSrc = `${src}?v=${Date.now()}`;
+    setVfxQueue((prev) => [...prev, { src: busterSrc, callback }]);
+  }, []);
+
+  useEffect(() => {
+    if (!activeVfxVideo && vfxQueue.length > 0) {
+      const nextVfx = vfxQueue[0];
+      setActiveVfxVideo(nextVfx);
+      setVfxQueue((prev) => prev.slice(1));
+    }
+  }, [activeVfxVideo, vfxQueue]);
+
   const lastPlayedCelebrationKeyRef = useRef<string | null>(null);
   const prevSlotsRef = useRef<{ player: any[]; ai: any[] } | null>(null);
   const prevSpecialsRef = useRef<{ player: any[]; ai: any[] } | null>(null);
@@ -911,6 +930,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     }, delay);
   };
 
+
   useEffect(() => {
     if (customLogContainerRef.current) {
       customLogContainerRef.current.scrollTop = customLogContainerRef.current.scrollHeight;
@@ -920,14 +940,14 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
   // Trigger VFX when celebration message is set
   useEffect(() => {
     if (celebrationMessage) {
-      setActiveVfxVideo({
-        src: celebrationMessage.isGoal ? "/vfx/goal.mp4" : "/vfx/save.mp4",
-        callback: () => {
+      triggerVfx(
+        celebrationMessage.isGoal ? "/vfx/goal.mp4" : "/vfx/save.mp4",
+        () => {
           handleAcknowledgeResolution();
         }
-      });
+      );
     }
-  }, [celebrationMessage]);
+  }, [celebrationMessage, triggerVfx]);
 
   // Safety timeout for activeVfxVideo overlay
   useEffect(() => {
@@ -937,10 +957,11 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         const cb = activeVfxVideo.callback;
         setActiveVfxVideo(null);
         if (cb) cb();
-      }, 5000);
+      }, 12000);
       return () => clearTimeout(timer);
     }
   }, [activeVfxVideo]);
+
 
   // Detect Legendary Landing and Tactical Cards Played
   useEffect(() => {
@@ -951,7 +972,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         if (slot.card && slot.card.isLegend) {
           const isNewLegend = !prevSlot || !prevSlot.card || prevSlot.card.id !== slot.card.id;
           if (isNewLegend) {
-            setActiveVfxVideo({ src: "/vfx/legandry land.mp4" });
+            triggerVfx("/vfx/legandry land.mp4");
           }
         }
       });
@@ -960,7 +981,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         if (slot.card && slot.card.isLegend) {
           const isNewLegend = !prevSlot || !prevSlot.card || prevSlot.card.id !== slot.card.id;
           if (isNewLegend) {
-            setActiveVfxVideo({ src: "/vfx/legandry land.mp4" });
+            triggerVfx("/vfx/legandry land.mp4");
           }
         }
       });
@@ -973,11 +994,15 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         const wasPresent = prevSpecialsRef.current?.player.some((ps) => ps.id === spec.id);
         if (!wasPresent) {
           if (spec.effect === "offside") {
-            setActiveVfxVideo({ src: "/vfx/offside tactic.mp4" });
+            triggerVfx("/vfx/offside tactic.mp4");
           } else if (spec.effect === "wet_pitch") {
-            setActiveVfxVideo({ src: "/vfx/wet gros tactic.mp4" });
+            triggerVfx("/vfx/wet gros tactic.mp4");
           } else if (spec.effect === "park_the_bus") {
-            setActiveVfxVideo({ src: "/vfx/bus tactic.mp4" });
+            triggerVfx("/vfx/bus tactic.mp4");
+          } else if (spec.effect === "fans") {
+            triggerVfx("/vfx/fans tactic.mp4");
+          } else if (spec.effect === "red_card") {
+            triggerVfx("/vfx/red caed tactic.mp4");
           }
         }
       });
@@ -985,17 +1010,21 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         const wasPresent = prevSpecialsRef.current?.ai.some((ps) => ps.id === spec.id);
         if (!wasPresent) {
           if (spec.effect === "offside") {
-            setActiveVfxVideo({ src: "/vfx/offside tactic.mp4" });
+            triggerVfx("/vfx/offside tactic.mp4");
           } else if (spec.effect === "wet_pitch") {
-            setActiveVfxVideo({ src: "/vfx/wet gros tactic.mp4" });
+            triggerVfx("/vfx/wet gros tactic.mp4");
           } else if (spec.effect === "park_the_bus") {
-            setActiveVfxVideo({ src: "/vfx/bus tactic.mp4" });
+            triggerVfx("/vfx/bus tactic.mp4");
+          } else if (spec.effect === "fans") {
+            triggerVfx("/vfx/fans tactic.mp4");
+          } else if (spec.effect === "red_card") {
+            triggerVfx("/vfx/red caed tactic.mp4");
           }
         }
       });
     }
     prevSpecialsRef.current = { player: playerActiveSpecial, ai: aiActiveSpecial };
-  }, [playerSlots, aiSlots, playerActiveSpecial, aiActiveSpecial]);
+  }, [playerSlots, aiSlots, playerActiveSpecial, aiActiveSpecial, triggerVfx]);
 
   // Apply incoming room updates to local state
   const applyIncomingRoomUpdate = (updatedRoom: MatchRoom) => {
@@ -1185,7 +1214,18 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     if (enemy_hand !== undefined && enemy_hand !== null) setAiHand(enemy_hand);
     if (enemy_score !== undefined) setAiScore(enemy_score);
     if (enemy_moves !== undefined) setAiMovesLeft(enemy_moves);
-    if (gs.logs !== undefined && gs.logs !== null) setLogs(gs.logs);
+    
+    if (gs.logs !== undefined && gs.logs !== null) {
+      setLogs((prev) => {
+        const localOnlyLogs = prev.filter((log) => log.localOnly);
+        // Server logs already arrive in correct chronological order.
+        // Avoid re-sorting by createdAt, which would misplace attack confirmLogs
+        // (created at shot time) relative to earlier defense logs.
+        const incomingLogs = gs.logs.filter((ilog: any) => !localOnlyLogs.some((llog) => llog.id === ilog.id));
+        // Append local-only (warning/error) logs after server logs
+        return [...incomingLogs, ...localOnlyLogs];
+      });
+    }
     if (gs.max_bonus_value !== undefined) {
       setMaxBonusValue(gs.max_bonus_value);
     }
@@ -1714,7 +1754,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       opponent_score,
       host_moves,
       opponent_moves,
-      logs: resolvedLogs,
+      logs: (resolvedLogs || []).filter((log: any) => !log.localOnly && log.type !== "warning" && log.type !== "danger"),
       current_booster: resolvedBooster,
       booster_deck: resolvedBoosterDeck,
       current_attacker_idx: resolvedAttackerIdx,
@@ -2033,6 +2073,17 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
             // Opponent waits for host to sync game over
             return 1;
           }
+
+          // Check if it is safe to end the match (no active round in progress)
+          const isSafeToEnd =
+            (phase === "player_turn" && playerMovesLeft === maxMovesPerTurn && cardsDrawnThisTurn === 0) ||
+            (phase === "ai_turn" && aiMovesLeft === maxMovesPerTurn && aiCardsDrawnThisTurn === 0);
+
+          if (!isSafeToEnd) {
+            // Clamp clock at 1 (injury/stoppage time) – wait for the current round to finish
+            return 1;
+          }
+
           clearInterval(timer);
           SoundEffects.playWhistle();
           setPhase("game_over");
@@ -2537,13 +2588,19 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
   // Add a standard log helper
   const addLog = (text: string, type: ActionLog["type"] = "neutral") => {
+    const resolvedRole = multiplayerRoleRef.current || multiplayerRole;
+    const isError = type === "warning" || type === "danger";
     const newLog: ActionLog = {
       id: Math.random().toString(36).substr(2, 9),
       timestamp: getFormattedTime(),
       text,
-      type
+      type,
+      sender: isError ? (resolvedRole || "host") : "system",
+      localOnly: isError,
+      round: completedRounds + 1,
+      createdAt: Date.now()
     };
-    if ((phaseRef.current === "attacking" || phaseRef.current === "ai_attacking") && type !== "warning" && type !== "danger") {
+    if ((phaseRef.current === "attacking" || phaseRef.current === "ai_attacking") && !isError) {
       setTempPhaseLogs((prev) => [...prev, newLog]);
     } else {
       setLogs((prev) => [...prev, newLog]);
@@ -2677,6 +2734,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       // Switch to Warmup
       setPhase("warmup");
       setLogs([]);
+      setLogsClearedTime(0);
       addLog(`صافرة البداية! دخل ${formatNameWithTitle(name, "المدرب")} بهوية ${vibe} لملاقاة خصمه ذو الصعوبة [${diff === "normal" ? "ناشئ" : diff === "tactical" ? "محترف" : "أسطوري"}].`, "success");
       addLog(`مرحلة التسخين نشطة! الملعب فارغ حالياً، قم بسحب ${initialCards} لاعبين لتوزيع مراكزهم بالضغط على زر 'سحب لاعب' (سيكون اللاعبون مقلوبين تكتيكياً)، ثم اضغط على زر 'بدء اللقاء' لتنطلق صافرة الحكم.`, "info");
       addLog("حقيبة الكروت بيدك فارغة حالياً. بمجرد تأكيد الخطة وبدء اللقاء، يمكنك سحب كروت تكتيكية جديدة في أدوارك ليدك لدعم مهارات وهجوم فريقك.", "neutral");
@@ -2718,6 +2776,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     setPlayerHand(newHand);
     setPlayerSlots(newSlots);
     setSelectedHandCardId(null);
+    setIsHandExpanded(false);
     SoundEffects.playCardDraw();
     syncMultiplayerIfActive({
       playerHand: newHand,
@@ -2843,7 +2902,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         setPlayerDeck(updatedDeck);
 
         const drawnCount = updatedSlots.filter((s) => s.card !== null).length;
-        addLog(`[التسخين] لقد سحبت اللاعب مقلوباً ووضعته بيدك بمركز الملعب [ ${emptyIdx + 1} ]. (سحبت ${drawnCount}/${initialCardsCount})`, "success");
+        // Warmup draw is intermediate, so we do not add a log here.
         SoundEffects.playCardDraw();
         syncMultiplayerIfActive({
           playerSlots: updatedSlots,
@@ -2856,7 +2915,10 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     }
 
     const currentDrawLimit = phase === "ai_attacking" ? defenseDrawsLimit : maxDrawsPerTurn;
-    if (cardsDrawnThisTurn >= currentDrawLimit) return;
+    if (cardsDrawnThisTurn >= currentDrawLimit) {
+      addLog(`⚠️ خطأ: لقد وصلت للحد الأقصى لعدد السحبات في هذا الدور (${currentDrawLimit} سحبة)!`, "warning");
+      return;
+    }
 
     let nextHand = [...playerHand];
     let nextPlayerDeck = [...playerDeck];
@@ -3275,10 +3337,6 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       let logMsg = "";
       if (phase === "player_turn") {
         logMsg = `✨ تكتيك عام: قمت بتفعيل كارت التكتيك [ ${card.name} ] (استهلكت حركة واحدة)`;
-      } else if (phase === "attacking") {
-        logMsg = `⚔️ تعزيز الهجوم: قمت بتفعيل كارت التكتيك [ ${card.name} ] لتعزيز الهجمة! (استهلكت حركة واحدة)`;
-      } else if (phase === "ai_attacking") {
-        logMsg = `🛡️ تعزيز الدفاع: قمت بتفعيل كارت التكتيك [ ${card.name} ] لصد الهجوم! (استهلكت حركة واحدة)`;
       }
       if (logMsg) addLog(logMsg, "success");
     }
@@ -3286,17 +3344,20 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     setSelectedHandCardId(null);
     SoundEffects.playCardDraw();
 
-    setCinematicEvent({
-      type: "tactical",
-      title: "تفعيل تكتيك خاص! ⚡",
-      subtitle: card.description || "",
-      cardName: card.name,
-      cardIcon: card.icon,
-      isLegend: false
-    });
-    setTimeout(() => {
-      setCinematicEvent(null);
-    }, 1800);
+    const hasVfxVideo = card.effect === "offside" || card.effect === "wet_pitch" || card.effect === "park_the_bus" || card.effect === "fans" || card.effect === "red_card";
+    if (!hasVfxVideo) {
+      setCinematicEvent({
+        type: "tactical",
+        title: "تفعيل تكتيك خاص! ⚡",
+        subtitle: card.description || "",
+        cardName: card.name,
+        cardIcon: card.icon,
+        isLegend: false
+      });
+      setTimeout(() => {
+        setCinematicEvent(null);
+      }, 1800);
+    }
 
     const isAttackerPlay = (phase === "player_turn" || phase === "attacking");
     syncMultiplayerIfActive({
@@ -3487,7 +3548,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         // Pitch-to-pitch slot swap
         if (selectedPitchSlotIdx === null) {
           setSelectedPitchSlotIdx(idx);
-          addLog(`[التسخين] تم تحديد اللاعب بالمركز ${idx + 1}. حدد مركزاً آخر للتبديل معه بالملعب.`, "neutral");
+          // Selection is intermediate, so we do not add a log here.
         } else {
           if (selectedPitchSlotIdx === idx) {
             setSelectedPitchSlotIdx(null);
@@ -3500,7 +3561,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
           newSlots[idx] = { ...newSlots[idx], card: card1 };
           setPlayerSlots(newSlots);
           setSelectedPitchSlotIdx(null);
-          addLog(`[التسخين] تم تبديل مراكز اللاعبين بالملعب بين المركز ${selectedPitchSlotIdx + 1} والمركز ${idx + 1} بنجاح!`, "success");
+          // Swapping in warmup is intermediate layout setup, so we do not add a log here.
           SoundEffects.playCardDraw();
           syncMultiplayerIfActive(undefined, "CARD_SWAPPED");
         }
@@ -3603,6 +3664,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
           setPlayerMovesLeft((prev) => Math.max(0, prev - 1));
           handleCancelSelection();
+          setIsHandExpanded(false);
           SoundEffects.playWhistle();
           triggerCardInstantEffects(playerCard, true, "CardPlayed");
           syncMultiplayerIfActive(undefined, "CARD_PLACED");
@@ -3634,6 +3696,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
 
         setPlayerMovesLeft((prev) => Math.max(0, prev - 1));
         setSelectedHandCardId(null);
+        setIsHandExpanded(false);
         SoundEffects.playCardDraw();
         triggerCardInstantEffects(playerCard, true, "CardPlayed");
         syncMultiplayerIfActive(undefined, "CARD_PLACED");
@@ -3757,15 +3820,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
       setPlayerSlots(newSlots);
       setDefenseMovesLeft((prev) => Math.max(0, prev - 1));
-      setTempPhaseLogs((prev) => [
-        ...prev,
-        {
-          id: Math.random().toString(),
-          timestamp: getFormattedTime(),
-          text: `🛡️ تم كشف المدافع [ ${clickedSlot.card.name} ] لصد الهجوم! (استهلكت حركة واحدة)`,
-          type: "success"
-        }
-      ]);
+      // Immediate slot reveal is intermediate, so we do not add a log here.
       SoundEffects.playCardDraw();
       syncMultiplayerIfActive(undefined, "CARD_REVEALED");
 
@@ -3939,15 +3994,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
       newSlots[idx] = { ...clickedSlot, isRevealed: true, revealedInTurn: turnCount, revealedInAttack: true };
       setPlayerSlots(newSlots);
       setPlayerMovesLeft((prev) => Math.max(0, prev - 1));
-      setTempPhaseLogs((prev) => [
-        ...prev,
-        {
-          id: Math.random().toString(),
-          timestamp: getFormattedTime(),
-          text: `⚔️ تم كشف المهاجم الداعم [ ${clickedSlot.card.name} ] لتعزيز الهجمة! (استهلكت حركة واحدة)`,
-          type: "success"
-        }
-      ]);
+      // Immediate slot reveal is intermediate, so we do not add a log here.
       SoundEffects.playCardDraw();
       syncMultiplayerIfActive(undefined, "CARD_REVEALED");
 
@@ -4114,15 +4161,17 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         }
       });
 
-      setCinematicEvent({
-        type: "ability",
-        title: "تفعيل قدرة أسطورية! 👑",
-        subtitle: attacker.description || "",
-        cardName: attacker.name,
-        cardIcon: attacker.avatar,
-        isLegend: attacker.isLegend
-      });
-      setTimeout(() => setCinematicEvent(null), 1800);
+      if (!attacker.isLegend) {
+        setCinematicEvent({
+          type: "ability",
+          title: "تفعيل قدرة أسطورية! 👑",
+          subtitle: attacker.description || "",
+          cardName: attacker.name,
+          cardIcon: attacker.avatar,
+          isLegend: attacker.isLegend
+        });
+        setTimeout(() => setCinematicEvent(null), 1800);
+      }
     } else {
       // triggerAttackStartedAbilities("player") logic on tempGS
       tempGS.host_slots.forEach((slot) => {
@@ -4459,15 +4508,20 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         id: Math.random().toString(36).substr(2, 9),
         timestamp: getFormattedTime(),
         text,
-        type
+        type,
+        sender: multiplayerRoleRef.current || multiplayerRole || "host",
+        round: completedRounds + 1,
+        createdAt: Date.now()
       });
     };
 
     // 1. Initial declare log
     addConfirmLog(`⚔️ تم بدء الهجمة بقيادة المهاجم [ ${attacker.name} ] بقوة هجوم أساسية ${attacker.attack}، وسحبت معزز [ ${currentBooster.text} ] (+${currentBooster.value})! (استهلكت حركة واحدة)`, "info");
-    
-    // 2. Opponent study log
-    addConfirmLog(`🛡️ الخصم يدرس التمريرات ويتمااسك دفاعياً بانتظار تسديدتك الحاسمة ليرى تشكيلتك كاملة...`, "neutral");
+
+    // 2. Opponent study log — only shown in offline/AI mode, not between real players
+    if (!isMultiplayer) {
+      addConfirmLog(`🛡️ الخصم يدرس التمريرات ويتمسك دفاعياً بانتظار تسديدتك الحاسمة...`, "neutral");
+    }
 
     // 3. Supporting strikers reveals (if any)
     playerSlots.forEach((slot, idx) => {
@@ -4485,9 +4539,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     playerActiveSpecial.forEach((spec) => {
       addConfirmLog(`✨ تم تعزيز الهجوم بكارت التكتيك [ ${spec.name} ]!`, "success");
     });
-
-    // 6. Final shoot log
-    addConfirmLog(`⚽ تسديدة حاسمة: قام المهاجم [ ${attacker.name} ] بالتسديد بقوة ${attacker.attack}!`, "info");
+    // Note: No duplicate "final shot" log — the attacker is already named above and in the summary.
 
     const updatedLogs = [...logs, ...confirmLogs];
 
@@ -4615,15 +4667,20 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         id: Math.random().toString(36).substr(2, 9),
         timestamp: getFormattedTime(),
         text,
-        type
+        type,
+        sender: multiplayerRoleRef.current || multiplayerRole || "host",
+        round: completedRounds + 1,
+        createdAt: Date.now()
       });
     };
 
     // 1. Initial declare log
     addConfirmLog(`⚔️ تم بدء الهجمة بقيادة المهاجم [ ${attacker.name} ] بقوة هجوم أساسية ${attacker.attack}، وسحبت معزز [ ${currentBooster?.text} ] (+${currentBooster?.value})! (استهلكت حركة واحدة)`, "info");
-    
-    // 2. Opponent study log
-    addConfirmLog(`🛡️ الخصم يدرس التمريرات ويتمااسك دفاعياً بانتظار تسديدتك الحاسمة ليرى تشكيلتك كاملة...`, "neutral");
+
+    // 2. Opponent study log — only shown in offline/AI mode, not between real players
+    if (!isMultiplayer) {
+      addConfirmLog(`🛡️ الخصم يدرس التمريرات ويتمسك دفاعياً بانتظار تسديدتك الحاسمة...`, "neutral");
+    }
 
     // 3. Supporting strikers reveals (if any)
     playerSlots.forEach((slot, idx) => {
@@ -4641,6 +4698,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     playerActiveSpecial.forEach((spec) => {
       addConfirmLog(`✨ تم تعزيز الهجوم بكارت التكتيك [ ${spec.name} ]!`, "success");
     });
+    // Note: No duplicate "final shot" log — the attacker is already named above and in the summary.
 
     // Accumulate scores for final consolation modal
     const attackDetail = getDetailedCalculation(true, true, currentAttackerIdx, currentBooster, playerActiveSpecial, aiActiveSpecial, playerSlots as SlotData[], aiSlots as SlotData[], isPlayerAttacker);
@@ -5625,7 +5683,10 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
         id: Math.random().toString(36).substr(2, 9),
         timestamp: getFormattedTime(),
         text,
-        type
+        type,
+        sender: multiplayerRoleRef.current || multiplayerRole || "host",
+        round: completedRounds + 1,
+        createdAt: Date.now()
       });
     };
 
@@ -5819,6 +5880,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
     setActiveTargetingCard(null);
     setShowConfetti(false);
     setLogs([]);
+    setLogsClearedTime(0);
     setTempPhaseLogs([]);
     setMatchRounds([]);
     setAiCardsDrawnThisTurn(0);
@@ -6038,95 +6100,18 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
               </div>
 
               {/* Box 2 (Actions Commentary Log) - Scrollable list strictly bounded with custom thin scrollbar */}
-              <div 
-                id="commentary_sidebar_panel"
-                className="border border-[#125827]/45 bg-[#050a06] rounded-xl flex-1 flex flex-col overflow-hidden p-2 shadow-sm min-h-[90px]"
-              >
-                <div className="text-white/40 text-[8.5px] font-bold font-sans border-b border-white/5 pb-0.5 mb-1 text-right flex items-center justify-between shrink-0">
-                  <span>⏱️ التعليق المباشر</span>
-                  <span>سجل حركات اللعب</span>
-                </div>
-                <div 
-                  ref={customLogContainerRef}
-                  className="flex-1 overflow-y-auto space-y-1 pr-1 scroll-smooth text-right direction-rtl select-text scrollbar-thin scrollbar-thumb-emerald-800/50"
-                >
-                  {logs.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-white/20 text-[8.5px] p-1.5 leading-relaxed">
-                      <span>جرى التحضير... ابدأ بتحريك خطوطك! 🏃‍♂️</span>
-                    </div>
-                  ) : (
-                    groupLogsByTurns(logs).map((group, groupIdx) => {
-                      let borderClass = "border-blue-500/15";
-                      let bgClass = "bg-linear-to-b from-blue-950/10 to-[#050a06]";
-                      let badgeColor = "bg-blue-500/5 text-blue-400 border-blue-500/15";
-                      let badgeText = "مباراة";
-                      let titleColor = "text-blue-400";
-                      
-                      if (group.type === "player") {
-                        borderClass = "border-emerald-500/20";
-                        bgClass = "bg-linear-to-b from-emerald-950/15 to-[#050a06]";
-                        badgeColor = "bg-emerald-500/5 text-emerald-400 border-emerald-500/15";
-                        badgeText = "دورك";
-                        titleColor = "text-emerald-400";
-                      } else if (group.type === "ai") {
-                        borderClass = "border-rose-500/15";
-                        bgClass = "bg-linear-to-b from-rose-950/10 to-[#050a06]";
-                        badgeColor = "bg-rose-500/5 text-rose-400 border-rose-500/15";
-                        badgeText = "الخصم";
-                        titleColor = "text-rose-400";
-                      }
-                      
-                      const groupTime = group.logs[0]?.timestamp || "";
-                      
-                      return (
-                        <div 
-                          key={`commentary-group-${groupIdx}`} 
-                          className={`border ${borderClass} ${bgClass} rounded-lg p-1 px-1.5 flex flex-col gap-1 transition-all mb-1.5`}
-                        >
-                          {/* Group Header */}
-                          <div className="flex items-center justify-between flex-row-reverse border-b border-white/5 pb-0.5 text-[8px] font-bold">
-                            <span className={`${titleColor}`}>{group.title}</span>
-                            <div className="flex items-center gap-1 flex-row">
-                              {groupTime && (
-                                <span className="text-slate-400 font-mono text-[7px] bg-white/5 px-1 py-0.2 rounded border border-white/5">
-                                  ⏱ {groupTime}
-                                </span>
-                              )}
-                              <span className={`px-1 py-0.2 rounded text-[7px] border font-sans font-black ${badgeColor}`}>
-                                {badgeText}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          {/* Group Logs */}
-                          <div className="flex flex-col gap-0.5">
-                            {group.logs.map((log) => {
-                              const isDetailed = log.text.includes("تفاصيل الحسبة الفنية:");
-                              if (isDetailed) {
-                                return renderDetailedLog(log);
-                              }
-                              
-                              const isDanger = log.type === "danger";
-                              const isSuccess = log.type === "success";
-                              const isWarning = log.type === "warning";
-                              let colorClass = "text-white/70";
-                              if (isDanger) colorClass = "text-[#ff6b6b]";
-                              else if (isSuccess) colorClass = "text-[#00ff88] font-semibold";
-                              else if (isWarning) colorClass = "text-amber-400";
-                              
-                              return (
-                                <div key={log.id} className="text-[8.5px] leading-snug border-b border-white/5 last:border-0 pb-0.5 last:pb-0 flex items-start gap-1 justify-end font-sans">
-                                  <span className={`${colorClass} flex-1 text-right whitespace-pre-line`}>{log.text}</span>
-                                  <span className="text-emerald-500/40 shrink-0 self-center text-[7px]">•</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+              <div className={`flex flex-col overflow-hidden transition-all duration-300 ${
+                showCommentary 
+                  ? "h-[36px] min-h-[36px]" 
+                  : "flex-1 min-h-0"
+              }`}>
+                <ActionTickerLog
+                  logs={logs.filter(log => !log.createdAt || log.createdAt > logsClearedTime)}
+                  onClear={() => setLogsClearedTime(Date.now())}
+                  multiplayerRole={multiplayerRole}
+                  isOffline={false}
+                  collapsed={showCommentary}
+                />
               </div>
 
               {/* Box 3 (Draw Decks & Substitutes controls) - Standard compact sizes exactly as requested */}
@@ -6635,7 +6620,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
                           <button
                             type="button"
                             onClick={handleResolveAttack}
-                            className="bg-rose-600 hover:bg-rose-500 text-white font-black py-0.5 px-1.5 md:px-3 rounded-md text-[7.5px] md:text-[10px] cursor-pointer transition-colors leading-none"
+                            disabled={isRefereeResolving}
+                            className="bg-rose-600 hover:bg-rose-500 text-white font-black py-0.5 px-1.5 md:px-3 rounded-md text-[7.5px] md:text-[10px] cursor-pointer transition-colors leading-none disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             تسديدة ⚽
                           </button>
@@ -6663,7 +6649,8 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
                         <button
                           type="button"
                           onClick={handleConfirmDefense}
-                          className="bg-blue-600 hover:bg-blue-500 text-white font-black py-0.5 px-1.5 md:px-3 rounded-md text-[7.5px] md:text-[10px] cursor-pointer transition-colors leading-none"
+                          disabled={isRefereeResolving}
+                          className="bg-blue-600 hover:bg-blue-500 text-white font-black py-0.5 px-1.5 md:px-3 rounded-md text-[7.5px] md:text-[10px] cursor-pointer transition-colors leading-none disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           تأكيد 🛡️
                         </button>
@@ -6911,26 +6898,37 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md select-none"
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black select-none overflow-hidden"
           >
+            {/* Background Looping Halftime Video */}
+            <video
+              src={`/vfx/Mid rest.mp4?v=${Date.now()}`}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover opacity-60 z-0"
+            />
+            
+            {/* Glassmorphic overlay HUD */}
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="bg-linear-to-b from-[#0b0f0c] to-black border border-emerald-500/30 rounded-3xl p-6 md:p-8 max-w-md w-full mx-4 text-center shadow-[0_0_50px_rgba(16,185,129,0.15)] flex flex-col items-center gap-4"
+              className="relative z-10 bg-black/50 backdrop-blur-lg border border-white/10 rounded-3xl p-6 md:p-8 max-w-md w-full mx-4 text-center shadow-[0_0_80px_rgba(0,0,0,0.8)] flex flex-col items-center gap-4"
               dir="rtl"
             >
-              <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/35 rounded-full flex items-center justify-center text-3xl shadow-inner animate-pulse">
+              <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center text-3xl shadow-inner animate-pulse">
                 ⏸️
               </div>
               <h2 className="text-xl md:text-2xl font-black text-white">استراحة الشوطين</h2>
-              <p className="text-[10px] md:text-xs text-slate-400 max-w-xs leading-relaxed">
+              <p className="text-[10px] md:text-xs text-slate-300 max-w-xs leading-relaxed">
                 انتهى الشوط الأول التكتيكي. خذ قسطاً من الراحة لترتيب أوراقك وخططك للشوط الثاني!
               </p>
 
               {/* Countdown Progress Circle/Bar */}
               <div className="flex flex-col items-center gap-1.5 bg-black/40 border border-white/5 px-4 py-2.5 rounded-2xl w-full">
-                <span className="text-[10px] text-slate-500 font-bold">الوقت المتبقي للاستراحة:</span>
+                <span className="text-[10px] text-slate-400 font-bold">الوقت المتبقي للاستراحة:</span>
                 <span className="text-2xl font-mono font-black text-emerald-400">
                   {halfTimeBreakLeft} ثانية
                 </span>
@@ -6942,7 +6940,7 @@ export default function GameOnline({ config, onReturnToMenu }: GameOnlineProps) 
                   SoundEffects.playCardDraw();
                   setIsHandExpanded(true);
                 }}
-                className="w-full py-2.5 bg-linear-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-extrabold rounded-xl text-xs cursor-pointer shadow-md transition-all flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl text-xs cursor-pointer shadow-lg transition-all flex items-center justify-center gap-2"
               >
                 <span>📋</span>
                 <span>عرض التشكيلة والبدلاء</span>
